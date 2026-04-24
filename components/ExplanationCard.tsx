@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useStreamExplain } from '@/hooks/useStreamExplain';
-import { saveNote } from '@/lib/storage';
+import { saveNoteAction } from '@/app/actions';
 import { cn } from '@/lib/cn';
 
 interface SelectionPopoverState {
@@ -72,15 +72,20 @@ export default function ExplanationCard({
     window.getSelection()?.removeAllRanges();
   }, [popover]);
 
-  const handleSave = useCallback(() => {
+  const handleSave = useCallback(async () => {
     if (!text) return;
-    const entry = saveNote({
-      inputText,
-      explanation: text,
-      parentText: context,
-    });
-    setSavedId(entry.id);
-    onSaved?.();
+    try {
+      const entry = await saveNoteAction({
+        inputText,
+        explanation: text,
+        parentText: context,
+        source: 'web',
+      });
+      setSavedId(entry.id);
+      onSaved?.();
+    } catch (err) {
+      console.error('Failed to save note', err);
+    }
   }, [text, inputText, context, onSaved]);
 
   const depthColors = [

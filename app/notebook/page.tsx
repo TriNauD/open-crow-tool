@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import Link from 'next/link';
-import { getNotes, deleteNote, searchNotes, type NoteEntry } from '@/lib/storage';
+import { getNotesAction, deleteNoteAction, searchNotesAction } from '@/app/actions';
+import type { NoteEntry } from '@/lib/storage';
 
 function formatDate(ts: number): string {
   return new Intl.DateTimeFormat('zh-CN', {
@@ -17,12 +18,26 @@ export default function NotebookPage() {
   const [notes, setNotes] = useState<NoteEntry[]>([]);
   const [query, setQuery] = useState('');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [isLoading, setIsLoading] = useState(true);
+  const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
-    setNotes(getNotes());
+    getNotesAction()
+      .then(setNotes)
+      .catch(console.error)
+      .finally(() => setIsLoading(false));
   }, []);
 
-  const displayed = query.trim() ? searchNotes(query) : notes;
+  useEffect(() => {
+    if (!query.trim()) {
+      getNotesAction().then(setNotes).catch(console.error);
+      return;
+    }
+    const timer = setTimeout(() => {
+      searchNotesAction(query).then(setNotes).catch(console.error);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [query]);
 
   function toggleExpand(id: string) {
     setExpanded((prev) => {
@@ -33,13 +48,14 @@ export default function NotebookPage() {
   }
 
   function handleDelete(id: string) {
-    deleteNote(id);
-    setNotes(getNotes());
+    startTransition(async () => {
+      await deleteNoteAction(id);
+      setNotes((prev) => prev.filter((n) => n.id !== id));
+    });
   }
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col">
-      {/* Nav */}
       <header className="border-b border-zinc-800 px-6 py-4 flex items-center justify-between">
         <Link
           href="/"
@@ -55,9 +71,11 @@ export default function NotebookPage() {
           <div>
             <h1 className="text-2xl font-bold mb-1">笔记本</h1>
             <p className="text-zinc-500 text-sm">
-              {notes.length === 0
-                ? '还没存过任何东西'
-                : `共 ${notes.length} 条，上次那个他妈的玩意儿你还记得吗`}
+              {isLoading
+                ? '加载中...'
+                : notes.length === 0
+                  ? '还没存过任何东西'
+                  : `共 ${notes.length} 条，上次那个他妈的玩意儿你还记得吗`}
             </p>
           </div>
           <Link
@@ -68,8 +86,7 @@ export default function NotebookPage() {
           </Link>
         </div>
 
-        {/* Search */}
-        {notes.length > 0 && (
+        {!isLoading && notes.length > 0 && (
           <div className="mb-6">
             <input
               type="text"
@@ -81,8 +98,16 @@ export default function NotebookPage() {
           </div>
         )}
 
-        {/* Notes list */}
-        {displayed.length === 0 ? (
+        {isLoading ? (
+          <div className="text-center py-20">
+            <div className="flex items-center justify-center gap-2 text-zinc-500 text-sm">
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse" />
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse delay-150" />
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse delay-300" />
+              <span>加载中...</span>
+            </div>
+          </div>
+        ) : notes.length === 0 ? (
           <div className="text-center py-20">
             <p className="text-zinc-600 text-base mb-4">
               {query ? '没找到匹配的记录' : '什么都没有，去问几个试试'}
@@ -98,13 +123,14 @@ export default function NotebookPage() {
           </div>
         ) : (
           <div className="flex flex-col gap-3">
-            {displayed.map((note) => (
+            {notes.map((note) => (
               <NoteCard
                 key={note.id}
                 note={note}
                 isExpanded={expanded.has(note.id)}
                 onToggle={() => toggleExpand(note.id)}
                 onDelete={() => handleDelete(note.id)}
+                isDeleting={isPending}
               />
             ))}
           </div>
@@ -119,15 +145,16 @@ function NoteCard({
   isExpanded,
   onToggle,
   onDelete,
+  isDeleting,
 }: {
   note: NoteEntry;
   isExpanded: boolean;
   onToggle: () => void;
   onDelete: () => void;
+  isDeleting: boolean;
 }) {
   return (
     <div className="border border-zinc-800 rounded-xl bg-zinc-900 overflow-hidden">
-      {/* Header row */}
       <button
         onClick={onToggle}
         className="w-full flex items-start justify-between gap-3 px-4 py-3 text-left hover:bg-zinc-800/50 transition-colors"
@@ -136,6 +163,9 @@ function NoteCard({
           <div className="flex items-center gap-2 mb-0.5">
             {note.parentText && (
               <span className="text-xs text-orange-400/70 font-medium shrink-0">追问</span>
+            )}
+            {note.source === 'chrome_extension' && (
+              <span className="text-xs text-blue-400/70 font-medium shrink-0">插件</span>
             )}
             <p className="text-sm text-zinc-200 font-medium truncate">{note.inputText}</p>
           </div>
@@ -152,7 +182,6 @@ function NoteCard({
         </svg>
       </button>
 
-      {/* Expanded content */}
       {isExpanded && (
         <div className="px-4 pb-4 border-t border-zinc-800">
           {note.parentText && (
@@ -167,7 +196,8 @@ function NoteCard({
           <div className="mt-4 flex items-center justify-end">
             <button
               onClick={onDelete}
-              className="text-xs text-zinc-600 hover:text-red-400 transition-colors"
+              disabled={isDeleting}
+              className="text-xs text-zinc-600 hover:text-red-400 disabled:opacity-40 transition-colors"
             >
               删除
             </button>

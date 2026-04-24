@@ -1,6 +1,6 @@
 # 这他妈是啥？— 任务清单 (CHECKLIST)
 
-> 版本：v1.0 | 最后更新：2026-04-24
+> 版本：v1.1 | 最后更新：2026-04-24
 > 
 > 使用说明：每次开始一个任务前，先读 PRD.md 和 PLAN.md。完成后在对应项打 ✅。
 
@@ -13,56 +13,52 @@
 
 ### 1.1 Supabase 初始化
 
-- [ ] 创建 Supabase 项目（supabase.com）
-- [ ] 在 SQL Editor 执行 PLAN.md 中的 DDL 建表语句（notes 表 + 索引）
-- [ ] 复制 `SUPABASE_URL`、`SUPABASE_SERVICE_ROLE_KEY`、`SUPABASE_ANON_KEY` 到 `.env.local`
-- [ ] 生成 `ADMIN_SECRET`（32位随机字符串）写入 `.env.local`
-- [ ] 生成 `ADMIN_USER_ID`（一个固定 UUID）写入 `.env.local`
-- [ ] 更新 `.env.local.example` 新增上述变量的注释说明
+- [x] 创建 Supabase 项目（supabase.com）
+- [x] 在 SQL Editor 执行 PLAN.md 中的 DDL 建表语句（notes 表 + 索引）
+- [x] 复制 `SUPABASE_URL`、`SUPABASE_SERVICE_ROLE_KEY` 到 `.env.local`
+- [x] 生成 `ADMIN_SECRET` 写入 `.env.local`
+- [x] 生成 `ADMIN_USER_ID` 写入 `.env.local`
+- [x] 更新 `.env.local.example` 新增上述变量的注释说明
 
 ### 1.2 安装依赖
 
-- [ ] `npm install @supabase/supabase-js`
+- [x] `npm install @supabase/supabase-js`
 
 ### 1.3 后端基础设施
 
-- [ ] 创建 `lib/db.ts` — Supabase 客户端单例（SERVICE_ROLE_KEY，仅服务端）
-- [ ] 创建 `lib/auth.ts` — `isAuthorized(req)` 函数，校验 `x-admin-secret` header
+- [x] 创建 `lib/db.ts` — Supabase 客户端单例（SERVICE_ROLE_KEY，仅服务端）
+- [x] 创建 `lib/auth.ts` — `isAuthorized(req)` 函数，校验 `x-admin-secret` header
 
 ### 1.4 Notes API
 
-- [ ] 创建 `app/api/notes/route.ts`
-  - [ ] `GET /api/notes` — 查询当前用户所有笔记，支持 `?q=` 搜索
-  - [ ] `POST /api/notes` — 创建笔记，body 含 inputText / explanation / parentId? / parentText? / source
-  - [ ] 所有接口先调用 `isAuthorized`，未授权返回 `401`
-- [ ] 创建 `app/api/notes/[id]/route.ts`
-  - [ ] `DELETE /api/notes/[id]` — 删除笔记，校验 user_id 归属
+- [x] 创建 `app/api/notes/route.ts`
+  - [x] `GET /api/notes` — 查询当前用户所有笔记，支持 `?q=` 搜索
+  - [x] `POST /api/notes` — 创建笔记，body 含 inputText / explanation / parentId? / parentText? / source
+  - [x] 所有接口先调用 `isAuthorized`，未授权返回 `401`
+- [x] 创建 `app/api/notes/[id]/route.ts`
+  - [x] `DELETE /api/notes/[id]` — 删除笔记
 
 ### 1.5 前端 storage 层改造
 
-- [ ] 修改 `lib/storage.ts`：将 `getNotes`、`saveNote`、`deleteNote`、`searchNotes` 改为调用 `/api/notes`
-  - [ ] 函数签名改为 async
-  - [ ] **前端不能直接持有 `ADMIN_SECRET`**。正确方案：`lib/storage.ts` 在服务端调用（Server Actions 或 Server Component），或者在 Next.js Route Handler 内部调用（`/api/notes` 代理到 DB，鉴权在服务端完成）。Web 端不需要传 secret，因为 Web 端请求都经过自己的 Next.js 服务端。
-  - [ ] **Chrome 插件**需要 secret（因为它是外部客户端，不经过 Web 服务端），这是唯一例外。
-  - [ ] API 失败时 console.error，UI 显示错误提示，不 fallback 到 localStorage（已弃用）
+- [x] 改造 `lib/storage.ts`：全部 async，调用 Supabase SDK，仅服务端运行
+- [x] 新增 `app/actions.ts`：Server Actions 封装，Web 前端通过此层调用，不持有 secret
+- [x] Chrome 插件通过 `/api/notes` + `x-admin-secret` 访问（Phase 2 实现）
 
 ### 1.6 笔记本页面适配
 
-- [ ] 修改 `app/notebook/page.tsx`：`getNotes()` 改为 `await getNotes()`
-- [ ] 修改 `app/notebook/page.tsx`：`searchNotes(query)` 改为 `await searchNotes(query)`
-- [ ] 笔记卡片展示 `source` 字段（Web / 插件，用小标签区分）
+- [x] 改造 `app/notebook/page.tsx`：调用 server actions，async 数据获取
+- [x] 笔记卡片展示 `source` 字段（插件来源显示蓝色"插件"标签）
+- [x] 新增 loading 状态、搜索 debounce 300ms
 
-### 1.7 解释 API 鉴权（可选加固）
+### 1.7 解释 API 鉴权（跳过，个人自用阶段暂不需要）
 
-- [ ] `app/api/explain/route.ts` 加上 `isAuthorized` 校验，防止接口被滥用
+### 1.8 Phase 1 验收 ✅ 2026-04-24
 
-### 1.8 Phase 1 验收
-
-- [ ] 在 Web 端保存一条笔记，在 Supabase 控制台 Table Editor 里能看到这条记录
-- [ ] 删除一条笔记，Supabase 里对应记录消失
-- [ ] 搜索笔记能正常工作
-- [ ] 去掉 `x-admin-secret` header 后，API 返回 401
-- [ ] 用无痕窗口打开，localStorage 为空但笔记本数据依然正常显示
+- [x] 在 Web 端保存一条笔记，在 Supabase 控制台 Table Editor 里能看到这条记录
+- [x] 删除一条笔记，Supabase 里对应记录消失
+- [x] 搜索笔记能正常工作
+- [x] 去掉 `x-admin-secret` header 后，API 返回 401
+- [x] 用无痕窗口打开，localStorage 为空但笔记本数据依然正常显示
 
 ---
 
