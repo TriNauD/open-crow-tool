@@ -1,35 +1,37 @@
+import type { Stream } from 'openai/streaming';
+import type { ChatCompletionChunk } from 'openai/resources/chat/completions';
 import OpenAI from 'openai';
+import {
+  getModelForProvider,
+  getNvidiaModel,
+  getNvidiaOpenAI,
+  getOpenAIForProvider,
+  getPrimaryProvider,
+  isNvidiaFallbackEnabled,
+} from '@/lib/ai-providers';
 import { SYSTEM_PROMPT, buildExplainPrompt } from '@/lib/prompts';
 
-const PROVIDER_DEFAULTS: Record<string, { baseURL: string; model: string }> = {
-  openai:      { baseURL: 'https://api.openai.com/v1',      model: 'gpt-4o' },
-  deepseek:    { baseURL: 'https://api.deepseek.com/v1',    model: 'deepseek-chat' },
-  siliconflow: { baseURL: 'https://api.siliconflow.cn/v1',  model: 'deepseek-ai/DeepSeek-V3' },
-};
-
-function getAIClient() {
-  const provider = (process.env.AI_PROVIDER ?? 'openai').toLowerCase();
-  const defaults = PROVIDER_DEFAULTS[provider] ?? PROVIDER_DEFAULTS.openai;
-
-  const apiKey =
-    process.env.AI_API_KEY ??
-    process.env.DEEPSEEK_API_KEY ??
-    process.env.OPENAI_API_KEY;
-
-  const baseURL = process.env.AI_BASE_URL ?? defaults.baseURL;
-
-  return new OpenAI({ apiKey, baseURL });
+async function createChatStream(
+  client: OpenAI,
+  model: string,
+  userPrompt: string
+): Promise<Stream<ChatCompletionChunk>> {
+  return client.chat.completions.create({
+    model,
+    messages: [
+      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'user', content: userPrompt },
+    ],
+    max_tokens: 400,
+    temperature: 0.7,
+    stream: true,
+  });
 }
 
-function getModel() {
-  const provider = (process.env.AI_PROVIDER ?? 'openai').toLowerCase();
-  const defaults = PROVIDER_DEFAULTS[provider] ?? PROVIDER_DEFAULTS.openai;
-  return (
-    process.env.AI_MODEL ??
-    process.env.DEEPSEEK_MODEL ??
-    process.env.OPENAI_MODEL ??
-    defaults.model
-  );
+function shouldTryNvidiaFallback(): boolean {
+  if (getPrimaryProvider() === 'nvidia') return false;
+  if (!process.env.NVIDIA_API_KEY?.trim()) return false;
+  return isNvidiaFallbackEnabled();
 }
 
 export async function POST(req: Request) {
@@ -41,17 +43,25 @@ export async function POST(req: Request) {
     }
 
     const userPrompt = buildExplainPrompt(text.trim(), context?.trim());
+    const primary = getPrimaryProvider();
 
-    const stream = await getAIClient().chat.completions.create({
-      model: getModel(),
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: userPrompt },
-      ],
-      max_tokens: 400,
-      temperature: 0.7,
-      stream: true,
-    });
+    let stream: Stream<ChatCompletionChunk>;
+    try {
+      stream = await createChatStream(
+        getOpenAIForProvider(primary),
+        getModelForProvider(primary),
+        userPrompt
+      );
+    } catch (primaryErr) {
+      if (!shouldTryNvidiaFallback()) {
+        throw primaryErr;
+      }
+      stream = await createChatStream(
+        getNvidiaOpenAI(),
+        getNvidiaModel(),
+        userPrompt
+      );
+    }
 
     const encoder = new TextEncoder();
     const readable = new ReadableStream({
