@@ -3,7 +3,7 @@
 import { useEffect, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { getNotesAction, deleteNoteAction, searchNotesAction } from '@/app/actions';
-import type { NoteEntry } from '@/lib/storage';
+import type { NoteEntry } from '@/lib/db/notes';
 
 function formatDate(ts: number): string {
   return new Intl.DateTimeFormat('zh-CN', {

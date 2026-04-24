@@ -1,7 +1,7 @@
 import type { Stream } from 'openai/streaming';
 import type { ChatCompletionChunk } from 'openai/resources/chat/completions';
 import OpenAI from 'openai';
-import { corsHeaders, handleOptions } from '@/lib/cors';
+import { corsHeaders, handleOptions } from '@/lib/utils/cors';
 import {
   getModelForProvider,
   getNvidiaModel,
@@ -9,8 +9,8 @@ import {
   getOpenAIForProvider,
   getPrimaryProvider,
   isNvidiaFallbackEnabled,
-} from '@/lib/ai-providers';
-import { SYSTEM_PROMPT, buildExplainPrompt } from '@/lib/prompts';
+} from '@/lib/ai/providers';
+import { SYSTEM_PROMPT, buildExplainPrompt } from '@/lib/ai/prompts';
 
 async function createChatStream(
   client: OpenAI,

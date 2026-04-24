@@ -1,4 +1,4 @@
-import { db } from './db';
+import { db } from './client';
 
 export interface NoteEntry {
   id: string;

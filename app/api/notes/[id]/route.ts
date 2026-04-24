@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { isAuthorized } from '@/lib/auth';
-import { corsHeaders, handleOptions } from '@/lib/cors';
-import { deleteNote } from '@/lib/storage';
+import { isAuthorized } from '@/lib/utils/auth';
+import { corsHeaders, handleOptions } from '@/lib/utils/cors';
+import { deleteNote } from '@/lib/db/notes';
 
 export function OPTIONS() {
   return handleOptions();

@@ -1,6 +1,6 @@
 'use server';
 
-import { getNotes, saveNote, deleteNote, searchNotes, type NoteEntry } from '@/lib/storage';
+import { getNotes, saveNote, deleteNote, searchNotes, type NoteEntry } from '@/lib/db/notes';
 
 export async function getNotesAction(): Promise<NoteEntry[]> {
   return getNotes();

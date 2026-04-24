@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useStreamExplain } from '@/hooks/useStreamExplain';
 import { saveNoteAction } from '@/app/actions';
-import { cn } from '@/lib/cn';
+import { cn } from '@/lib/utils/cn';
 
 interface SelectionPopoverState {
   text: string;
