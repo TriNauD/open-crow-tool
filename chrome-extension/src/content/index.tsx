@@ -4,6 +4,7 @@ import { STYLES } from './styles';
 
 function mount() {
   if (document.getElementById('wtf-ext-host')) return;
+  if (document.documentElement.dataset.wtfNative === 'true') return;
 
   const host = document.createElement('div');
   host.id = 'wtf-ext-host';
