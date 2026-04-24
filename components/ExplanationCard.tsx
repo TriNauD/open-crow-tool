@@ -28,15 +28,18 @@ export default function ExplanationCard({
   const [popover, setPopover] = useState<SelectionPopoverState | null>(null);
   const [children, setChildren] = useState<{ id: string; text: string }[]>([]);
   const [savedId, setSavedId] = useState<string | null>(null);
-  const resultRef = useRef<HTMLDivElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
 
   // Kick off explanation on mount
   useEffect(() => {
     explain(inputText, context);
   }, [inputText, context, explain]);
 
-  // Track text selection inside the result
-  const handleMouseUp = useCallback(() => {
+  // Track text selection inside this card (input text + result area both supported).
+  // stopPropagation ensures only the innermost card reacts when cards are nested.
+  const handleMouseUp = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+
     const selection = window.getSelection();
     if (!selection || selection.isCollapsed) {
       setPopover(null);
@@ -44,19 +47,18 @@ export default function ExplanationCard({
     }
 
     const selectedText = selection.toString().trim();
-    if (!selectedText || selectedText.length < 2) {
+    if (!selectedText) {
       setPopover(null);
       return;
     }
 
-    // Only trigger if selection is inside this card's result
     const range = selection.getRangeAt(0);
-    if (!resultRef.current?.contains(range.commonAncestorContainer)) {
+    if (!cardRef.current?.contains(range.commonAncestorContainer)) {
       return;
     }
 
     const rect = range.getBoundingClientRect();
-    const containerRect = resultRef.current.getBoundingClientRect();
+    const containerRect = cardRef.current.getBoundingClientRect();
 
     setPopover({
       text: selectedText,
@@ -97,26 +99,24 @@ export default function ExplanationCard({
 
   return (
     <div
+      ref={cardRef}
+      onMouseUp={handleMouseUp}
       className={cn(
         'relative rounded-xl border p-5',
         depth > 0 && 'mt-3 ml-4',
         borderClass
       )}
     >
-      {/* Query label */}
+      {/* Query label — also selectable for drill-down */}
       <div className="mb-3 flex items-start gap-2">
         <span className="mt-0.5 shrink-0 text-xs font-semibold text-orange-400 uppercase tracking-wide">
           {depth === 0 ? '这他妈是啥？' : '这他妈又是啥？'}
         </span>
-        <p className="text-sm text-zinc-300 leading-relaxed">{inputText}</p>
+        <p className="text-sm text-zinc-300 leading-relaxed select-text">{inputText}</p>
       </div>
 
       {/* Result area */}
-      <div
-        ref={resultRef}
-        onMouseUp={handleMouseUp}
-        className="relative select-text"
-      >
+      <div className="relative select-text">
         {isLoading && !text && (
           <div className="flex items-center gap-2 text-zinc-500 text-sm">
             <span className="inline-block w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse" />
@@ -138,18 +138,20 @@ export default function ExplanationCard({
             )}
           </p>
         )}
-
-        {/* Selection popover */}
-        {popover && (
-          <button
-            onClick={handleDrillDown}
-            className="absolute z-10 -translate-x-1/2 -translate-y-full bg-orange-500 hover:bg-orange-400 text-white text-xs font-semibold px-3 py-1.5 rounded-full shadow-lg whitespace-nowrap transition-colors"
-            style={{ left: popover.x, top: popover.y }}
-          >
-            这他妈又是啥？
-          </button>
-        )}
       </div>
+
+      {/* Selection popover — at card level, covers both input and result areas.
+          onMouseDown preventDefault keeps the text selection alive when clicking. */}
+      {popover && (
+        <button
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={handleDrillDown}
+          className="absolute z-10 -translate-x-1/2 -translate-y-full bg-orange-500 hover:bg-orange-400 text-white text-xs font-semibold px-3 py-1.5 rounded-full shadow-lg whitespace-nowrap transition-colors"
+          style={{ left: popover.x, top: popover.y }}
+        >
+          这他妈又是啥？
+        </button>
+      )}
 
       {/* Actions */}
       {isDone && text && (
