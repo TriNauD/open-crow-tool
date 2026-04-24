@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isAuthorized } from '@/lib/auth';
+import { corsHeaders, handleOptions } from '@/lib/cors';
 import { getNotes, saveNote, searchNotes } from '@/lib/storage';
+
+export function OPTIONS() {
+  return handleOptions();
+}
 
 export async function GET(req: NextRequest) {
   if (!isAuthorized(req)) {
@@ -11,7 +16,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const notes = q ? await searchNotes(q) : await getNotes();
-    return NextResponse.json({ data: notes });
+    return NextResponse.json({ data: notes }, { headers: corsHeaders });
   } catch (err) {
     console.error('[GET /api/notes]', err);
     return NextResponse.json({ error: 'Failed to fetch notes' }, { status: 500 });
@@ -39,7 +44,7 @@ export async function POST(req: NextRequest) {
       source: 'chrome_extension',
     });
 
-    return NextResponse.json({ data: note }, { status: 201 });
+    return NextResponse.json({ data: note }, { status: 201, headers: corsHeaders });
   } catch (err) {
     console.error('[POST /api/notes]', err);
     return NextResponse.json({ error: 'Failed to save note' }, { status: 500 });

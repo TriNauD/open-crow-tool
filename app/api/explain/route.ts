@@ -1,6 +1,7 @@
 import type { Stream } from 'openai/streaming';
 import type { ChatCompletionChunk } from 'openai/resources/chat/completions';
 import OpenAI from 'openai';
+import { corsHeaders, handleOptions } from '@/lib/cors';
 import {
   getModelForProvider,
   getNvidiaModel,
@@ -32,6 +33,10 @@ function shouldTryNvidiaFallback(): boolean {
   if (getPrimaryProvider() === 'nvidia') return false;
   if (!process.env.NVIDIA_API_KEY?.trim()) return false;
   return isNvidiaFallbackEnabled();
+}
+
+export function OPTIONS() {
+  return handleOptions();
 }
 
 export async function POST(req: Request) {
@@ -83,6 +88,7 @@ export async function POST(req: Request) {
       headers: {
         'Content-Type': 'text/plain; charset=utf-8',
         'X-Content-Type-Options': 'nosniff',
+        ...corsHeaders,
       },
     });
   } catch (err) {
