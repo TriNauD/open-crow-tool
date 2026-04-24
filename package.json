@@ -3,15 +3,18 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint"
+    "dev": "npx -y node@20 node_modules/next/dist/bin/next dev",
+    "build": "npx -y node@20 node_modules/next/dist/bin/next build",
+    "start": "npx -y node@20 node_modules/next/dist/bin/next start",
+    "lint": "npx -y node@20 node_modules/eslint/bin/eslint.js"
   },
   "dependencies": {
+    "lucide-react": "^1.8.0",
     "next": "16.2.4",
+    "openai": "^6.34.0",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "resend": "^6.12.2"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
