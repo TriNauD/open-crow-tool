@@ -1,0 +1,55 @@
+{
+  "../../../../../../../../@crx/manifest": {
+    "file": "assets/crx-manifest.js-2J7rj1Jl.js",
+    "name": "crx-manifest.js",
+    "src": "../../../../../../../../@crx/manifest",
+    "isEntry": true
+  },
+  "_client-Cmjl_fXq.js": {
+    "file": "assets/client-Cmjl_fXq.js",
+    "name": "client"
+  },
+  "_modulepreload-polyfill-B5Qt9EMX.js": {
+    "file": "assets/modulepreload-polyfill-B5Qt9EMX.js",
+    "name": "modulepreload-polyfill"
+  },
+  "index.tsx-loader.js": {
+    "file": "assets/index.tsx-loader-kPCHIXoY.js",
+    "src": "index.tsx-loader.js"
+  },
+  "src/background/index.ts": {
+    "file": "assets/index.ts-DzEzrXJT.js",
+    "name": "index.ts",
+    "src": "src/background/index.ts",
+    "isEntry": true
+  },
+  "src/content/index.tsx": {
+    "file": "assets/index.tsx-DeCSUkAh.js",
+    "name": "index.tsx",
+    "src": "src/content/index.tsx",
+    "isEntry": true,
+    "imports": [
+      "_client-Cmjl_fXq.js"
+    ]
+  },
+  "src/options/index.html": {
+    "file": "assets/index.html-DkCbZJVK.js",
+    "name": "index.html",
+    "src": "src/options/index.html",
+    "isEntry": true,
+    "imports": [
+      "_modulepreload-polyfill-B5Qt9EMX.js",
+      "_client-Cmjl_fXq.js"
+    ]
+  },
+  "src/popup/index.html": {
+    "file": "assets/index.html-CVFJfhkf.js",
+    "name": "index.html",
+    "src": "src/popup/index.html",
+    "isEntry": true,
+    "imports": [
+      "_modulepreload-polyfill-B5Qt9EMX.js",
+      "_client-Cmjl_fXq.js"
+    ]
+  }
+}

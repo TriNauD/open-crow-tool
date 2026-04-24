@@ -1,0 +1,36 @@
+{
+  "manifest_version": 3,
+  "name": "这他妈是啥？",
+  "version": "0.1.0",
+  "description": "划词即解释，AI 大白话，一键存入笔记本",
+  "permissions": ["storage"],
+  "host_permissions": ["<all_urls>"],
+  "commands": {
+    "explain-selection": {
+      "suggested_key": {
+        "default": "Alt+W",
+        "mac": "MacCtrl+Shift+W"
+      },
+      "description": "解释选中文字"
+    }
+  },
+  "background": {
+    "service_worker": "src/background/index.ts",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["src/content/index.tsx"],
+      "run_at": "document_idle"
+    }
+  ],
+  "options_ui": {
+    "page": "src/options/index.html",
+    "open_in_tab": true
+  },
+  "action": {
+    "default_popup": "src/popup/index.html",
+    "default_title": "这他妈是啥？"
+  }
+}

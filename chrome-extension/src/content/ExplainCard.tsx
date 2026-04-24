@@ -1,0 +1,136 @@
+import { useEffect, useRef, useState } from 'react';
+import { useStreamExplain } from './useStreamExplain';
+
+interface Config {
+  apiBaseUrl: string;
+  adminSecret: string;
+}
+
+interface Props {
+  text: string;
+  anchorX: number;
+  anchorY: number;
+  config: Config;
+  onClose: () => void;
+}
+
+export default function ExplainCard({ text, anchorX, anchorY, config, onClose }: Props) {
+  const [savedId, setSavedId] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const { text: explanation, isLoading, error, isDone, explain } = useStreamExplain(
+    config.apiBaseUrl
+  );
+
+  const cardW = 360;
+  const cardH = 320;
+  const margin = 12;
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+
+  let left = anchorX - cardW / 2;
+  left = Math.max(margin, Math.min(left, vw - cardW - margin));
+
+  let top = anchorY - cardH - 10;
+  if (top < margin) top = anchorY + 24;
+  top = Math.max(margin, Math.min(top, vh - cardH - margin));
+
+  useEffect(() => {
+    explain(text);
+  }, [text]);
+
+  useEffect(() => {
+    function onMouseDown(e: MouseEvent) {
+      const path = e.composedPath();
+      if (cardRef.current && !path.includes(cardRef.current)) {
+        onClose();
+      }
+    }
+    const timer = setTimeout(() => {
+      document.addEventListener('mousedown', onMouseDown);
+    }, 150);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('mousedown', onMouseDown);
+    };
+  }, [onClose]);
+
+  async function handleSave() {
+    if (!config.adminSecret) {
+      setSaveError(true);
+      return;
+    }
+    try {
+      const res = await fetch(`${config.apiBaseUrl}/api/notes`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-secret': config.adminSecret,
+        },
+        body: JSON.stringify({ inputText: text, explanation }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSavedId(data.data?.id ?? 'saved');
+      } else {
+        setSaveError(true);
+      }
+    } catch {
+      setSaveError(true);
+    }
+  }
+
+  return (
+    <div ref={cardRef} className="wtf-card" style={{ left, top }}>
+      <div className="wtf-card-header">
+        <div style={{ minWidth: 0 }}>
+          <div className="wtf-card-label">这他妈是啥？</div>
+          <div className="wtf-card-query">
+            {text.length > 80 ? text.slice(0, 80) + '…' : text}
+          </div>
+        </div>
+        <button className="wtf-close" onClick={onClose} title="关闭 (Esc)">
+          ×
+        </button>
+      </div>
+
+      <div className="wtf-card-body">
+        {isLoading && !explanation && (
+          <div className="wtf-loading">
+            <span className="wtf-dot" />
+            <span className="wtf-dot" />
+            <span className="wtf-dot" />
+            <span style={{ marginLeft: 8 }}>正在思考中...</span>
+          </div>
+        )}
+        {error && <div className="wtf-error">{error}</div>}
+        {explanation && (
+          <span>
+            {explanation}
+            {isLoading && <span className="wtf-cursor" />}
+          </span>
+        )}
+      </div>
+
+      {(isDone || saveError) && explanation && (
+        <div className="wtf-card-footer">
+          {savedId ? (
+            <button className="wtf-save-btn saved" disabled>
+              ✓ 已存入笔记本
+            </button>
+          ) : saveError ? (
+            <span className="wtf-error" style={{ fontSize: 12 }}>
+              保存失败，请检查插件设置
+            </span>
+          ) : (
+            <button className="wtf-save-btn" onClick={handleSave}>
+              存入笔记本
+            </button>
+          )}
+          <span className="wtf-sep">·</span>
+          <span className="wtf-hint">Esc 关闭</span>
+        </div>
+      )}
+    </div>
+  );
+}

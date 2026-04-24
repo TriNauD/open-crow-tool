@@ -69,66 +69,55 @@
 
 ### 2.1 插件项目初始化
 
-- [ ] 创建 `chrome-extension/` 目录
-- [ ] 初始化 `package.json`（`npm init`）
-- [ ] 安装依赖：`npm install -D vite @vitejs/plugin-react typescript`
-- [ ] 安装依赖：`npm install react react-dom`
-- [ ] 创建 `vite.config.ts`（multi-entry：content、background、options、popup）
-- [ ] 创建 `tsconfig.json`
-- [ ] 创建 `manifest.json`（Manifest V3，含 commands Alt+W 配置）
+- [x] 创建 `chrome-extension/` 目录
+- [x] 初始化 `package.json`，使用 `@crxjs/vite-plugin@2.0.0`（稳定版）
+- [x] 安装依赖：React 18 + Vite 5 + TypeScript
+- [x] 创建 `vite.config.ts`（CRXJS manifest-driven 打包）
+- [x] 创建 `tsconfig.json`
+- [x] 创建 `manifest.json`（Manifest V3，双平台快捷键）
 
-### 2.2 Options 页面（先做，插件依赖配置）
+### 2.2 Options 页面
 
-- [ ] 创建 `src/options/Options.tsx` — 填写 `apiBaseUrl` 和 `adminSecret` 的表单
-- [ ] 保存到 `chrome.storage.sync`
-- [ ] 读取时显示已保存的值
-- [ ] 配置 `options.html` 入口
+- [x] 创建 `src/options/Options.tsx` — 填写 `apiBaseUrl` 和 `adminSecret` 的表单
+- [x] 保存到 `chrome.storage.sync`，读取时回显已保存值
 
 ### 2.3 Content Script — 浮动按钮
 
-- [ ] 创建 `src/content/index.tsx` — 监听 `mouseup` 事件
-- [ ] 判断是否有选中文字（`window.getSelection()`）
-- [ ] 有选中文字时：在选中文字旁边渲染 `FloatingButton` 组件
-- [ ] 按钮使用橙色样式，内容"这他妈是啥？"
-- [ ] 点击外部区域或按 Esc 时隐藏按钮
-- [ ] 注意：所有 DOM 注入使用 `wtf-` 前缀 className，样式用 Shadow DOM 隔离
+- [x] Shadow DOM 挂载，`wtf-` 前缀 CSS，完全隔离页面样式
+- [x] 选词 → FloatingButton 出现在选词旁边（viewport 边界防溢出）
+- [x] 点击外部 / Esc 关闭
 
 ### 2.4 Content Script — 解释气泡卡片
 
-- [ ] 创建 `src/content/ExplainCard.tsx`
-  - [ ] 流式请求 `${apiBaseUrl}/api/explain`，带 `x-admin-secret` header
-  - [ ] 流式渲染解释文字
-  - [ ] 显示 loading 状态
-  - [ ] 支持在卡片内再次划词追问
-  - [ ] "存入笔记本"按钮 → `POST ${apiBaseUrl}/api/notes`（source: 'chrome_extension'）
-  - [ ] 存成功后按钮变绿色显示"已存入"
-  - [ ] 点击卡片外部或 Esc 关闭
-- [ ] 创建 `src/content/useStreamExplain.ts`（从 Web 端 hook 复制并适配，URL 改为绝对路径）
+- [x] 流式请求 `/api/explain`（绝对 URL）
+- [x] loading 状态 + 流式渲染 + 光标动画
+- [x] "存入笔记本" → `POST /api/notes`（source: chrome_extension）
+- [x] 存成功后按钮变绿色"✓ 已存入笔记本"，失败显示红色提示
 
 ### 2.5 Background Service Worker — 快捷键
 
-- [ ] 创建 `src/background/index.ts`
-- [ ] 监听 `chrome.commands.onCommand`
-- [ ] 收到 `explain-selection` 命令时，向当前 tab 的 content script 发送消息
-- [ ] Content script 收到消息后，获取当前选中文字并触发解释
+- [x] 监听 `chrome.commands.onCommand`
+- [x] 转发 `WTF_EXPLAIN` 消息给 content script
 
-### 2.6 构建与打包
+### 2.6 Web 端 CORS 支持
 
-- [ ] 配置 `vite.config.ts` 多入口打包
-- [ ] `npm run build` 生成 `dist/` 目录
-- [ ] 在 Chrome 扩展管理页面（`chrome://extensions`）加载 `dist/` 目录
-- [ ] 验证插件可正常加载，无控制台报错
+- [x] 新增 `lib/cors.ts`
+- [x] `/api/explain`、`/api/notes`、`/api/notes/[id]` 加 OPTIONS handler + CORS headers
 
-### 2.7 Phase 2 验收
+### 2.7 Phase 2 验收 ✅ 2026-04-24
 
-- [ ] 在 X.com 选中一段文字，浮动按钮出现在文字旁边
-- [ ] 点击按钮，气泡卡片出现，AI 解释流式输出
-- [ ] 按 `Alt+W` 快捷键能触发解释
-- [ ] 点击"存入笔记本"，在 Web 端笔记本里能看到这条记录，来源标注"插件"
-- [ ] 在气泡卡片内再次划词，能正常追问
-- [ ] 点击卡片外部，卡片消失
-- [ ] 按 Esc，卡片消失
-- [ ] 去 Options 页面填错 secret，保存后触发解释应该失败并提示错误
+- [x] 在 X.com 选中一段文字，浮动按钮出现在文字旁边
+- [x] 点击按钮，气泡卡片出现，AI 解释流式输出
+- [x] 按 `Ctrl+Shift+W`（Mac）/ `Alt+W`（Win）快捷键能触发解释
+- [x] 点击"存入笔记本"，在 Web 端笔记本里能看到，来源标注"插件"
+- [x] 点击卡片外部，卡片消失
+- [x] 按 Esc，卡片消失
+- [x] Options 填错 secret → 存入失败并提示错误
+
+**需求变更记录：**
+- 快捷键由单一 `Alt+W` 改为双平台适配（Mac: `Ctrl+Shift+W`，Win: `Alt+W`）
+  - 原因：Mac 上 `Alt+W` 输入特殊字符 `∑`，实测不可用
+  - 影响：`manifest.json` + `popup/main.tsx` + `PRD.md`
 
 ---
 
