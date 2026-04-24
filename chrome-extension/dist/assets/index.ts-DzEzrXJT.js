@@ -1,1 +1,0 @@
-chrome.commands.onCommand.addListener(async n=>{if(n!=="explain-selection")return;const[e]=await chrome.tabs.query({active:!0,currentWindow:!0});e!=null&&e.id&&chrome.tabs.sendMessage(e.id,{type:"WTF_EXPLAIN"})});
