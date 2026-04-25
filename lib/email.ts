@@ -104,9 +104,6 @@ export async function sendWeeklyDigest(
 ): Promise<void> {
   const date = new Date();
   const { month, day } = getBeijingDate(date);
-  // #region agent log
-  fetch('http://127.0.0.1:7493/ingest/3e61fe60-5cda-4cc9-aab6-ef5ecb06c0bb',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'887dec'},body:JSON.stringify({sessionId:'887dec',location:'lib/email.ts:post-fix',message:'date post-fix verify',data:{isoString:date.toISOString(),utcDate:date.getUTCDate(),utcMonth:date.getUTCMonth()+1,bjDate:day,bjMonth:month,tzOffset:date.getTimezoneOffset()},timestamp:Date.now(),runId:'post-fix',hypothesisId:'H-A'})}).catch(()=>{});
-  // #endregion
   const subject = `速通本周 GH 热榜｜${month}/${day} 在火什么玩意？ | What the F is Hit in GitHub?`;
   const html = buildEmailHtml(repos, date, unsubscribeUrl);
 
