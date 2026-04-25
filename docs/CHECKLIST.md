@@ -123,13 +123,13 @@
 
 ## Phase 3：GitHub Trending 周报邮件
 
-> 目标：每周一自动爬取 GitHub Trending，AI 总结后发邮件。
-> 依赖文档：PRD § 二-模块C；PLAN § 六
+> 目标：每周一自动爬取 GitHub Trending，AI 五档评审后发邮件。
+> 依赖文档：PRD § 二-模块C（v1.1）；PLAN § 六（v1.1）
+> 需求变更 v1.1（2026-04-25）：新增五档排名 + 双维度打分 + CTA文案 + 邮件标题风格
 
 ### 3.1 依赖安装
 
-- [ ] `npm install resend`
-- [ ] `npm install cheerio`（HTML 解析）
+- [ ] `npm install cheerio`（HTML 解析，resend 已有）
 
 ### 3.2 环境变量
 
