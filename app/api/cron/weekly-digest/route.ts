@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { fetchTrending, type TrendingRepo } from '@/lib/github-trending';
 import { sendWeeklyDigest, type ReviewedRepo, type Tier } from '@/lib/email';
+import { getActiveSubscribers } from '@/lib/db/subscribers';
 import {
   getPrimaryProvider,
   getOpenAIForProvider,
@@ -130,14 +131,35 @@ export async function GET(req: NextRequest) {
     log.fallback = true;
   }
 
-  // 3. Send email
-  try {
-    await sendWeeklyDigest(reviewed);
-    log.emailSent = true;
-  } catch (err) {
-    log.emailError = String(err);
-    return NextResponse.json({ error: 'Email send failed', aiUsed, log }, { status: 500 });
+  // 3. Fan-out to all active subscribers
+  const baseUrl = new URL(req.url).origin;
+  const subscribers = await getActiveSubscribers();
+  const sendResults: { email: string; ok: boolean }[] = [];
+
+  for (const sub of subscribers) {
+    try {
+      const unsubscribeUrl = `${baseUrl}/api/unsubscribe?token=${sub.unsubscribe_token}`;
+      await sendWeeklyDigest(reviewed, sub.email, unsubscribeUrl);
+      sendResults.push({ email: sub.email, ok: true });
+    } catch (err) {
+      console.error(`[weekly-digest] Failed to send to ${sub.email}:`, err);
+      sendResults.push({ email: sub.email, ok: false });
+    }
   }
+
+  // Always send to admin address as a sanity check (no unsubscribe link needed)
+  const adminEmail = process.env.DIGEST_TO_EMAIL;
+  if (adminEmail) {
+    try {
+      await sendWeeklyDigest(reviewed, adminEmail);
+    } catch (err) {
+      console.error('[weekly-digest] Admin email failed:', err);
+    }
+  }
+
+  log.subscribers = subscribers.length;
+  log.sendResults = sendResults;
+  log.emailSent = sendResults.every((r) => r.ok);
 
   return NextResponse.json({ ok: true, aiUsed, log });
 }

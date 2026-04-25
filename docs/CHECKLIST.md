@@ -176,6 +176,39 @@
 
 ---
 
+## Phase 4：外部订阅接入
+
+> 目标：让外部用户订阅周报，Cron 改为群发所有 active 订阅者，含退订流程。付费预留 DB 字段，Phase 5 再实现。
+
+### 4.1 数据库
+
+- [ ] 在 Supabase SQL Editor 执行 DDL（见 `.env.local.example` Phase 4 注释，或 `dev/active/外部订阅接入/外部订阅接入-plan.md`）
+  - 建 `subscribers` 表 + `subscribers_status_idx` + `subscribers_unsubscribe_token_idx`
+
+### 4.2 新增文件（已完成）
+
+- [x] `lib/db/subscribers.ts` — createSubscriber / getActiveSubscribers / cancelByToken
+- [x] `app/api/subscribe/route.ts` — POST，邮箱去重，status 直接 active
+- [x] `app/subscribe/page.tsx` — 订阅落地页
+- [x] `app/api/unsubscribe/route.ts` — GET ?token=xxx → 标记 cancelled → redirect
+- [x] `app/unsubscribe/page.tsx` — 退订确认页
+
+### 4.3 改造文件（已完成）
+
+- [x] `lib/email.ts` — `sendWeeklyDigest(repos, to, unsubscribeUrl?)` 新签名，footer 加退订链接
+- [x] `app/api/cron/weekly-digest/route.ts` — 群发所有 active 订阅者，`DIGEST_TO_EMAIL` 保留作管理员兜底
+
+### 4.4 Phase 4 验收
+
+- [ ] 在 Supabase SQL Editor 执行 DDL，Table Editor 里能看到 subscribers 表
+- [ ] 访问 `/subscribe`，填邮箱提交，Supabase Table Editor 里能看到新记录（status = active）
+- [ ] 手动触发 `GET /api/cron/weekly-digest`（带 Bearer token），该邮箱收到邮件，邮件底部有退订链接
+- [ ] 点退订链接，DB 里 status 变 cancelled
+- [ ] 再次触发 cron，已退订邮箱不再收到邮件
+- [ ] 重复提交同一邮箱，返回 `{ ok: true, alreadyExists: true }` 而不报错
+
+---
+
 ## 持续任务（每个 Phase 完成时检查）
 
 - [ ] 更新 `README.md`，反映最新的功能和环境变量

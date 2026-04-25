@@ -1,4 +1,5 @@
 import { Resend } from 'resend';
+import nodemailer from 'nodemailer';
 
 export type Tier = '夯' | '顶级' | '人上人' | 'NPC' | '拉完了';
 
@@ -21,7 +22,7 @@ const TIER_STYLE: Record<Tier, { bg: string; color: string; label: string }> = {
   '拉完了':{ bg: '#F0F0F0', color: '#888888', label: '💩 拉完了' },
 };
 
-function buildEmailHtml(repos: ReviewedRepo[], date: Date): string {
+function buildEmailHtml(repos: ReviewedRepo[], date: Date, unsubscribeUrl?: string): string {
   const month = date.getMonth() + 1;
   const day = date.getDate();
   const grouped = new Map<Tier, ReviewedRepo[]>();
@@ -82,31 +83,42 @@ function buildEmailHtml(repos: ReviewedRepo[], date: Date): string {
       ${tierSections}
     </div>
     <div style="padding:16px 28px 24px;border-top:1px solid #f0f0f0;">
-      <p style="margin:0;font-size:12px;color:#bbb;text-align:center;">
+      <p style="margin:0 0 6px 0;font-size:12px;color:#bbb;text-align:center;">
         由 <a href="https://github.com/trending" style="color:#bbb;">GitHub Trending</a> 自动聚合 · 这他妈是啥？周报
       </p>
+      ${unsubscribeUrl ? `<p style="margin:0;font-size:11px;color:#ccc;text-align:center;"><a href="${unsubscribeUrl}" style="color:#ccc;">退订</a></p>` : ''}
     </div>
   </div>
 </body>
 </html>`;
 }
 
-export async function sendWeeklyDigest(repos: ReviewedRepo[]): Promise<void> {
-  const resend = new Resend(process.env.RESEND_API_KEY);
-  const from = process.env.RESEND_FROM ?? 'onboarding@resend.dev';
-  const to = process.env.DIGEST_TO_EMAIL!;
+export async function sendWeeklyDigest(
+  repos: ReviewedRepo[],
+  to: string,
+  unsubscribeUrl?: string
+): Promise<void> {
   const date = new Date();
   const month = date.getMonth() + 1;
   const day = date.getDate();
+  const subject = `速通本周 GH 热榜｜${month}/${day} 在火什么玩意？ | What the F is Hit in GitHub?`;
+  const html = buildEmailHtml(repos, date, unsubscribeUrl);
 
-  const { error } = await resend.emails.send({
-    from,
-    to,
-    subject: `速通本周 GH 热榜｜${month}/${day} 在火什么玩意 | What the f is Hit in GitHub`,
-    html: buildEmailHtml(repos, date),
-  });
-
-  if (error) {
-    throw new Error(`Resend error: ${JSON.stringify(error)}`);
+  if (process.env.SMTP_USER && process.env.SMTP_PASS) {
+    const user = process.env.SMTP_USER;
+    const isGmail = user.endsWith('@gmail.com');
+    const transporter = nodemailer.createTransport(
+      isGmail
+        ? { service: 'gmail', auth: { user, pass: process.env.SMTP_PASS } }
+        : { host: 'smtp-mail.outlook.com', port: 587, secure: false, auth: { user, pass: process.env.SMTP_PASS } }
+    );
+    await transporter.sendMail({ from: user, to, subject, html });
+    return;
   }
+
+  // Fallback: Resend
+  const resend = new Resend(process.env.RESEND_API_KEY);
+  const from = process.env.RESEND_FROM ?? 'onboarding@resend.dev';
+  const { error } = await resend.emails.send({ from, to, subject, html });
+  if (error) throw new Error(`Resend error: ${JSON.stringify(error)}`);
 }
