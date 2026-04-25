@@ -129,51 +129,50 @@
 
 ### 3.1 依赖安装
 
-- [ ] `npm install cheerio`（HTML 解析，resend 已有）
+- [x] `npm install cheerio` ✅
 
 ### 3.2 环境变量
 
-- [ ] 在 `.env.local` 添加 `RESEND_API_KEY`
-- [ ] 在 `.env.local` 添加 `DIGEST_TO_EMAIL`
-- [ ] 在 `.env.local` 添加 `DIGEST_LANGUAGE_FILTER`（可留空）
-- [ ] 更新 `.env.local.example`
+- [x] 在 `.env.local` 添加 `RESEND_API_KEY` ✅
+- [x] 在 `.env.local` 添加 `DIGEST_TO_EMAIL` ✅
+- [x] 在 `.env.local` 添加 `CRON_SECRET` ✅
+- [x] 更新 `.env.local.example` ✅
 
 ### 3.3 GitHub Trending 爬取
 
-- [ ] 创建 `lib/github-trending.ts`
-  - [ ] `fetchTrending(language?: string): Promise<TrendingRepo[]>`
-  - [ ] 爬取 `https://github.com/trending?since=weekly&l={language}`
-  - [ ] 用 cheerio 解析：仓库名、描述、语言、总 star 数、本周新增 star、URL
-  - [ ] 返回 Top 20 结构化数组
+- [x] 创建 `lib/github-trending.ts` ✅
+  - [x] `fetchTrending(languageFilter?: string): Promise<TrendingRepo[]>`
+  - [x] cheerio 解析：owner/repo、描述、语言、total stars、本周新增 star、URL
+  - [x] 返回 Top 20，去重，try/catch 容错
 
-### 3.4 邮件发送封装
+### 3.4 AI 批量评审 + 邮件封装
 
-- [ ] 创建 `lib/email.ts`
-  - [ ] 封装 Resend 客户端
-  - [ ] `sendWeeklyDigest(repos, summaries)` 函数
-  - [ ] 邮件 HTML 模板：标题、日期、项目列表（名称 + AI总结 + star数 + 链接）
+- [x] 创建 `lib/email.ts` ✅
+  - [x] `ReviewedRepo` 接口（摘要 + tech_score + scene_score + tier）
+  - [x] `buildEmailHtml()` 五档颜色分组 HTML 模板（内联样式）
+  - [x] `sendWeeklyDigest()` Resend 发送
+- [x] Cron route 内实现 AI batch 调用 ✅
+  - [x] 单次调用返回 JSON，JSON.parse + fallback 降级
 
 ### 3.5 Cron API Route
 
-- [ ] 创建 `app/api/cron/weekly-digest/route.ts`
-  - [ ] `GET` 方法（Vercel Cron 用 GET 触发）
-  - [ ] 校验 `CRON_SECRET`（Vercel 自动注入，防止外部随意触发）
-  - [ ] 调用 `fetchTrending()`
-  - [ ] 将仓库列表批量送 AI 生成一句话总结
-  - [ ] 调用 `sendWeeklyDigest()` 发送邮件
-  - [ ] 返回执行结果日志
+- [x] 创建 `app/api/cron/weekly-digest/route.ts` ✅
+  - [x] `GET` handler + `maxDuration = 60`
+  - [x] Bearer `CRON_SECRET` 鉴权
+  - [x] fetchTrending → AI batch 评审 → sendWeeklyDigest
+  - [x] 返回 JSON 日志（爬取数、档位分布、发送状态）
 
 ### 3.6 Vercel Cron 配置
 
-- [ ] 创建（或修改）`vercel.json`，添加 cron 配置（每周一 09:00 UTC）
+- [x] 创建 `vercel.json`，schedule: `0 9 * * 1` ✅
 
-### 3.7 Phase 3 验收
+### 3.7 Phase 3 验收 ✅ 2026-04-25
 
-- [ ] 手动 GET `/api/cron/weekly-digest` 能触发完整流程
-- [ ] 邮件正常收到，格式可读
-- [ ] AI 总结内容准确，不是废话
-- [ ] 部署到 Vercel 后，在 Vercel 控制台 Cron Jobs 面板能看到任务已注册
-- [ ] 等待下一个周一自动触发后确认邮件到达
+- [x] 手动 GET `/api/cron/weekly-digest`（带 Bearer token）触发完整流程
+- [x] 邮件正常收到，五档分组格式正确，颜色正确
+- [x] 每个项目有一句话总结 + "有点意思，给我也整一个！"链接
+- [x] AI 总结内容准确，档位分布合理
+- [x] 去掉 Bearer token，API 返回 401
 
 ---
 

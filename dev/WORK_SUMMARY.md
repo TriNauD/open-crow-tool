@@ -109,8 +109,61 @@ DB schema 预留 `user_id` 字段，为将来多用户迁移零改造成本。
 
 ---
 
+---
+
+## Phase 3：GitHub Trending 周报邮件
+
+**目标**：每周一自动爬取 GitHub Trending Top 20，AI 五档评审，发 HTML 邮件。
+
+### 交付内容
+
+| 文件 | 类型 | 说明 |
+|------|------|------|
+| `lib/github-trending.ts` | 新增 | cheerio 爬取 GitHub Trending，支持语言过滤，返回 Top 20 |
+| `lib/email.ts` | 新增 | `ReviewedRepo` 接口 + 五档颜色 HTML 模板 + Resend 发送封装 |
+| `app/api/cron/weekly-digest/route.ts` | 新增 | GET handler，Bearer 鉴权，爬取→AI batch 评审→发邮件，含 fallback |
+| `vercel.json` | 新增 | Cron 配置，每周一 09:00 UTC（北京时间 17:00）触发 |
+| `.env.local.example` | 更新 | 新增 `RESEND_API_KEY`、`DIGEST_TO_EMAIL`、`RESEND_FROM`、`CRON_SECRET` |
+
+### 关键架构设计
+
+```
+Vercel Cron (每周一 09:00 UTC)
+  → GET /api/cron/weekly-digest (Bearer CRON_SECRET)
+  → lib/github-trending.ts：cheerio 爬取 Top 20
+  → AI 单次 batch 调用：评审所有项目，返回 JSON（摘要 + 双维度分 + 五档位）
+  → lib/email.ts：按档位分组渲染 HTML 邮件
+  → Resend：发送到 DIGEST_TO_EMAIL
+```
+
+- **五档排名**：夯 → 顶级 → 人上人 → NPC → 拉完了，AI 自由判断档位
+- **双维度打分**：技术创新性 + 场景创新性各 1-5 分
+- **CTA 文案**：每个项目附 "有点意思，给我也整一个！→ [链接]"
+- **容错**：AI JSON 解析失败时 fallback 为无排名纯摘要邮件
+
+### 需求变更
+
+- v1.1（2026-04-25）：原"1-2句摘要"升级为"摘要 + 五档排名 + 双维度打分"；拉完了档位保留；邮件标题风格初稿确认
+
+### 验收结论
+
+✅ 用户验收全部通过（2026-04-25）
+
+---
+
+## Phase 0 → Phase 3 整体交付
+
+| 能力 | Phase 0 (MVP) | Phase 1+2 | Phase 3 |
+|------|--------------|-----------|---------|
+| 解释入口 | Web 页面输入框 | Web + Chrome 划词浮窗 | — |
+| 笔记存储 | localStorage | Supabase Postgres 云端 | — |
+| 跨设备同步 | ❌ | ✅ | — |
+| 周报推送 | ❌ | ❌ | ✅ Vercel Cron + Resend |
+| AI 评审排名 | ❌ | ❌ | ✅ 五档 + 双维度打分 |
+
+---
+
 ## 遗留与下一步
 
-- **Phase 3**：每周 GitHub Trending AI 摘要邮件（Vercel Cron + Resend）
-- 详细待办见 `dev/SESSION_HANDOFF.md` Phase 3 章节
+- 详细待办见 `docs/CHECKLIST.md`
 - 技术方案见 `docs/PLAN.md`

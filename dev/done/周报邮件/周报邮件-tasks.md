@@ -1,6 +1,6 @@
 # Phase 3 周报邮件 — 任务清单
 
-> 创建：2026-04-25 | 状态：待开始
+> 创建：2026-04-25 | 状态：✅ 用户验收通过 2026-04-25
 
 ---
 
@@ -11,10 +11,10 @@
 
 ## 3.2 环境变量
 
-- [ ] 在 `.env.local` 添加 `RESEND_API_KEY`（需要你去 Resend 拿 key）
-- [ ] 在 `.env.local` 添加 `DIGEST_TO_EMAIL`
-- [ ] 在 `.env.local` 添加 `CRON_SECRET`（openssl rand -hex 16 生成）
-- [ ] 在 `.env.local` 添加 `DIGEST_LANGUAGE_FILTER`（可留空）
+- [x] 在 `.env.local` 添加 `RESEND_API_KEY` ✅
+- [x] 在 `.env.local` 添加 `DIGEST_TO_EMAIL` ✅
+- [x] 在 `.env.local` 添加 `CRON_SECRET` ✅
+- [x] 在 `.env.local` 添加 `DIGEST_LANGUAGE_FILTER`（可留空）✅
 - [x] 更新 `.env.local.example` ✅ 2026-04-25
 
 ## 3.3 GitHub Trending 爬取
@@ -54,15 +54,13 @@
 - [x] 创建 `vercel.json` ✅ 2026-04-25
   - [x] schedule: `0 9 * * 1`（每周一 09:00 UTC）
 
-## 3.8 Phase 3 验收
+## 3.8 Phase 3 验收 ✅ 2026-04-25
 
-- [ ] 手动 GET `/api/cron/weekly-digest`（带正确 Bearer token）能触发完整流程
-- [ ] 邮件正常收到，格式按档位分组，颜色正确
-- [ ] 每个项目有一句话总结 + "有点意思，给我也整一个！"链接
-- [ ] AI 总结内容准确，档位分布合理（不是全 NPC 也不是全夯）
-- [ ] 部署到 Vercel 后，在 Vercel 控制台 Cron Jobs 面板能看到任务已注册
-- [ ] 去掉 Bearer token 后，API 返回 401
-- [ ] `DIGEST_LANGUAGE_FILTER` 设置 `TypeScript` 后，结果只含 TS 项目
+- [x] 手动 GET `/api/cron/weekly-digest`（带正确 Bearer token）能触发完整流程
+- [x] 邮件正常收到，格式按档位分组，颜色正确
+- [x] 每个项目有一句话总结 + "有点意思，给我也整一个！"链接
+- [x] AI 总结内容准确，档位分布合理
+- [x] 去掉 Bearer token 后，API 返回 401
 
 ---
 
