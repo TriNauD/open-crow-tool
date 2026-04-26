@@ -152,7 +152,7 @@ export async function GET(req: NextRequest) {
   if (testResults.some((r) => !r.ok)) log.testEmailErrors = testResults.filter((r) => !r.ok);
 
   // 4. Fan-out to subscribers — only when SUBSCRIBER_SEND_ENABLED=true
-  const subscriberSendEnabled = process.env.SUBSCRIBER_SEND_ENABLED === 'true';
+  const subscriberSendEnabled = process.env.SUBSCRIBER_SEND_ENABLED === 'SEND_TO_SUBSCRIBERS';
   const sendResults: { email: string; ok: boolean }[] = [];
 
   if (subscriberSendEnabled) {
