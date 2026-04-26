@@ -3,6 +3,26 @@ import nodemailer from 'nodemailer';
 
 export type Tier = '夯' | '顶级' | '人上人' | 'NPC' | '拉完了';
 
+// ─── Shared transport ────────────────────────────────────────────────────────
+
+async function sendMail(to: string, subject: string, html: string): Promise<void> {
+  if (process.env.SMTP_USER && process.env.SMTP_PASS) {
+    const user = process.env.SMTP_USER;
+    const isGmail = user.endsWith('@gmail.com');
+    const transporter = nodemailer.createTransport(
+      isGmail
+        ? { service: 'gmail', auth: { user, pass: process.env.SMTP_PASS } }
+        : { host: 'smtp-mail.outlook.com', port: 587, secure: false, auth: { user, pass: process.env.SMTP_PASS } }
+    );
+    await transporter.sendMail({ from: user, to, subject, html });
+    return;
+  }
+  const resend = new Resend(process.env.RESEND_API_KEY);
+  const from = process.env.RESEND_FROM ?? 'onboarding@resend.dev';
+  const { error } = await resend.emails.send({ from, to, subject, html });
+  if (error) throw new Error(`Resend error: ${JSON.stringify(error)}`);
+}
+
 export interface ReviewedRepo {
   name: string;
   url: string;
@@ -106,22 +126,70 @@ export async function sendWeeklyDigest(
   const { month, day } = getBeijingDate(date);
   const subject = `速通本周 GH 热榜｜${month}/${day} 在火什么玩意？ | What the F is Hit in GitHub?`;
   const html = buildEmailHtml(repos, date, unsubscribeUrl);
+  await sendMail(to, subject, html);
+}
 
-  if (process.env.SMTP_USER && process.env.SMTP_PASS) {
-    const user = process.env.SMTP_USER;
-    const isGmail = user.endsWith('@gmail.com');
-    const transporter = nodemailer.createTransport(
-      isGmail
-        ? { service: 'gmail', auth: { user, pass: process.env.SMTP_PASS } }
-        : { host: 'smtp-mail.outlook.com', port: 587, secure: false, auth: { user, pass: process.env.SMTP_PASS } }
-    );
-    await transporter.sendMail({ from: user, to, subject, html });
-    return;
-  }
+// ─── Welcome email ────────────────────────────────────────────────────────────
 
-  // Fallback: Resend
-  const resend = new Resend(process.env.RESEND_API_KEY);
-  const from = process.env.RESEND_FROM ?? 'onboarding@resend.dev';
-  const { error } = await resend.emails.send({ from, to, subject, html });
-  if (error) throw new Error(`Resend error: ${JSON.stringify(error)}`);
+function buildWelcomeEmailHtml(unsubscribeUrl: string): string {
+  return `<!DOCTYPE html>
+<html lang="zh">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f5f5f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <div style="max-width:640px;margin:32px auto;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.08);">
+    <div style="background:#1a1a1a;padding:24px 28px;">
+      <p style="margin:0 0 4px 0;font-size:11px;color:#888;letter-spacing:2px;text-transform:uppercase;">What the f is Hit in GitHub</p>
+      <h1 style="margin:0;font-size:20px;color:#fff;font-weight:700;">订阅成功 ✓</h1>
+    </div>
+    <div style="padding:28px 28px 8px;">
+      <p style="margin:0 0 16px 0;font-size:16px;color:#1a1a1a;line-height:1.6;">
+        你已加入 <strong>GitHub 周报「速通热榜」</strong> 的订阅列表。
+      </p>
+      <div style="background:#f9f9f9;border-left:4px solid #FF8C00;border-radius:0 6px 6px 0;padding:14px 18px;margin-bottom:20px;">
+        <p style="margin:0 0 8px 0;font-size:14px;color:#555;font-weight:600;">你会收到什么？</p>
+        <p style="margin:0;font-size:14px;color:#666;line-height:1.7;">
+          每周 GitHub Trending 热榜 Top 20，AI 五档评审：<br>
+          🔥 夯 &nbsp;·&nbsp; ⚡ 顶级 &nbsp;·&nbsp; ✨ 人上人 &nbsp;·&nbsp; 😐 NPC &nbsp;·&nbsp; 💩 拉完了
+        </p>
+      </div>
+      <div style="background:#f9f9f9;border-left:4px solid #1a1a1a;border-radius:0 6px 6px 0;padding:14px 18px;margin-bottom:20px;">
+        <p style="margin:0 0 4px 0;font-size:14px;color:#555;font-weight:600;">什么时候发？</p>
+        <p style="margin:0;font-size:14px;color:#666;">每周一 17:00（北京时间）</p>
+      </div>
+    </div>
+    <div style="padding:16px 28px 24px;border-top:1px solid #f0f0f0;">
+      <p style="margin:0;font-size:11px;color:#ccc;text-align:center;">
+        不想收了？<a href="${unsubscribeUrl}" style="color:#ccc;">退订</a>
+      </p>
+    </div>
+  </div>
+</body>
+</html>`;
+}
+
+export async function sendWelcomeEmail(to: string, unsubscribeUrl: string): Promise<void> {
+  await sendMail(to, '已订阅 | GitHub 周报「速通热榜」确认', buildWelcomeEmailHtml(unsubscribeUrl));
+}
+
+// ─── Unsubscribe confirmation email ──────────────────────────────────────────
+
+function buildUnsubscribeConfirmHtml(resubscribeUrl: string): string {
+  return `<!DOCTYPE html>
+<html lang="zh">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f5f5f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <div style="max-width:480px;margin:48px auto;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.08);text-align:center;padding:40px 32px;">
+    <p style="margin:0 0 8px 0;font-size:32px;">👋</p>
+    <h1 style="margin:0 0 12px 0;font-size:20px;color:#1a1a1a;font-weight:700;">已退订</h1>
+    <p style="margin:0 0 24px 0;font-size:15px;color:#666;line-height:1.6;">
+      你已成功退订 GitHub 周报「速通热榜」。<br>以后不会再打扰你了。
+    </p>
+    <a href="${resubscribeUrl}" style="font-size:13px;color:#aaa;text-decoration:underline;">误操作了？点此重新订阅</a>
+  </div>
+</body>
+</html>`;
+}
+
+export async function sendUnsubscribeConfirmEmail(to: string, resubscribeUrl: string): Promise<void> {
+  await sendMail(to, '已退订 | 你不会再收到 GitHub 周报', buildUnsubscribeConfirmHtml(resubscribeUrl));
 }

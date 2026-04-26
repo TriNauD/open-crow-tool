@@ -44,15 +44,15 @@ export async function getActiveSubscribers(): Promise<Subscriber[]> {
   return (data as Subscriber[]) ?? [];
 }
 
-export async function cancelByToken(token: string): Promise<boolean> {
+export async function cancelByToken(token: string): Promise<{ email: string } | null> {
   const { data, error } = await db
     .from('subscribers')
     .update({ status: 'cancelled', cancelled_at: new Date().toISOString() })
     .eq('unsubscribe_token', token)
     .eq('status', 'active')
-    .select('id')
+    .select('email')
     .maybeSingle();
 
-  if (error) return false;
-  return data !== null;
+  if (error || !data) return null;
+  return { email: (data as { email: string }).email };
 }
