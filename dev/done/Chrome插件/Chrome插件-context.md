@@ -28,10 +28,10 @@ ExplainCard 保存笔记时从 storage 读取 adminSecret。
 chrome.storage.sync 结构：
 ```typescript
 interface ExtensionConfig {
-  apiBaseUrl: string;   // e.g. https://what-the-f-tool.vercel.app
+  apiBaseUrl: string;   // e.g. https://open-crow-tool.vercel.app
   adminSecret: string;
 }
 ```
 
 ## 已知的 Vercel URL
-https://what-the-f-tool.vercel.app
+https://open-crow-tool.vercel.app

@@ -76,7 +76,7 @@ export default function App() {
   // Alt+W from background service worker
   useEffect(() => {
     function onMessage(msg: { type: string }) {
-      if (msg.type !== 'WTF_EXPLAIN') return;
+      if (msg.type !== 'CROW_EXPLAIN') return;
       const sel = window.getSelection();
       if (!sel || sel.isCollapsed) return;
       const text = sel.toString().trim();

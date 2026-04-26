@@ -61,9 +61,9 @@ export default function NotebookPage() {
           href="/"
           className="font-bold text-lg tracking-tight text-white hover:text-orange-400 transition-colors"
         >
-          这他妈是啥<span className="text-orange-400">？</span>
+          这是啥<span className="text-orange-400">？</span>
         </Link>
-        <span className="text-sm text-zinc-500">这他妈都是啥 — 笔记本</span>
+        <span className="text-sm text-zinc-500">这都是啥 — 笔记本</span>
       </header>
 
       <main className="flex-1 px-4 py-10 max-w-3xl mx-auto w-full">
@@ -75,7 +75,7 @@ export default function NotebookPage() {
                 ? '加载中...'
                 : notes.length === 0
                   ? '还没存过任何东西'
-                  : `共 ${notes.length} 条，上次那个他妈的玩意儿你还记得吗`}
+                  : `共 ${notes.length} 条，上次那个玩意儿你还记得吗`}
             </p>
           </div>
           <Link
@@ -117,7 +117,7 @@ export default function NotebookPage() {
                 href="/"
                 className="inline-block bg-orange-500 hover:bg-orange-400 text-white text-sm font-semibold px-5 py-2 rounded-lg transition-colors"
               >
-                这他妈是啥？
+                这是啥？
               </Link>
             )}
           </div>

@@ -110,7 +110,7 @@ export default function ExplanationCard({
       {/* Query label — also selectable for drill-down */}
       <div className="mb-3 flex items-start gap-2">
         <span className="mt-0.5 shrink-0 text-xs font-semibold text-orange-400 uppercase tracking-wide">
-          {depth === 0 ? '这他妈是啥？' : '这他妈又是啥？'}
+          {depth === 0 ? '这是啥？' : '这又是啥？'}
         </span>
         <p className="text-sm text-zinc-300 leading-relaxed select-text">{inputText}</p>
       </div>
@@ -149,7 +149,7 @@ export default function ExplanationCard({
           className="absolute z-10 -translate-x-1/2 -translate-y-full bg-orange-500 hover:bg-orange-400 text-white text-xs font-semibold px-3 py-1.5 rounded-full shadow-lg whitespace-nowrap transition-colors"
           style={{ left: popover.x, top: popover.y }}
         >
-          这他妈又是啥？
+          这又是啥？
         </button>
       )}
 

@@ -13,7 +13,7 @@
 content script（Shadow DOM + React）
     ├── FloatingButton（定位在选词旁边）
     └── ExplainCard（气泡卡片）
-            ├── fetch streaming → what-the-f-tool.vercel.app/api/explain
+            ├── fetch streaming → open-crow-tool.vercel.app/api/explain
             └── 存入笔记本 → /api/notes（带 x-admin-secret header）
 
 Alt+W 快捷键 → background service worker → postMessage → content script

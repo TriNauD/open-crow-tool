@@ -10,7 +10,7 @@ export default function FloatingButton({ x, y, onClick }: Props) {
 
   return (
     <button
-      className="wtf-btn"
+      className="crow-btn"
       style={{ left: clampedX, top }}
       onMouseDown={(e) => e.stopPropagation()}
       onClick={(e) => {
@@ -18,7 +18,7 @@ export default function FloatingButton({ x, y, onClick }: Props) {
         onClick();
       }}
     >
-      这他妈是啥？
+      这是啥？
     </button>
   );
 }

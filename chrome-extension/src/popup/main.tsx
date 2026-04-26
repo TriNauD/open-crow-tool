@@ -27,7 +27,7 @@ function Popup() {
   return (
     <div style={s}>
       <p style={{ fontWeight: 700, marginBottom: 8, fontSize: 15 }}>
-        这他妈是啥<span style={{ color: '#f97316' }}>？</span>
+        这是啥<span style={{ color: '#f97316' }}>？</span>
       </p>
       {configured === false && (
         <p style={{ color: '#fb923c', marginBottom: 10, fontSize: 12 }}>
