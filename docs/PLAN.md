@@ -1,4 +1,4 @@
-# 这他妈是啥？— 技术架构与执行计划 (PLAN)
+# 这是啥？— 技术架构与执行计划 (PLAN)
 
 > 版本：v1.2 | 作者：TL | 最后更新：2026-04-26
 
@@ -198,7 +198,7 @@ chrome-extension/
 ```json
 {
   "manifest_version": 3,
-  "name": "这他妈是啥？",
+  "name": "这是啥？",
   "permissions": ["storage", "activeTab", "scripting", "commands"],
   "commands": {
     "explain-selection": {
@@ -414,7 +414,7 @@ Vercel Cron → GET /api/cron/weekly-digest
 
 3. **Chrome 插件规范**：
    - content script 要尽量轻量，不要加载不必要的库
-   - 注入的 DOM 元素用唯一 className 前缀 `wtf-` 避免与页面冲突
+   - 注入的 DOM 元素用唯一 className 前缀 `crow-` 避免与页面冲突
    - 所有样式用 Shadow DOM 隔离，防止被页面 CSS 污染
 
 4. **PM 审查点（每个 Phase 完成后必须验证）**：

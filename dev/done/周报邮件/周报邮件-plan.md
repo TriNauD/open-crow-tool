@@ -64,7 +64,7 @@ interface ReviewedRepo {
 
 ### 邮件标题格式
 
-`速通本周 GH 热榜｜{月}/{日} 在火什么玩意 | What the f is Hit in GitHub`
+`速通本周 GH 热榜｜{月}/{日} 在火什么玩意 | Crow's Pick in GitHub`
 
 （待用户最终确认，可迭代）
 

@@ -97,9 +97,9 @@ function buildEmailHtml(repos: ReviewedRepo[], date: Date, unsubscribeUrl?: stri
 <body style="margin:0;padding:0;background:#f5f5f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
   <div style="max-width:640px;margin:32px auto;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.08);">
     <div style="background:#1a1a1a;padding:24px 28px;">
-      <p style="margin:0 0 4px 0;font-size:11px;color:#888;letter-spacing:2px;text-transform:uppercase;">What the f is Hit in GitHub</p>
+      <p style="margin:0 0 4px 0;font-size:11px;color:#888;letter-spacing:2px;text-transform:uppercase;">Crow's Pick in GitHub</p>
       <h1 style="margin:0;font-size:20px;color:#fff;font-weight:700;line-height:1.3;">
-        速通本周 GH 热榜<br>
+        鸦速通本周 GH 热榜<br>
         <span style="color:#FF8C00;">${month}/${day}</span> 在火什么玩意
       </h1>
     </div>
@@ -108,7 +108,7 @@ function buildEmailHtml(repos: ReviewedRepo[], date: Date, unsubscribeUrl?: stri
     </div>
     <div style="padding:16px 28px 24px;border-top:1px solid #f0f0f0;">
       <p style="margin:0 0 6px 0;font-size:12px;color:#bbb;text-align:center;">
-        由 <a href="https://github.com/trending" style="color:#bbb;">GitHub Trending</a> 自动聚合 · 这他妈是啥？周报
+        由 <a href="https://github.com/trending" style="color:#bbb;">GitHub Trending</a> 自动聚合 · 这是啥？周报
       </p>
       ${unsubscribeUrl ? `<p style="margin:0;font-size:11px;color:#ccc;text-align:center;"><a href="${unsubscribeUrl}" style="color:#ccc;">退订</a></p>` : ''}
     </div>
@@ -124,7 +124,7 @@ export async function sendWeeklyDigest(
 ): Promise<void> {
   const date = new Date();
   const { month, day } = getBeijingDate(date);
-  const subject = `速通本周 GH 热榜｜${month}/${day} 在火什么玩意？ | What the F is Hit in GitHub?`;
+  const subject = `鸦速通本周 GH 热榜｜${month}/${day} 在火什么玩意？ | Crow's Pick in GitHub`;
   const html = buildEmailHtml(repos, date, unsubscribeUrl);
   await sendMail(to, subject, html);
 }
@@ -138,7 +138,7 @@ function buildWelcomeEmailHtml(unsubscribeUrl: string): string {
 <body style="margin:0;padding:0;background:#f5f5f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
   <div style="max-width:640px;margin:32px auto;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.08);">
     <div style="background:#1a1a1a;padding:24px 28px;">
-      <p style="margin:0 0 4px 0;font-size:11px;color:#888;letter-spacing:2px;text-transform:uppercase;">What the f is Hit in GitHub</p>
+      <p style="margin:0 0 4px 0;font-size:11px;color:#888;letter-spacing:2px;text-transform:uppercase;">Crow's Pick in GitHub</p>
       <h1 style="margin:0;font-size:20px;color:#fff;font-weight:700;">订阅成功 ✓</h1>
     </div>
     <div style="padding:28px 28px 8px;">
@@ -178,7 +178,7 @@ function buildReactivationEmailHtml(unsubscribeUrl: string): string {
 <body style="margin:0;padding:0;background:#f5f5f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
   <div style="max-width:640px;margin:32px auto;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.08);">
     <div style="background:#1a1a1a;padding:24px 28px;">
-      <p style="margin:0 0 4px 0;font-size:11px;color:#888;letter-spacing:2px;text-transform:uppercase;">What the f is Hit in GitHub</p>
+      <p style="margin:0 0 4px 0;font-size:11px;color:#888;letter-spacing:2px;text-transform:uppercase;">Crow's Pick in GitHub</p>
       <h1 style="margin:0;font-size:20px;color:#fff;font-weight:700;">欢迎回来 👋</h1>
     </div>
     <div style="padding:28px 28px 8px;">

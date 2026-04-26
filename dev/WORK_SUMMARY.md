@@ -1,6 +1,6 @@
 # 工作总结 — Phase 1 & Phase 2
 
-> 项目：what-the-f-tool
+> 项目：open-crow-tool
 > 时间：2026-04-24
 > 参与：PM / TL / Coder
 

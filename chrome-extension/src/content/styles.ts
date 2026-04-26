@@ -1,7 +1,7 @@
 export const STYLES = `
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-  .wtf-btn {
+  .crow-btn {
     position: fixed;
     z-index: 2147483647;
     background: #f97316;
@@ -19,9 +19,9 @@ export const STYLES = `
     transition: background 0.15s;
     pointer-events: auto;
   }
-  .wtf-btn:hover { background: #fb923c; }
+  .crow-btn:hover { background: #fb923c; }
 
-  .wtf-card {
+  .crow-card {
     position: fixed;
     z-index: 2147483647;
     width: 360px;
@@ -39,7 +39,7 @@ export const STYLES = `
     pointer-events: auto;
   }
 
-  .wtf-card-header {
+  .crow-card-header {
     padding: 12px 14px 10px;
     border-bottom: 1px solid #27272a;
     display: flex;
@@ -49,7 +49,7 @@ export const STYLES = `
     flex-shrink: 0;
   }
 
-  .wtf-card-label {
+  .crow-card-label {
     font-size: 11px;
     font-weight: 700;
     color: #fb923c;
@@ -58,14 +58,14 @@ export const STYLES = `
     margin-bottom: 3px;
   }
 
-  .wtf-card-query {
+  .crow-card-query {
     font-size: 13px;
     color: #d4d4d8;
     line-height: 1.4;
     word-break: break-word;
   }
 
-  .wtf-close {
+  .crow-close {
     flex-shrink: 0;
     background: none;
     border: none;
@@ -77,9 +77,9 @@ export const STYLES = `
     margin-top: -2px;
     transition: color 0.15s;
   }
-  .wtf-close:hover { color: #f4f4f5; }
+  .crow-close:hover { color: #f4f4f5; }
 
-  .wtf-card-body {
+  .crow-card-body {
     padding: 12px 14px;
     overflow-y: auto;
     flex: 1;
@@ -89,7 +89,7 @@ export const STYLES = `
     word-break: break-word;
   }
 
-  .wtf-loading {
+  .crow-loading {
     display: flex;
     align-items: center;
     gap: 5px;
@@ -97,39 +97,39 @@ export const STYLES = `
     font-size: 13px;
   }
 
-  @keyframes wtf-pulse {
+  @keyframes crow-pulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.25; }
   }
 
-  .wtf-dot {
+  .crow-dot {
     width: 6px;
     height: 6px;
     background: #fb923c;
     border-radius: 50%;
-    animation: wtf-pulse 1.2s ease infinite;
+    animation: crow-pulse 1.2s ease infinite;
   }
-  .wtf-dot:nth-child(2) { animation-delay: 0.2s; }
-  .wtf-dot:nth-child(3) { animation-delay: 0.4s; }
+  .crow-dot:nth-child(2) { animation-delay: 0.2s; }
+  .crow-dot:nth-child(3) { animation-delay: 0.4s; }
 
-  @keyframes wtf-blink {
+  @keyframes crow-blink {
     0%, 100% { opacity: 1; }
     50% { opacity: 0; }
   }
 
-  .wtf-cursor {
+  .crow-cursor {
     display: inline-block;
     width: 2px;
     height: 14px;
     background: #fb923c;
     margin-left: 2px;
     vertical-align: middle;
-    animation: wtf-blink 0.9s ease infinite;
+    animation: crow-blink 0.9s ease infinite;
   }
 
-  .wtf-error { color: #f87171; font-size: 13px; }
+  .crow-error { color: #f87171; font-size: 13px; }
 
-  .wtf-card-footer {
+  .crow-card-footer {
     padding: 9px 14px;
     border-top: 1px solid #27272a;
     display: flex;
@@ -138,7 +138,7 @@ export const STYLES = `
     flex-shrink: 0;
   }
 
-  .wtf-save-btn {
+  .crow-save-btn {
     background: none;
     border: none;
     font-size: 12px;
@@ -149,10 +149,10 @@ export const STYLES = `
     font-family: inherit;
     transition: color 0.15s;
   }
-  .wtf-save-btn:hover:not(:disabled) { color: #d4d4d8; }
-  .wtf-save-btn.saved { color: #4ade80; text-decoration: none; cursor: default; }
+  .crow-save-btn:hover:not(:disabled) { color: #d4d4d8; }
+  .crow-save-btn.saved { color: #4ade80; text-decoration: none; cursor: default; }
 
-  .wtf-sep { color: #3f3f46; font-size: 12px; }
+  .crow-sep { color: #3f3f46; font-size: 12px; }
 
-  .wtf-hint { font-size: 12px; color: #52525b; }
+  .crow-hint { font-size: 12px; color: #52525b; }
 `;

@@ -44,7 +44,7 @@ export default async function UnsubscribePage({
           href="/"
           className="font-bold text-lg tracking-tight text-white hover:text-orange-400 transition-colors"
         >
-          这他妈是啥<span className="text-orange-400">？</span>
+          这是啥<span className="text-orange-400">？</span>
         </Link>
       </header>
 
