@@ -3,39 +3,53 @@ description: Git 分支策略与部署对应关系
 alwaysApply: true
 ---
 
-# 分支策略
+# 分支定义
 
-| 分支 | 用途 | Vercel 部署 |
+| 分支 | 定位 | Vercel 部署 |
 |------|------|------------|
-| `main` | 生产代码，只接受来自 `dev` 的 PR | 生产环境（自动） |
-| `dev` | 集成分支，功能合并到这里 | Preview 环境（自动） |
-| `fea/*` / `feat/*` | 个人功能开发 | 不部署（ignoreCommand 跳过） |
-| `fix/*` | Bug 修复 | 不部署 |
-| `hotfix/*` | 紧急线上修复，直接向 `main` 提 PR | 不部署 |
+| `main` | 生产分支，面向真实用户 | 生产环境（自动）|
+| `dev` | 预览集成分支，功能在这里汇合测试 | Preview 环境（自动）|
+| `fea/xxx-<owner>` | 个人功能开发 | 不部署 |
+| `hotfix/xxx-<owner>` | 紧急线上修复 | 不部署 |
 
-# 功能分支命名
+只有 `main` 和 `dev` 触发 Vercel 构建，其余分支全部跳过。
 
-- 统一使用 `fea/` 前缀（owner 放末尾）。
-- 格式：`fea/需求简称-<owner>`
-- 当前协作人后缀：`tri`、`luna`
-- 示例：`fea/weekly-digest-tri`、`fea/weekly-digest-luna`
+# 日常开发流程
 
-# 日常工作流
+```
+dev  →  fea/xxx-tri (开发)  →  PR to dev  →  Vercel Preview 验收  →  PR dev→main  →  生产
+```
 
 ```bash
-# 1. 从最新 dev 切出功能分支
+# 每次开发前，从最新 dev 切出功能分支
 git checkout dev && git pull
 git checkout -b fea/需求简称-<owner>
 
-# 2. 开发完成后推送
+# 开发完成，推送并向 dev 提 PR
 git push -u origin fea/需求简称-<owner>
+```
 
-# 3. 向 dev 提 PR，互相 review 后合并
-# 4. dev 合并后自动触发 Vercel preview，验收通过再向 main 提 PR 上线
+# 上线流程
+
+1. `fea/*` PR 合并到 `dev`，Vercel 自动部署 Preview。
+2. 在 Preview URL 上完成验收测试。
+3. 验收通过，从 `dev` 向 `main` 提 PR，合并后自动部署生产。
+
+# Hotfix 流程
+
+```bash
+# 从 main 切出 hotfix 分支
+git checkout main && git pull
+git checkout -b hotfix/问题简称-<owner>
+
+# 修复完成后：
+# 1. PR → main（触发生产部署）
+# 2. 同步 backport 到 dev，避免下次发布时丢失修复
+git checkout dev && git merge hotfix/问题简称-<owner>
 ```
 
 # 禁止事项
 
-- 禁止直接 push 到 `main`（hotfix 紧急除外，事后补 PR）。
+- 禁止直接 push 到 `main` 或 `dev`。
 - 禁止从 `main` 直接切功能分支（应从 `dev` 切）。
 - AI 不主动创建 PR，除非用户明确要求。
