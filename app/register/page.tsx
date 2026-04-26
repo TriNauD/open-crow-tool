@@ -2,17 +2,23 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { getBrowserSupabase } from '@/lib/supabase/browser';
+import { getBrowserSupabase, hasBrowserSupabaseEnv } from '@/lib/supabase/browser';
 
 export default function RegisterPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [state, setState] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [error, setError] = useState('');
+  const authConfigured = hasBrowserSupabaseEnv();
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!email.trim() || !password.trim() || state === 'loading') return;
+    if (!authConfigured) {
+      setState('error');
+      setError('缺少 NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY 配置');
+      return;
+    }
 
     setState('loading');
     setError('');
@@ -75,7 +81,7 @@ export default function RegisterPage() {
 
           <button
             type="submit"
-            disabled={state === 'loading'}
+            disabled={state === 'loading' || !authConfigured}
             className="w-full bg-orange-500 hover:bg-orange-400 disabled:opacity-40 text-white text-sm font-semibold px-4 py-2.5 rounded-lg transition-colors"
           >
             {state === 'loading' ? '注册中...' : '注册'}

@@ -4,6 +4,10 @@ import { createClient } from '@supabase/supabase-js';
 
 let browserSupabase: ReturnType<typeof createClient> | null = null;
 
+export function hasBrowserSupabaseEnv() {
+  return !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+}
+
 export function getBrowserSupabase() {
   if (browserSupabase) {
     return browserSupabase;
