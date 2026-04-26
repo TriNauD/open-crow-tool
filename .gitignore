@@ -22,6 +22,10 @@
 
 # misc
 .DS_Store
+**/.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
 *.pem
 
 # Cursor local (ignore direct children; allow rules/ and skills/ directories through)
@@ -31,6 +35,10 @@
 
 # Claude local (skills moved to .cursor/skills/)
 .claude/
+
+# Editor local settings (personal, not for repo)
+# To share recommended extensions, un-ignore .vscode/extensions.json
+.vscode/
 
 # debug
 npm-debug.log*

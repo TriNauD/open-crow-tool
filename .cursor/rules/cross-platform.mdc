@@ -1,0 +1,27 @@
+---
+description: 跨平台开发注意事项（macOS + Windows）
+alwaysApply: true
+---
+
+# 换行符
+
+- 仓库统一 LF，由 `.gitattributes` 自动处理，无需手动干预。
+- Luna（Windows）在 Git for Windows 设置中确认：`core.autocrlf = input`。
+- 编辑器层面：VS Code 设置 `"files.eol": "\n"`，避免编辑时产生 CRLF。
+
+# 路径分隔符
+
+- 代码中所有路径使用 `/`，禁止硬编码 `\`。
+- Node.js 路径操作一律使用 `path.join()` / `path.resolve()`，不要拼接字符串。
+
+# 运行时对齐
+
+- 统一 Node `20.20.2` + npm `10.8.2`，见 `.nvmrc` 和 `package.json engines`。
+- Luna 使用 nvm-windows，执行 `nvm use 20.20.2` 切版本。
+- 启动前执行 `npm ci`，不要直接 `npm install`。
+
+# 常见跨平台坑
+
+- Shell 脚本（`.sh`）在 Windows 需要 Git Bash 或 WSL，不可直接用 cmd/PowerShell 运行。
+- 文件名大小写：macOS 默认不区分大小写，Linux/Windows 区分——import 路径必须与文件名大小写完全一致。
+- `node_modules` 内的可执行文件权限在 Windows 可能失效，遇到时用 `npm rebuild` 修复。
