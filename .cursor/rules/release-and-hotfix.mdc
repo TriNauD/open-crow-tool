@@ -3,19 +3,32 @@ description: 发布前检查与热修复流程
 alwaysApply: true
 ---
 
-# 发布前检查
+# 发布流程（dev → main）
 
-- 发布前必须确认：核心链路测试通过、环境变量齐全、回滚方案可执行。
-- 若有数据库变更，先在发布说明中写明兼容性和回滚步骤。
-- 发布窗口内禁止合并无关 PR，避免噪音变更。
+1. 确认 `dev` 上 Vercel Preview 验收通过。
+2. 确认：核心链路测试通过、环境变量齐全、无遗留阻塞 issue。
+3. 若有数据库变更，PR 描述里写明兼容性和回滚步骤。
+4. 向 `main` 提 PR，另一人 review 后合并，Vercel 自动部署生产。
+5. 发布后在 `dev/logs/` 补一条发布记录（版本、改动、风险、负责人）。
 
-# 热修复（hotfix）
+# Hotfix 流程
 
-- 线上故障使用 `hotfix/xxx-<owner>` 分支快速修复。
-- hotfix 合并前至少完成 smoke test，并记录影响范围。
-- hotfix 合并后 24 小时内补齐回归测试和复盘记录。
+线上故障时：
 
-# 发布记录
+```bash
+git checkout main && git pull
+git checkout -b hotfix/问题简称-<owner>
+# 修复、测试
+git push -u origin hotfix/问题简称-<owner>
+# PR → main，合并后生产自动部署
+# 合并后立即 backport 到 dev
+git checkout dev && git merge hotfix/问题简称-<owner> && git push
+```
 
-- 每次发布补充 changelog：版本、改动摘要、风险点、负责人。
-- 复盘输出进入 `dev/logs/`，为下次发布提供参考。
+- hotfix 合并前完成 smoke test，记录影响范围。
+- hotfix 合并后 24 小时内补回归测试和复盘记录到 `dev/logs/`。
+
+# 发布窗口纪律
+
+- 发布窗口内禁止合并无关 PR。
+- 发布后 30 分钟内观察 Vercel 日志和核心链路，确认无异常。
