@@ -7,6 +7,7 @@ import { getBrowserSupabase, hasBrowserSupabaseEnv } from '@/lib/supabase/browse
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [state, setState] = useState<'idle' | 'loading' | 'error'>('idle');
   const [error, setError] = useState('');
   const authConfigured = hasBrowserSupabaseEnv();
@@ -60,14 +61,24 @@ export default function LoginPage() {
             className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-orange-400"
           />
 
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="密码"
-            required
-            className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-orange-400"
-          />
+          <div className="relative">
+            <input
+              type={showPassword ? 'text' : 'password'}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="密码"
+              required
+              className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-4 pr-16 py-2.5 text-sm outline-none focus:border-orange-400"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((prev) => !prev)}
+              className="absolute inset-y-0 right-2 my-auto h-7 px-2 text-xs text-zinc-400 hover:text-zinc-200 transition-colors"
+              aria-label={showPassword ? '隐藏密码' : '显示密码'}
+            >
+              {showPassword ? '隐藏' : '显示'}
+            </button>
+          </div>
 
           {state === 'error' && <p className="text-sm text-red-400">{error}</p>}
 

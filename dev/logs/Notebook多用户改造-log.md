@@ -10,3 +10,5 @@
 - 新增 SQL migration：`notes.client_note_id` + `RLS policies` + 幂等唯一索引。
 - 新增上线手册：`docs/notebook-multi-user-rollout.md`，包含监控、阈值、回滚。
 - 完成本地验证：`npm run lint` 通过（仅残留既有 warning），`npm run build` 通过。
+- 新增 QA 文档：`dev/active/Notebook多用户改造/Notebook多用户改造-qa.md`，按影响域/功能/回归/结论结构可直接勾选执行。
+- 登录页增加密码可见性切换按钮（显示/隐藏），提升录入可用性。

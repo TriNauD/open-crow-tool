@@ -5,6 +5,7 @@
 - [x] RLS 落地：新增 migration SQL，配置 notes 行级策略
 - [x] 游客迁移：新增登录后二次确认迁移弹窗 + 迁移 API
 - [x] 登录闭环：新增 `/login`、`/register` 与导航登录态
+- [x] 登录交互优化：密码输入支持显示/隐藏切换
 - [x] 上线风控：新增开关 `NOTEBOOK_MULTI_USER_ENABLED` 与回滚手册
 
 ## 待验证任务（验收前必须完成）
@@ -12,3 +13,4 @@
 - [x] 本地完整跑通 `npm run lint` 与 `npm run build`（命令未被中断）
 - [ ] 按账号隔离用例验证：A/B 账号互不可见
 - [ ] 游客迁移用例验证：登录后二次确认迁移成功，迁移后游客数据清空
+- [x] 创建 QA 验收文档：`dev/active/Notebook多用户改造/Notebook多用户改造-qa.md`
