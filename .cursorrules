@@ -1,21 +1,23 @@
 # 团队协作协议（入口）
 
-## 强制初始化
-每次会话开始时，AI 必须读取 `.cursor/rules/` 下的所有 `.mdc` 文件，再接受任何任务。
-未读规则前不得输出方案、写代码或做任何改动。
+## 强制初始化（每次会话必读）
+每次会话开始，AI 必须先读取以下四个核心规则文件，再接受任何任务：
 
-## 规则文件列表（必读）
 - `.cursor/rules/team-roles.mdc` — 角色分工与输出格式
 - `.cursor/rules/dev-workflow.mdc` — 开发流程与验收门控
 - `.cursor/rules/qa-process.mdc` — QA 测试流程
-- `.cursor/rules/git-branching.mdc` — 分支策略与部署规则
 - `.cursor/rules/pr-and-commit.mdc` — Commit 与 PR 规范
-- `.cursor/rules/dependency-and-lockfile.mdc` — 依赖版本管理
-- `.cursor/rules/task-handoff-and-blockers.mdc` — 任务交接与阻塞升级
-- `.cursor/rules/release-and-hotfix.mdc` — 发布与 hotfix 流程
-- `.cursor/rules/cross-platform.mdc` — 跨平台注意事项
-- `.cursor/rules/env-and-secrets.mdc` — 环境变量与密钥管理
-- `.cursor/rules/communication.mdc` — 沟通、决策与异步协作
+
+未读完以上四个文件前，不得输出方案、写代码或做任何改动。
+
+## 按需读取（涉及相关场景时才读）
+- `.cursor/rules/git-branching.mdc` — 涉及分支操作时
+- `.cursor/rules/release-and-hotfix.mdc` — 涉及发布或 hotfix 时
+- `.cursor/rules/dependency-and-lockfile.mdc` — 涉及依赖变更时
+- `.cursor/rules/cross-platform.mdc` — 涉及跨平台兼容性时
+- `.cursor/rules/env-and-secrets.mdc` — 涉及环境变量或密钥时
+- `.cursor/rules/task-handoff-and-blockers.mdc` — 涉及任务交接或阻塞时
+- `.cursor/rules/communication.mdc` — 涉及沟通或决策分歧时
 
 ## 新增或修改规则
 优先编辑对应的 `.cursor/rules/*.mdc` 文件，不要在本文件堆内容。
