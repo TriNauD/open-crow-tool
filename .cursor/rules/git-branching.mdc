@@ -1,47 +1,41 @@
 ---
-description: Git 分支策略——所有开发必须在 feature 分支进行，禁止直接提交到 main
+description: Git 分支策略与部署对应关系
 alwaysApply: true
 ---
 
-# Git 分支策略
+# 分支策略
 
-## 核心规则
+| 分支 | 用途 | Vercel 部署 |
+|------|------|------------|
+| `main` | 生产代码，只接受来自 `dev` 的 PR | 生产环境（自动） |
+| `dev` | 集成分支，功能合并到这里 | Preview 环境（自动） |
+| `fea/*` / `feat/*` | 个人功能开发 | 不部署（ignoreCommand 跳过） |
+| `fix/*` | Bug 修复 | 不部署 |
+| `hotfix/*` | 紧急线上修复，直接向 `main` 提 PR | 不部署 |
 
-- **禁止**直接在 `main` 分支上 commit 或 push（hotfix 除外，事后补 PR）
-- 每个需求/bugfix 开始前，**必须先创建并切换到 feature 分支**
-- 代码必须通过 PR 合并到 main，不得直接 merge
+# 功能分支命名
 
-## 分支命名规范
+- 统一使用 `fea/` 前缀（owner 放末尾）。
+- 格式：`fea/需求简称-<owner>`
+- 当前协作人后缀：`tri`、`luna`
+- 示例：`fea/weekly-digest-tri`、`fea/weekly-digest-luna`
 
-| 类型 | 格式 | 示例 |
-|---|---|---|
-| 新功能 | `feat/需求简称` | `feat/daily-digest` |
-| Bug 修复 | `fix/问题简称` | `fix/reactivation-bug` |
-| 文档/配置 | `chore/内容简称` | `chore/qa-workflow` |
-| 紧急修复 | `hotfix/问题简称` | `hotfix/email-timeout` |
-
-## AI 操作规范
-
-开始任何开发任务前，必须执行：
+# 日常工作流
 
 ```bash
-# 1. 确认当前在 main 且是最新状态
-git checkout main && git pull
+# 1. 从最新 dev 切出功能分支
+git checkout dev && git pull
+git checkout -b fea/需求简称-<owner>
 
-# 2. 创建并切换到 feature 分支
-git checkout -b feat/需求名称
+# 2. 开发完成后推送
+git push -u origin fea/需求简称-<owner>
+
+# 3. 向 dev 提 PR，互相 review 后合并
+# 4. dev 合并后自动触发 Vercel preview，验收通过再向 main 提 PR 上线
 ```
 
-提交代码时：
-```bash
-git add -A
-git commit -m "feat/fix/chore: 描述"
-git push -u origin feat/需求名称
-```
+# 禁止事项
 
-**严禁：** `git push origin main`（直接推 main）
-
-## 收尾
-
-feature 分支开发完成后，由用户在 GitHub 创建 PR，review 后合并到 main。
-AI 不主动创建 PR，除非用户明确要求。
+- 禁止直接 push 到 `main`（hotfix 紧急除外，事后补 PR）。
+- 禁止从 `main` 直接切功能分支（应从 `dev` 切）。
+- AI 不主动创建 PR，除非用户明确要求。
