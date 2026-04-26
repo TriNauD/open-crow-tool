@@ -4,5 +4,6 @@
       "path": "/api/cron/weekly-digest",
       "schedule": "0 9 * * 1"
     }
-  ]
+  ],
+  "ignoreCommand": "if [[ \"$VERCEL_GIT_COMMIT_REF\" == fea/* || \"$VERCEL_GIT_COMMIT_REF\" == feat/* ]]; then exit 1; else exit 0; fi"
 }
