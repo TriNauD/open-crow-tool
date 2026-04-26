@@ -24,10 +24,13 @@
 .DS_Store
 *.pem
 
-# Cursor local (ignore all by default; share rules only)
-.cursor/**
+# Cursor local (ignore direct children; allow rules/ and skills/ directories through)
+.cursor/*
 !.cursor/rules/
-!.cursor/rules/**/*.mdc
+!.cursor/skills/
+
+# Claude local (skills moved to .cursor/skills/)
+.claude/
 
 # debug
 npm-debug.log*
