@@ -44,3 +44,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# personal notes (brainstorm, scratch pads — not for repo)
+/notes/

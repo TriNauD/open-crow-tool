@@ -90,10 +90,22 @@
 - 退订后 status 改为 cancelled，下次 cron 不再发送
 - DB 预留 `stripe_customer_id` / `stripe_subscription_id` 字段，Phase 5 接付费
 
+**GitHub 日报（Phase 5 规划中）：**
+
+| | 日报（鸦闻日报） | 周报（夯拉排行榜）|
+|---|---|---|
+| 核心问题 | 今天发生了什么 | 这周什么值得深挖 |
+| 阅读时间 | 2 分钟扫一眼 | 10 分钟细读 |
+| 主角 | 昨日之星（涨幅最猛） | 经过评审的质量项目 |
+
+日报邮件结构：昨日之星（含 AI 分析为什么火）→ 今日黑马 TOP 3 → 完整 ▲▼ 榜单
+
+AI 分析数据来源：README + GitHub 最新 Release（有依据的推测，不是纯猜）
+
 **可扩展（之后再加）：**
-- Hacker News Top
-- X 技术热点
-- 付费订阅（Stripe，Phase 5）
+- 订阅频率偏好（日报/周报分开订阅）→ Phase 6
+- Hacker News / Reddit / X 热点
+- 付费订阅（Stripe）
 
 ---
 

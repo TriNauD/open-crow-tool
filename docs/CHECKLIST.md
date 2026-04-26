@@ -209,6 +209,36 @@
 
 ---
 
+## Phase 5：GitHub 日报
+
+> 目标：每日 17:00 北京时间自动发出日报，聚焦变化，昨日之星 + ▲▼榜单 + AI 分析为什么火。
+> 详细设计见 `dev/active/日报/日报-plan.md`
+
+### 5.1 数据库
+
+- [ ] Supabase 执行 DDL：`trending_snapshots` 表 + 索引
+
+### 5.2 新增文件
+
+- [ ] `lib/trending-history.ts`（saveSnapshot / loadYesterdaySnapshot / computeDeltas）
+- [ ] `lib/github-context.ts`（fetchRepoContext：README + Release）
+- [ ] `lib/email-daily.ts`（日报模板 + sendDailyDigest）
+- [ ] `app/api/cron/daily-digest/route.ts`（日报 cron handler）
+
+### 5.3 改造文件
+
+- [ ] `vercel.json` — 新增每日 cron `0 9 * * *`
+
+### 5.4 Phase 5 验收
+
+- [ ] 手动触发日报 cron，返回 ok:true
+- [ ] 邮件格式正确：昨日之星 / TOP3 / 完整榜 / 退订链接
+- [ ] AI 分析有实质内容（有 README 依据，不是套话）
+- [ ] ▲▼★ 图例正确（连续两日数据对比）
+- [ ] 周报在周一触发仍正常（不受影响）
+
+---
+
 ## 持续任务（每个 Phase 完成时检查）
 
 - [ ] 更新 `README.md`，反映最新的功能和环境变量
