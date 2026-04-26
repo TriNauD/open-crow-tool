@@ -1,14 +1,47 @@
 ---
-description: Git 分支命名与协作约定
+description: Git 分支策略——所有开发必须在 feature 分支进行，禁止直接提交到 main
 alwaysApply: true
 ---
 
-# Git 分支规范
+# Git 分支策略
 
-- 功能开发统一使用 `fea/` 前缀。
-- 分支命名格式：`fea/xxx-xxxx-xxxx-<owner>`。
-- 当前协作人固定后缀：`tri`、`luna`。
-- 示例：
-  - `fea/xxx-xxxx-xxxx-tri`
-  - `fea/xxx-xxxx-xxxx-luna`
-- `<owner>` 必须放在分支名末尾，用于快速识别负责人并避免同名冲突。
+## 核心规则
+
+- **禁止**直接在 `main` 分支上 commit 或 push（hotfix 除外，事后补 PR）
+- 每个需求/bugfix 开始前，**必须先创建并切换到 feature 分支**
+- 代码必须通过 PR 合并到 main，不得直接 merge
+
+## 分支命名规范
+
+| 类型 | 格式 | 示例 |
+|---|---|---|
+| 新功能 | `feat/需求简称` | `feat/daily-digest` |
+| Bug 修复 | `fix/问题简称` | `fix/reactivation-bug` |
+| 文档/配置 | `chore/内容简称` | `chore/qa-workflow` |
+| 紧急修复 | `hotfix/问题简称` | `hotfix/email-timeout` |
+
+## AI 操作规范
+
+开始任何开发任务前，必须执行：
+
+```bash
+# 1. 确认当前在 main 且是最新状态
+git checkout main && git pull
+
+# 2. 创建并切换到 feature 分支
+git checkout -b feat/需求名称
+```
+
+提交代码时：
+```bash
+git add -A
+git commit -m "feat/fix/chore: 描述"
+git push -u origin feat/需求名称
+```
+
+**严禁：** `git push origin main`（直接推 main）
+
+## 收尾
+
+feature 分支开发完成后，由用户在 GitHub 创建 PR，review 后合并到 main。
+AI 不主动创建 PR，除非用户明确要求。
