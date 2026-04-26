@@ -133,50 +133,41 @@ export async function GET(req: NextRequest) {
 
   const baseUrl = new URL(req.url).origin;
 
-  // 3. Always send to internal test list (regardless of SUBSCRIBER_SEND_ENABLED)
-  const testEmailsRaw = process.env.DIGEST_TEST_EMAILS ?? process.env.DIGEST_TO_EMAIL ?? '';
-  const testEmails = testEmailsRaw.split(',').map((e) => e.trim()).filter(Boolean);
-  const testResults: { email: string; ok: boolean }[] = [];
-
-  for (const email of testEmails) {
-    try {
-      await sendWeeklyDigest(reviewed, email);
-      testResults.push({ email, ok: true });
-    } catch (err) {
-      console.error(`[weekly-digest] Test email failed for ${email}:`, err);
-      testResults.push({ email, ok: false });
-    }
-  }
-
-  log.testEmailsSent = testResults.filter((r) => r.ok).length;
-  if (testResults.some((r) => !r.ok)) log.testEmailErrors = testResults.filter((r) => !r.ok);
-
-  // 4. Fan-out to subscribers — only when SUBSCRIBER_SEND_ENABLED=true
+  // 3. Fan-out: fetch all active subscribers, then decide who gets the email
+  //
+  // SUBSCRIBER_SEND_ENABLED=SEND_TO_SUBSCRIBERS → all active subscribers
+  // Otherwise (dev/test mode)                  → active subscribers whose email is in DIGEST_TEST_EMAILS
+  //
+  // Either way, recipients must be in the DB as active — no bypass.
   const subscriberSendEnabled = process.env.SUBSCRIBER_SEND_ENABLED === 'SEND_TO_SUBSCRIBERS';
+  const testEmailSet = new Set(
+    (process.env.DIGEST_TEST_EMAILS ?? process.env.DIGEST_TO_EMAIL ?? '')
+      .split(',').map((e) => e.trim().toLowerCase()).filter(Boolean)
+  );
+
+  const allActive = await getActiveSubscribers();
+  const recipients = subscriberSendEnabled
+    ? allActive
+    : allActive.filter((sub) => testEmailSet.has(sub.email.toLowerCase()));
+
   const sendResults: { email: string; ok: boolean }[] = [];
 
-  if (subscriberSendEnabled) {
-    const subscribers = await getActiveSubscribers();
-
-    for (const sub of subscribers) {
-      try {
-        const unsubscribeUrl = `${baseUrl}/api/unsubscribe?token=${sub.unsubscribe_token}`;
-        await sendWeeklyDigest(reviewed, sub.email, unsubscribeUrl);
-        sendResults.push({ email: sub.email, ok: true });
-      } catch (err) {
-        console.error(`[weekly-digest] Failed to send to ${sub.email}:`, err);
-        sendResults.push({ email: sub.email, ok: false });
-      }
+  for (const sub of recipients) {
+    try {
+      const unsubscribeUrl = `${baseUrl}/api/unsubscribe?token=${sub.unsubscribe_token}`;
+      await sendWeeklyDigest(reviewed, sub.email, unsubscribeUrl);
+      sendResults.push({ email: sub.email, ok: true });
+    } catch (err) {
+      console.error(`[weekly-digest] Failed to send to ${sub.email}:`, err);
+      sendResults.push({ email: sub.email, ok: false });
     }
-
-    log.subscriberSendEnabled = true;
-    log.subscribers = subscribers.length;
-    log.sendResults = sendResults;
-    log.emailSent = sendResults.every((r) => r.ok);
-  } else {
-    log.subscriberSendEnabled = false;
-    log.subscriberSendSkipped = true;
   }
+
+  log.subscriberSendEnabled = subscriberSendEnabled;
+  log.activeSubscribers = allActive.length;
+  log.recipientCount = recipients.length;
+  log.sendResults = sendResults;
+  log.emailSent = sendResults.length > 0 && sendResults.every((r) => r.ok);
 
   return NextResponse.json({ ok: true, aiUsed, log });
 }
