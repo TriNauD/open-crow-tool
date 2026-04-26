@@ -1,16 +1,21 @@
 # 团队协作协议（入口）
 
-规则已拆分到 `.cursor/rules/`，按主题维护：
-- 角色分工与输出格式
-- 开发验收流程
-- QA 测试流程
-- Git 分支规范
-- Commit 与 PR 规范
-- 依赖版本与 lockfile 协作
-- 任务交接与阻塞升级
-- 发布与 hotfix 流程
-- 跨平台开发注意事项
-- 环境变量与密钥管理
-- 沟通、决策与异步协作
+## 强制初始化
+每次会话开始时，AI 必须读取 `.cursor/rules/` 下的所有 `.mdc` 文件，再接受任何任务。
+未读规则前不得输出方案、写代码或做任何改动。
 
-新增或修改规则时，优先编辑对应的 `.cursor/rules/*.mdc` 文件，避免继续把所有内容堆在单一文件里。
+## 规则文件列表（必读）
+- `.cursor/rules/team-roles.mdc` — 角色分工与输出格式
+- `.cursor/rules/dev-workflow.mdc` — 开发流程与验收门控
+- `.cursor/rules/qa-process.mdc` — QA 测试流程
+- `.cursor/rules/git-branching.mdc` — 分支策略与部署规则
+- `.cursor/rules/pr-and-commit.mdc` — Commit 与 PR 规范
+- `.cursor/rules/dependency-and-lockfile.mdc` — 依赖版本管理
+- `.cursor/rules/task-handoff-and-blockers.mdc` — 任务交接与阻塞升级
+- `.cursor/rules/release-and-hotfix.mdc` — 发布与 hotfix 流程
+- `.cursor/rules/cross-platform.mdc` — 跨平台注意事项
+- `.cursor/rules/env-and-secrets.mdc` — 环境变量与密钥管理
+- `.cursor/rules/communication.mdc` — 沟通、决策与异步协作
+
+## 新增或修改规则
+优先编辑对应的 `.cursor/rules/*.mdc` 文件，不要在本文件堆内容。
