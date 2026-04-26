@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSubscriber } from '@/lib/db/subscribers';
-import { sendWelcomeEmail } from '@/lib/email';
+import { sendWelcomeEmail, sendReactivationEmail } from '@/lib/email';
 
 function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -37,18 +37,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '请输入有效的邮箱地址' }, { status: 400 });
     }
 
-    const { subscriber, alreadyExists } = await createSubscriber(email);
+    const { subscriber, alreadyExists, reactivated } = await createSubscriber(email);
 
     if (!alreadyExists) {
       const base = new URL(req.url).origin;
       const unsubscribeUrl = `${base}/api/unsubscribe?token=${subscriber.unsubscribe_token}`;
-      sendWelcomeEmail(email, unsubscribeUrl).catch((err) =>
-        console.error('[subscribe] welcome email failed:', err)
-      );
+      if (reactivated) {
+        sendReactivationEmail(email, unsubscribeUrl).catch((err) =>
+          console.error('[subscribe] reactivation email failed:', err)
+        );
+      } else {
+        sendWelcomeEmail(email, unsubscribeUrl).catch((err) =>
+          console.error('[subscribe] welcome email failed:', err)
+        );
+      }
     }
 
     return NextResponse.json(
-      { ok: true, alreadyExists },
+      { ok: true, alreadyExists, reactivated },
       { status: alreadyExists ? 200 : 201 }
     );
   } catch (err) {

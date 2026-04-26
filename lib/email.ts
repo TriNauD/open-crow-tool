@@ -171,6 +171,40 @@ export async function sendWelcomeEmail(to: string, unsubscribeUrl: string): Prom
   await sendMail(to, '已订阅 | GitHub 周报「速通热榜」确认', buildWelcomeEmailHtml(unsubscribeUrl));
 }
 
+function buildReactivationEmailHtml(unsubscribeUrl: string): string {
+  return `<!DOCTYPE html>
+<html lang="zh">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f5f5f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <div style="max-width:640px;margin:32px auto;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.08);">
+    <div style="background:#1a1a1a;padding:24px 28px;">
+      <p style="margin:0 0 4px 0;font-size:11px;color:#888;letter-spacing:2px;text-transform:uppercase;">What the f is Hit in GitHub</p>
+      <h1 style="margin:0;font-size:20px;color:#fff;font-weight:700;">欢迎回来 👋</h1>
+    </div>
+    <div style="padding:28px 28px 8px;">
+      <p style="margin:0 0 16px 0;font-size:16px;color:#1a1a1a;line-height:1.6;">
+        你已重新加入 <strong>GitHub 周报「速通热榜」</strong> 的订阅列表。
+      </p>
+      <div style="background:#f9f9f9;border-left:4px solid #FF8C00;border-radius:0 6px 6px 0;padding:14px 18px;margin-bottom:20px;">
+        <p style="margin:0;font-size:14px;color:#666;line-height:1.7;">
+          每周一 17:00（北京时间），GitHub Trending Top 20 + AI 五档评审准时到达。
+        </p>
+      </div>
+    </div>
+    <div style="padding:16px 28px 24px;border-top:1px solid #f0f0f0;">
+      <p style="margin:0;font-size:11px;color:#ccc;text-align:center;">
+        不想收了？<a href="${unsubscribeUrl}" style="color:#ccc;">退订</a>
+      </p>
+    </div>
+  </div>
+</body>
+</html>`;
+}
+
+export async function sendReactivationEmail(to: string, unsubscribeUrl: string): Promise<void> {
+  await sendMail(to, '欢迎回来 | 已重新加入 GitHub 周报', buildReactivationEmailHtml(unsubscribeUrl));
+}
+
 // ─── Unsubscribe confirmation email ──────────────────────────────────────────
 
 function buildUnsubscribeConfirmHtml(resubscribeUrl: string): string {

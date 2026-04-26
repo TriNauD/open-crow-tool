@@ -11,7 +11,7 @@ export interface Subscriber {
 
 export async function createSubscriber(
   email: string
-): Promise<{ subscriber: Subscriber; alreadyExists: boolean }> {
+): Promise<{ subscriber: Subscriber; alreadyExists: boolean; reactivated: boolean }> {
   const normalised = email.trim().toLowerCase();
 
   const { data: existing } = await db
@@ -21,7 +21,22 @@ export async function createSubscriber(
     .maybeSingle();
 
   if (existing) {
-    return { subscriber: existing as Subscriber, alreadyExists: true };
+    if ((existing as Subscriber).status === 'cancelled') {
+      // Reactivate: reset to active with a fresh unsubscribe token
+      const newToken = crypto.randomUUID();
+      const { data: updated, error } = await db
+        .from('subscribers')
+        .update({ status: 'active', cancelled_at: null, unsubscribe_token: newToken })
+        .eq('email', normalised)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return { subscriber: updated as Subscriber, alreadyExists: false, reactivated: true };
+    }
+
+    // Already active
+    return { subscriber: existing as Subscriber, alreadyExists: true, reactivated: false };
   }
 
   const { data, error } = await db
@@ -31,7 +46,7 @@ export async function createSubscriber(
     .single();
 
   if (error) throw error;
-  return { subscriber: data as Subscriber, alreadyExists: false };
+  return { subscriber: data as Subscriber, alreadyExists: false, reactivated: false };
 }
 
 export async function getActiveSubscribers(): Promise<Subscriber[]> {

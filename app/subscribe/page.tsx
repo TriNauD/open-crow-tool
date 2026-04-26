@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 
-type State = 'idle' | 'loading' | 'success' | 'already' | 'error';
+type State = 'idle' | 'loading' | 'success' | 'reactivated' | 'already' | 'error';
 
 export default function SubscribePage() {
   const [email, setEmail] = useState('');
@@ -32,14 +32,16 @@ export default function SubscribePage() {
         return;
       }
 
-      setState(data.alreadyExists ? 'already' : 'success');
+      if (data.alreadyExists) setState('already');
+      else if (data.reactivated) setState('reactivated');
+      else setState('success');
     } catch {
       setErrorMsg('网络错误，请稍后重试');
       setState('error');
     }
   }
 
-  const done = state === 'success' || state === 'already';
+  const done = state === 'success' || state === 'reactivated' || state === 'already';
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col">
@@ -110,12 +112,14 @@ export default function SubscribePage() {
               </svg>
             </div>
             <h2 className="text-xl font-bold mb-2">
-              {state === 'already' ? '你已经订阅过了' : '订阅成功！'}
+              {state === 'already' ? '你已经订阅过了' : state === 'reactivated' ? '欢迎回来！' : '订阅成功！'}
             </h2>
             <p className="text-zinc-400 text-sm">
               {state === 'already'
                 ? '这个邮箱已经在名单上了，下周一见。'
-                : `${email} 已加入，每周一准时投递。`}
+                : state === 'reactivated'
+                ? `${email} 已重新加入，确认邮件已发送。`
+                : `${email} 已加入，欢迎邮件已发送。`}
             </p>
           </div>
         ) : (
