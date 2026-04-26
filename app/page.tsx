@@ -47,7 +47,7 @@ export default function HomePage() {
       {/* Nav */}
       <header className="border-b border-zinc-800 px-6 py-4 flex items-center justify-between">
         <span className="font-bold text-lg tracking-tight text-white">
-          这他妈是啥<span className="text-orange-400">？</span>
+          这是啥<span className="text-orange-400">？</span>
         </span>
         <Link
           href="/notebook"
@@ -66,7 +66,7 @@ export default function HomePage() {
         {queries.length === 0 && (
           <div className="text-center mb-10">
             <h1 className="text-4xl font-bold mb-3">
-              这他妈是<span className="text-orange-400">啥</span>？
+              这是<span className="text-orange-400">啥</span>？
             </h1>
             <p className="text-zinc-400 text-base">
               把任何让你头大的 AI 术语、新工具、震惊体新闻丢进来，用大白话告诉你这玩意儿是干嘛的。
@@ -93,7 +93,7 @@ export default function HomePage() {
                 disabled={!input.trim()}
                 className="bg-orange-500 hover:bg-orange-400 disabled:opacity-30 disabled:cursor-not-allowed text-white text-sm font-semibold px-4 py-1.5 rounded-lg transition-colors"
               >
-                这他妈是啥？
+                这是啥？
               </button>
             </div>
           </div>

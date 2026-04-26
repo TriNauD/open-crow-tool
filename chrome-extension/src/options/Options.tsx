@@ -36,7 +36,7 @@ export default function Options() {
     <div style={styles.page}>
       <div style={styles.card}>
         <h1 style={styles.title}>
-          这他妈是啥<span style={{ color: '#f97316' }}>？</span> — 设置
+          这是啥<span style={{ color: '#f97316' }}>？</span> — 设置
         </h1>
         <p style={styles.desc}>
           填写你的 Web 端地址和 Admin Secret，插件会通过这些信息调用 AI 解释和存储笔记。
@@ -50,7 +50,7 @@ export default function Options() {
               type="url"
               value={apiBaseUrl}
               onChange={(e) => setApiBaseUrl(e.target.value)}
-              placeholder="https://what-the-f-tool.vercel.app"
+              placeholder="https://open-crow-tool.vercel.app"
               spellCheck={false}
             />
             <p style={styles.hint}>你的 Vercel 部署地址，末尾不加斜杠</p>

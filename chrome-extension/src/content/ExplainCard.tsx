@@ -81,54 +81,54 @@ export default function ExplainCard({ text, anchorX, anchorY, config, onClose }:
   }
 
   return (
-    <div ref={cardRef} className="wtf-card" style={{ left, top }}>
-      <div className="wtf-card-header">
+    <div ref={cardRef} className="crow-card" style={{ left, top }}>
+      <div className="crow-card-header">
         <div style={{ minWidth: 0 }}>
-          <div className="wtf-card-label">这他妈是啥？</div>
-          <div className="wtf-card-query">
+          <div className="crow-card-label">这是啥？</div>
+          <div className="crow-card-query">
             {text.length > 80 ? text.slice(0, 80) + '…' : text}
           </div>
         </div>
-        <button className="wtf-close" onClick={onClose} title="关闭 (Esc)">
+        <button className="crow-close" onClick={onClose} title="关闭 (Esc)">
           ×
         </button>
       </div>
 
-      <div className="wtf-card-body">
+      <div className="crow-card-body">
         {isLoading && !explanation && (
-          <div className="wtf-loading">
-            <span className="wtf-dot" />
-            <span className="wtf-dot" />
-            <span className="wtf-dot" />
+          <div className="crow-loading">
+            <span className="crow-dot" />
+            <span className="crow-dot" />
+            <span className="crow-dot" />
             <span style={{ marginLeft: 8 }}>正在思考中...</span>
           </div>
         )}
-        {error && <div className="wtf-error">{error}</div>}
+        {error && <div className="crow-error">{error}</div>}
         {explanation && (
           <span>
             {explanation}
-            {isLoading && <span className="wtf-cursor" />}
+            {isLoading && <span className="crow-cursor" />}
           </span>
         )}
       </div>
 
       {(isDone || saveError) && explanation && (
-        <div className="wtf-card-footer">
+        <div className="crow-card-footer">
           {savedId ? (
-            <button className="wtf-save-btn saved" disabled>
+            <button className="crow-save-btn saved" disabled>
               ✓ 已存入笔记本
             </button>
           ) : saveError ? (
-            <span className="wtf-error" style={{ fontSize: 12 }}>
+            <span className="crow-error" style={{ fontSize: 12 }}>
               保存失败，请检查插件设置
             </span>
           ) : (
-            <button className="wtf-save-btn" onClick={handleSave}>
+            <button className="crow-save-btn" onClick={handleSave}>
               存入笔记本
             </button>
           )}
-          <span className="wtf-sep">·</span>
-          <span className="wtf-hint">Esc 关闭</span>
+          <span className="crow-sep">·</span>
+          <span className="crow-hint">Esc 关闭</span>
         </div>
       )}
     </div>

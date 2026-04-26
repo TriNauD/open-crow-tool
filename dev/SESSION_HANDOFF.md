@@ -6,10 +6,9 @@
 
 ## 项目简介
 
-**"这他妈是啥"（what-the-f-tool）** — AI 驱动的技术黑话翻译工具。
+**"这是啥"（open-crow-tool）** — AI 驱动的技术黑话翻译工具。
 
-- **线上地址**：https://what-the-f-tool.vercel.app
-- **Git 仓库**：本地 `/Users/wesrindo/Documents/1_Study/10_AI Training/ai projects/what-the-f-tool`
+- **线上地址**：https://open-crow-tool.vercel.app
 - **部署**：Vercel（main 分支自动部署）
 
 ---
@@ -140,7 +139,7 @@ npm run build    # 生成 dist/
 然后在 Chrome → 扩展程序 → 加载已解压的扩展 → 选 `chrome-extension/dist/`
 
 插件 Options 页配置：
-- API Base URL = `https://what-the-f-tool.vercel.app`
+- API Base URL = `https://open-crow-tool.vercel.app`
 - Admin Secret = 同 `.env.local` 里的 `ADMIN_SECRET`
 
 ---
