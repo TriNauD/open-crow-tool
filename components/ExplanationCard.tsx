@@ -2,7 +2,9 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useStreamExplain } from '@/hooks/useStreamExplain';
-import { saveNoteAction } from '@/app/actions';
+import { useAuthSession } from '@/hooks/useAuthSession';
+import { createNote } from '@/lib/api/notes-client';
+import { saveGuestNote } from '@/lib/guest-notes';
 import { cn } from '@/lib/utils/cn';
 
 interface SelectionPopoverState {
@@ -25,9 +27,11 @@ export default function ExplanationCard({
   onSaved,
 }: ExplanationCardProps) {
   const { text, isLoading, error, isDone, explain } = useStreamExplain();
+  const { accessToken } = useAuthSession();
   const [popover, setPopover] = useState<SelectionPopoverState | null>(null);
   const [children, setChildren] = useState<{ id: string; text: string }[]>([]);
   const [savedId, setSavedId] = useState<string | null>(null);
+  const [savedMode, setSavedMode] = useState<'cloud' | 'guest' | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
 
   // Kick off explanation on mount
@@ -77,18 +81,33 @@ export default function ExplanationCard({
   const handleSave = useCallback(async () => {
     if (!text) return;
     try {
-      const entry = await saveNoteAction({
-        inputText,
-        explanation: text,
-        parentText: context,
-        source: 'web',
-      });
-      setSavedId(entry.id);
+      if (accessToken) {
+        const entry = await createNote(accessToken, {
+          inputText,
+          explanation: text,
+          parentText: context,
+          source: 'web',
+        });
+        setSavedId(entry.id);
+        setSavedMode('cloud');
+      } else {
+        const clientNoteId = crypto.randomUUID();
+        saveGuestNote({
+          clientNoteId,
+          inputText,
+          explanation: text,
+          parentText: context,
+          source: 'web',
+          savedAt: Date.now(),
+        });
+        setSavedId(clientNoteId);
+        setSavedMode('guest');
+      }
       onSaved?.();
     } catch (err) {
       console.error('Failed to save note', err);
     }
-  }, [text, inputText, context, onSaved]);
+  }, [text, accessToken, inputText, context, onSaved]);
 
   const depthColors = [
     'border-zinc-800 bg-zinc-950',
@@ -157,7 +176,9 @@ export default function ExplanationCard({
       {isDone && text && (
         <div className="mt-4 flex items-center gap-3">
           {savedId ? (
-            <span className="text-xs text-green-400">已存到笔记本</span>
+            <span className="text-xs text-green-400">
+              {savedMode === 'guest' ? '已存为游客笔记（登录后可迁移）' : '已存到笔记本'}
+            </span>
           ) : (
             <button
               onClick={handleSave}

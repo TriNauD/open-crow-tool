@@ -8,14 +8,17 @@ if (!supabaseUrl || !supabaseServiceRoleKey) {
   throw new Error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY env vars');
 }
 
-export const db = createClient(supabaseUrl, supabaseServiceRoleKey);
+const ensuredSupabaseUrl = supabaseUrl;
+const ensuredServiceRoleKey = supabaseServiceRoleKey;
+
+export const db = createClient(ensuredSupabaseUrl, ensuredServiceRoleKey);
 
 export function createUserDbClient(accessToken: string) {
   if (!supabaseAnonKey) {
     throw new Error('Missing SUPABASE_ANON_KEY env var');
   }
 
-  return createClient(supabaseUrl, supabaseAnonKey, {
+  return createClient(ensuredSupabaseUrl, supabaseAnonKey, {
     global: {
       headers: {
         Authorization: `Bearer ${accessToken}`,

@@ -3,6 +3,9 @@
 import { useState, useRef } from 'react';
 import Link from 'next/link';
 import ExplanationCard from '@/components/ExplanationCard';
+import { AuthNav } from '@/components/AuthNav';
+import { GuestMigrationModal } from '@/components/GuestMigrationModal';
+import { useAuthSession } from '@/hooks/useAuthSession';
 
 interface Query {
   id: string;
@@ -19,6 +22,7 @@ const EXAMPLES = [
 ];
 
 export default function HomePage() {
+  const { accessToken } = useAuthSession();
   const [input, setInput] = useState('');
   const [queries, setQueries] = useState<Query[]>([]);
   const [notebookFlash, setNotebookFlash] = useState(false);
@@ -49,16 +53,19 @@ export default function HomePage() {
         <span className="font-bold text-lg tracking-tight text-white">
           这他妈是啥<span className="text-orange-400">？</span>
         </span>
-        <Link
-          href="/notebook"
-          className={`text-sm transition-colors px-3 py-1.5 rounded-lg border ${
-            notebookFlash
-              ? 'border-green-500 text-green-400 bg-green-500/10'
-              : 'border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500'
-          }`}
-        >
-          {notebookFlash ? '已存入笔记本' : '笔记本'}
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link
+            href="/notebook"
+            className={`text-sm transition-colors px-3 py-1.5 rounded-lg border ${
+              notebookFlash
+                ? 'border-green-500 text-green-400 bg-green-500/10'
+                : 'border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500'
+            }`}
+          >
+            {notebookFlash ? '已存入笔记本' : '笔记本'}
+          </Link>
+          <AuthNav />
+        </div>
       </header>
 
       <main className="flex-1 flex flex-col items-center px-4 py-12 max-w-3xl mx-auto w-full">
@@ -125,6 +132,7 @@ export default function HomePage() {
           ))}
         </div>
       </main>
+      <GuestMigrationModal accessToken={accessToken} />
     </div>
   );
 }
