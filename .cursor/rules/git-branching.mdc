@@ -1,0 +1,14 @@
+---
+description: Git 分支命名与协作约定
+alwaysApply: true
+---
+
+# Git 分支规范
+
+- 功能开发统一使用 `fea/` 前缀。
+- 分支命名格式：`fea/xxx-xxxx-xxxx-<owner>`。
+- 当前协作人固定后缀：`tri`、`luna`。
+- 示例：
+  - `fea/xxx-xxxx-xxxx-tri`
+  - `fea/xxx-xxxx-xxxx-luna`
+- `<owner>` 必须放在分支名末尾，用于快速识别负责人并避免同名冲突。

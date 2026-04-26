@@ -24,8 +24,10 @@
 .DS_Store
 *.pem
 
-# Cursor local
-.cursor/
+# Cursor local (ignore all by default; share rules only)
+.cursor/**
+!.cursor/rules/
+!.cursor/rules/**/*.mdc
 
 # debug
 npm-debug.log*

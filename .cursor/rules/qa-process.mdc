@@ -1,0 +1,30 @@
+---
+description: QA 介入时机与分级回归策略
+alwaysApply: true
+---
+
+# QA 流程
+
+触发时机：TL 完成开发后，QA 介入并创建：
+`dev/active/需求名称/需求名称-qa.md`
+
+QA 文档应包含：
+- 影响域标注（涉及模块 + 风险等级）
+- 功能测试（新功能）
+- 回归测试（受影响模块）
+- 测试结论（PASS / FAIL + 遗留问题）
+
+# 分级回归策略
+
+- **核心链路（每次发布必跑）**：
+  - 订阅流程（`POST /api/subscribe` -> DB 写入）
+  - 退订流程（`GET /api/unsubscribe` -> status = cancelled）
+  - 邮件发送（`sendMail` 基础连通）
+- **邻域测试**：仅改动波及模块时执行。
+- **纯新增功能**：只跑新功能用例，不强制全量旧回归。
+- **low-risk 快速通道**：纯样式/文案/注释可降级为 smoke test。
+
+# 自动化与回归库
+
+- 核心链路写 Jest 自动化，放在 `__tests__/`，命名 `__tests__/模块名.test.ts`。
+- 维护 `dev/regression.md`，记录核心链路及自动化覆盖状态。

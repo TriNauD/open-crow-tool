@@ -1,0 +1,27 @@
+---
+description: 开发前置与验收流程
+alwaysApply: true
+---
+
+# 开发验收流程
+
+TL 在每个需求开发前，先阅读 `docs/PRD.md` 和 `docs/PLAN.md`。
+
+每个需求需先建立文档目录：
+
+`dev/active/需求名称/`
+- `需求名称-plan.md`
+- `需求名称-context.md`
+- `需求名称-tasks.md`
+
+执行规范：
+- 每完成一步，立即更新任务清单。
+- 上下文快用完时，先写入当前进度与下一步。
+- 记录问题与关键变更到 `dev/logs/需求名称-log.md`。
+
+验收链路：
+- TL 完成开发后交 QA 测试。
+- QA 通过后，PM 审核任务清单并决定是否验收通过。
+- PM 验收通过后交给用户验收。
+- 用户验收通过后，TL 将文档迁移到：
+  `dev/done/需求名称/`（含 `plan/context/tasks/qa`）。

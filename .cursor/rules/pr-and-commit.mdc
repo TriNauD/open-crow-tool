@@ -1,0 +1,22 @@
+---
+description: Commit 与 PR 轻量规范
+alwaysApply: true
+---
+
+# Commit 规范
+
+- 每个 commit 只做一件事（功能、重构、文档不要混在一起）。
+- 推荐前缀：`feat:` `fix:` `chore:` `refactor:` `docs:` `test:`。
+- 提交信息写“为什么改”，避免只写“改了什么”。
+
+# PR 规范
+
+- 小步提交，小 PR 优先（建议 < 300 行核心改动）。
+- PR 描述至少包含：背景、改动点、测试结果、回滚方式。
+- 有 UI 改动时附截图；有接口改动时附请求示例。
+
+# 合并规则
+
+- 至少 1 人 review 通过再合并（双人团队互审）。
+- 优先 `squash merge`，保持主干历史清晰。
+- 合并前先 rebase 或 merge `main`，确保本地验证通过。
