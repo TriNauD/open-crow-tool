@@ -3,8 +3,10 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useStreamExplain } from '@/hooks/useStreamExplain';
 import { useAuthSession } from '@/hooks/useAuthSession';
-import { createNote } from '@/lib/api/notes-client';
-import { saveGuestNote } from '@/lib/guest-notes';
+import { createNote, fetchNotes, replaceNote } from '@/lib/api/notes-client';
+import { saveGuestNote, getGuestNotes, removeGuestNote } from '@/lib/guest-notes';
+import { DuplicateNoteModal } from '@/components/DuplicateNoteModal';
+import type { NoteEntry } from '@/lib/db/notes';
 import { cn } from '@/lib/utils/cn';
 
 interface SelectionPopoverState {
@@ -32,6 +34,8 @@ export default function ExplanationCard({
   const [children, setChildren] = useState<{ id: string; text: string }[]>([]);
   const [savedId, setSavedId] = useState<string | null>(null);
   const [savedMode, setSavedMode] = useState<'cloud' | 'guest' | null>(null);
+  const [duplicateNote, setDuplicateNote] = useState<NoteEntry | null>(null);
+  const [savePending, setSavePending] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
 
   // Kick off explanation on mount
@@ -78,10 +82,48 @@ export default function ExplanationCard({
     window.getSelection()?.removeAllRanges();
   }, [popover]);
 
+  // Normalize inputText for duplicate matching: trim + lowercase
+  const normalizedInput = inputText.trim().toLowerCase();
+
+  // Only check for duplicates on top-level notes (depth === 0, no parent context)
+  const shouldCheckDuplicate = depth === 0 && !context;
+
+  function findGuestDuplicate(): NoteEntry | null {
+    if (!shouldCheckDuplicate) return null;
+    const match = getGuestNotes().find(
+      (n) => n.inputText.trim().toLowerCase() === normalizedInput
+    );
+    if (!match) return null;
+    return {
+      id: match.clientNoteId,
+      user_id: 'guest',
+      inputText: match.inputText,
+      explanation: match.explanation,
+      parentText: match.parentText,
+      source: match.source,
+      savedAt: match.savedAt,
+      tags: [],
+    };
+  }
+
+  async function findCloudDuplicate(): Promise<NoteEntry | null> {
+    if (!accessToken || !shouldCheckDuplicate) return null;
+    const notes = await fetchNotes(accessToken, inputText.trim());
+    return notes.find(
+      (n) => n.inputText.trim().toLowerCase() === normalizedInput && !n.parentText
+    ) ?? null;
+  }
+
   const handleSave = useCallback(async () => {
     if (!text) return;
+    setSavePending(true);
     try {
       if (accessToken) {
+        const existing = await findCloudDuplicate();
+        if (existing) {
+          setDuplicateNote(existing);
+          return;
+        }
         const entry = await createNote(accessToken, {
           inputText,
           explanation: text,
@@ -91,6 +133,11 @@ export default function ExplanationCard({
         setSavedId(entry.id);
         setSavedMode('cloud');
       } else {
+        const existing = findGuestDuplicate();
+        if (existing) {
+          setDuplicateNote(existing);
+          return;
+        }
         const clientNoteId = crypto.randomUUID();
         saveGuestNote({
           clientNoteId,
@@ -106,8 +153,68 @@ export default function ExplanationCard({
       onSaved?.();
     } catch (err) {
       console.error('Failed to save note', err);
+    } finally {
+      setSavePending(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [text, accessToken, inputText, context, onSaved, normalizedInput, shouldCheckDuplicate]);
+
+  const handleKeepBoth = useCallback(async () => {
+    if (!text) return;
+    setSavePending(true);
+    try {
+      if (accessToken) {
+        const entry = await createNote(accessToken, {
+          inputText,
+          explanation: text,
+          parentText: context,
+          source: 'web',
+        });
+        setSavedId(entry.id);
+        setSavedMode('cloud');
+      } else {
+        const clientNoteId = crypto.randomUUID();
+        saveGuestNote({ clientNoteId, inputText, explanation: text, parentText: context, source: 'web', savedAt: Date.now() });
+        setSavedId(clientNoteId);
+        setSavedMode('guest');
+      }
+      setDuplicateNote(null);
+      onSaved?.();
+    } catch (err) {
+      console.error('Failed to save note', err);
+    } finally {
+      setSavePending(false);
     }
   }, [text, accessToken, inputText, context, onSaved]);
+
+  const handleReplace = useCallback(async () => {
+    if (!text || !duplicateNote) return;
+    setSavePending(true);
+    try {
+      if (accessToken) {
+        const entry = await replaceNote(accessToken, duplicateNote.id, {
+          inputText,
+          explanation: text,
+          parentText: context,
+          source: 'web',
+        });
+        setSavedId(entry.id);
+        setSavedMode('cloud');
+      } else {
+        removeGuestNote(duplicateNote.id);
+        const clientNoteId = crypto.randomUUID();
+        saveGuestNote({ clientNoteId, inputText, explanation: text, parentText: context, source: 'web', savedAt: Date.now() });
+        setSavedId(clientNoteId);
+        setSavedMode('guest');
+      }
+      setDuplicateNote(null);
+      onSaved?.();
+    } catch (err) {
+      console.error('Failed to replace note', err);
+    } finally {
+      setSavePending(false);
+    }
+  }, [text, accessToken, inputText, context, duplicateNote, onSaved]);
 
   const depthColors = [
     'border-zinc-800 bg-zinc-950',
@@ -182,14 +289,26 @@ export default function ExplanationCard({
           ) : (
             <button
               onClick={handleSave}
-              className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors underline underline-offset-2"
+              disabled={savePending}
+              className="text-xs text-zinc-500 hover:text-zinc-300 disabled:opacity-40 transition-colors underline underline-offset-2"
             >
-              存到笔记本
+              {savePending ? '检查中...' : '存到笔记本'}
             </button>
           )}
           <span className="text-zinc-700 text-xs">·</span>
           <span className="text-xs text-zinc-600">选中文字可以继续追问</span>
         </div>
+      )}
+
+      {/* Duplicate detection modal */}
+      {duplicateNote && text && (
+        <DuplicateNoteModal
+          existing={duplicateNote}
+          newExplanation={text}
+          onKeepBoth={handleKeepBoth}
+          onReplace={handleReplace}
+          pending={savePending}
+        />
       )}
 
       {/* Recursive child explanations */}

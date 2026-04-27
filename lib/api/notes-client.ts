@@ -52,6 +52,20 @@ export async function deleteNoteById(accessToken: string, id: string): Promise<v
   await parseJsonOrThrow<{ id: string }>(res);
 }
 
+export async function replaceNote(
+  accessToken: string,
+  oldId: string,
+  payload: {
+    inputText: string;
+    explanation: string;
+    parentText?: string;
+    source?: 'web' | 'chrome_extension';
+  }
+): Promise<NoteEntry> {
+  await deleteNoteById(accessToken, oldId);
+  return createNote(accessToken, payload);
+}
+
 export async function migrateGuestNotesToUser(
   accessToken: string,
   entries: GuestNote[]
