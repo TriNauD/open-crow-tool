@@ -8,7 +8,7 @@
 - **这又是啥** — 在答案里选中任意词，递归追问
 - **这都是啥** — 笔记本（登录用户云端同步；未登录可用游客态本地暂存）
 
-更完整的产品说明见 **[`docs/PRD.md`](docs/PRD.md)**，技术架构与 Phase 说明见 **[`docs/PLAN.md`](docs/PLAN.md)**，任务级清单见 **[`docs/CHECKLIST.md`](docs/CHECKLIST.md)**。
+更完整的产品见 **[`docs/PRD.md`](docs/PRD.md)**（总览）与分卷 **[`docs/product/`](docs/product/README.md)**；技术见 **[`docs/PLAN.md`](docs/PLAN.md)** 与分卷 **[`docs/tech/`](docs/tech/README.md)**；任务级清单见 **[`docs/CHECKLIST.md`](docs/CHECKLIST.md)**。
 
 ---
 
@@ -73,4 +73,4 @@ vercel --prod
 
 ## 仓库与目录
 
-应用代码主要在 `app/`、`components/`、`lib/`；Chrome 扩展在 **`chrome-extension/`**（独立 `package.json`）。开发过程与结项文档在 **`dev/`** 下。目录细部以仓库内实际结构为准，避免在 README 重复维护易过时的树状列表。
+应用代码主要在 `app/`、`components/`、`lib/`；Chrome 扩展在 **`chrome-extension/`**（独立 `package.json`）。开发过程与结项文档在 **`dev/`** 下。模块级结构说明见 **`docs/tech/`** 分卷，避免在 README 维护易过时的树状列表。
