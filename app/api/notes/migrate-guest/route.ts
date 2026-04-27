@@ -73,6 +73,6 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     logNotebookMetric('guest_migration_failed');
     console.error('[POST /api/notes/migrate-guest]', err);
-    return NextResponse.json({ error: 'Failed to migrate guest notes' }, { status: 500 });
+    return NextResponse.json({ error: '游客笔记迁移失败，请稍后重试' }, { status: 500 });
   }
 }

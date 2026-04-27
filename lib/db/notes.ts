@@ -126,7 +126,28 @@ export async function migrateGuestNotes(
     return 0;
   }
 
-  const rows = entries.map((entry) => ({
+  // Fetch already-migrated client_note_ids to deduplicate before inserting.
+  // This avoids relying on a partial unique index with upsert onConflict,
+  // which Supabase JS cannot match against a WHERE-clause index.
+  const clientNoteIds = entries.map((e) => e.clientNoteId);
+  const { data: existing, error: selectError } = await ctx.db
+    .from('notes')
+    .select('client_note_id')
+    .eq('user_id', ctx.userId)
+    .in('client_note_id', clientNoteIds);
+
+  if (selectError) throw selectError;
+
+  const existingIds = new Set(
+    (existing as Array<{ client_note_id: string | null }>).map((r) => r.client_note_id)
+  );
+  const newEntries = entries.filter((e) => !existingIds.has(e.clientNoteId));
+
+  if (newEntries.length === 0) {
+    return 0;
+  }
+
+  const rows = newEntries.map((entry) => ({
     user_id: ctx.userId,
     client_note_id: entry.clientNoteId,
     input_text: entry.inputText,
@@ -139,7 +160,7 @@ export async function migrateGuestNotes(
 
   const { data, error } = await ctx.db
     .from('notes')
-    .upsert(rows, { onConflict: 'user_id,client_note_id' })
+    .insert(rows)
     .select('id');
 
   if (error) throw error;
