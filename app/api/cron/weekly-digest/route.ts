@@ -47,7 +47,7 @@ ${list}
 ]`;
 }
 
-function parseReviewedRepos(raw: string, source: TrendingRepo[]): ReviewedRepo[] {
+function parseReviewedRepos(raw: string): ReviewedRepo[] {
   // Extract JSON array from response (handle markdown code blocks)
   const jsonMatch = raw.match(/\[[\s\S]*\]/);
   if (!jsonMatch) throw new Error('No JSON array found in AI response');
@@ -117,7 +117,7 @@ export async function GET(req: NextRequest) {
     });
 
     const raw = completion.choices[0]?.message?.content ?? '';
-    reviewed = parseReviewedRepos(raw, trending);
+    reviewed = parseReviewedRepos(raw);
     log.aiReviewed = reviewed.length;
 
     const tierCount: Record<string, number> = {};
