@@ -36,6 +36,14 @@
 - **说明**：`postMessage` 的 `targetOrigin` 曾用更宽松写法以避免隔离世界下的细微不一致；**乐观更新**在网站侧避免依赖扩展异步回包才变 UI。  
 - **可见性**：「连接插件」由 `hidden sm:*` 改为**始终可点**（避免窄屏误以为功能坏掉），见 `components/AuthNav.tsx`。
 
+### BF-5：CORS 的 `Access-Control-Allow-Headers` 未含 `Authorization`，扩展存笔记跨域失败
+
+- **现象**：网站显示「已连接」后，在扩展里点「存入笔记本」报保存失败；浏览器 Network 中 `POST /api/notes` 可能为 (failed) 或 CORS 错误。  
+- **根因**：`lib/utils/cors.ts` 中预检允许头只写了 `Content-Type, x-admin-secret`；多用户改造后请求改为 `Authorization: Bearer <jwt>`。非简单跨域 `fetch` 会发 OPTIONS，**服务器必须在 `Access-Control-Allow-Headers` 中显式允许 `Authorization`**，否则浏览器拦截，表现为 `fetch` 抛错 → 走「保存失败」类提示。  
+- **修复**：在 `corsHeaders` 中增加 `Authorization`（与 `x-admin-secret` 并存无妨）。`OPTIONS` 与所有使用 `corsHeaders` 的 API 响应一并生效。  
+- **涉及文件**：`lib/utils/cors.ts`；与扩展 `chrome-extension/.../ExplainCard.tsx` 仅请求侧有关。  
+- **部署注意**：**必须**将 Web 端该改动部署到扩展里配置的 `apiBaseUrl`（本地 `npm run dev` 会立即生效；线上需发版后才生效）。
+
 ### 与调试埋点
 
 - 曾使用本仓库 `.cursor/debug-821123.log` 与 ngest 端点做**一次性**排障；**问题确认后已删除全部 instrumentation**，勿再依赖该 session。
