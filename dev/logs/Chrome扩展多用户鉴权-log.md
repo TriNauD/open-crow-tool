@@ -53,7 +53,8 @@
 1. sync 中预置**旧线上** `apiBaseUrl`、无或旧 `accessToken`。  
 2. 打开 `http://localhost:3000`，登录，点「连接插件」。  
 3. 打开扩展 Options → 应为**已连接**，且 `apiBaseUrl` 为 `http://localhost:3000`（或与当前站一致）。  
-4. **BF-5 / CORS**：在任意第三方页划词存笔记；Network 中 `OPTIONS` + `POST /api/notes` 成功，响应头含 `Access-Control-Allow-Headers` 且含 `Authorization`；或 DevTools 无 CORS 红字。
+4. **BF-5 / CORS**：在任意第三方页划词存笔记；Network 中 `OPTIONS` + `POST /api/notes` 成功，响应头含 `Access-Control-Allow-Headers` 且含 `Authorization`；或 DevTools 无 CORS 红字。  
+5. **自动化**：根目录 `npm run test`（Vitest，断言 `corsHeaders` 含 `Authorization` 与 `samePageOrigin` 行为）——不替代上表浏览器手测，仅防回归改坏 TS 层契约。
 
 ---
 

@@ -1,15 +1,7 @@
 import { createRoot } from 'react-dom/client';
+import { samePageOrigin } from '../../../lib/utils/same-page-origin';
 import App from './App';
 import { STYLES } from './styles';
-
-/** 页面 postMessage 中的 apiBaseUrl 必须与 event.origin 同源（防跨站伪造 payload；同时允许从旧 prod 切到 localhost）。 */
-function samePageOrigin(pageBaseUrl: string, eventOrigin: string): boolean {
-  try {
-    return new URL(pageBaseUrl).origin === new URL(eventOrigin).origin;
-  } catch {
-    return false;
-  }
-}
 
 // 「连接插件」桥接监听——必须在所有页面（含 Crow 自身站点）上运行，
 // 因此放在 mount() 之外，不受 crowNative 标志影响。

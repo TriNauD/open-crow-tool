@@ -15,6 +15,56 @@
 
 ---
 
+## 0.1 自动化测试（减少重复手测）
+
+**目的**：锁定 **CORS 含 `Authorization`** 与 **`samePageOrigin` 逻辑**，避免回归时忘改 `cors.ts` 或桥接校验。
+
+**命令**（仓库根目录，需已 `npm ci` / `npm install`）：
+
+```bash
+npm run test
+```
+
+**覆盖**（Vitest，`__tests__/*.test.ts`）：
+
+| 文件 | 断言 |
+|------|------|
+| `__tests__/cors.test.ts` | `corsHeaders` 的 `Access-Control-Allow-Headers` 含 `Authorization`；`handleOptions()` 响应头一致 |
+| `__tests__/same-page-origin.test.ts` | 同源/不同端口/非法 URL 等 |
+
+**不能自动化、仍需手测/Preview 的项**：真实浏览器里 `chrome.storage.sync`、`postMessage` 全链、划词 → `POST /api/notes` 与生产部署后的 CORS 行为。发版后至少在 **Preview 或生产** 用下面「0.2」**最小路径**走一遍即可。
+
+---
+
+## 0.2 手测详细步骤（最小路径 + 全量可选项）
+
+### A. 最小路径（发版/改扩展后 10 分钟内，建议必做）
+
+**前置**：本机或 Preview 上 Web 与扩展指向**同一** `apiBaseUrl` 环境；若修的是 **CORS**，线上必须已部署含 `lib/utils/cors.ts` 的 Web 版本。
+
+1. 根目录 `npm run test` 与 `npm run build` 通过；`cd chrome-extension && npm run build` 通过。  
+2. `chrome://extensions` → 开发者模式开 → **「这是啥？」→ 重新加载**（或删除后重载 `dist`）。  
+3. **清空扩展数据（可选、模拟干净用户）**：打开扩展**选项**页，F12 打开该页的 Console，执行 `chrome.storage.sync.clear(() => location.reload())`（会清掉本扩展 sync 全部键，慎用）。不清空也可测「覆盖旧 prod」场景。  
+4. 浏览器打开与扩展将使用的站点（如 `https://你的站` 或 `http://localhost:3000`），**登录**同一账号。  
+5. 导航栏点 **「连接插件」**（约 4 秒内可显示「✓ 插件已连接」类反馈）。再打开 **扩展 → 设置**，应看到 **已连接** 与正确 **API 地址**。若否，看 `dev/logs/Chrome扩展多用户鉴权-log.md` 中 BF-3 场景。  
+6. 新开标签打开 **任意普通网页**（如新闻站），**划词** → 等解释出字 → 点 **「存入笔记本」**。应成功变绿，且到网站 **笔记本页** 能看到新记录。若失败，查 Network 是否 **CORS**（`POST /api/notes` 为 failed）或 **401**（回站点重新连接）。  
+7. 若第 6 步失败，在 **被测网页** 上 F12 → **Network** → 筛选 `api/notes`，看 **预检 OPTIONS** 响应头里 `access-control-allow-headers` 是否含 **`authorization`**（大小写浏览器可能小写显示）。
+
+### B. 全量用例（本文件 §3 的 TC-01～TC-07、§4 的 RT）
+
+在 A 全绿后，按 §3/§4 表逐项勾选；**不必每次发版都跑全量**，大改鉴权/扩展或发 **major** 前跑一遍即可。
+
+### C. 常见卡点速查
+
+| 现象 | 检查 |
+|------|------|
+| 点「连接」无反应 | 扩展是否已 **重新加载**、页面是否已 **刷新**；`data-crow-native` 见 log BF-1。 |
+| 网站绿、设置仍未连接 | 见 log **BF-3**；或旧扩展未重载。 |
+| 能连上但存笔记失败 | 见 log **BF-5**；Web 是否已部署新 `cors.ts`；Network 里 CORS/401。 |
+| 文案仍是「请检查插件设置」 | 旧 **dist**；`chrome-extension` 重新 `npm run build` 并重载扩展。 |
+
+---
+
 ## 1. 影响域标注
 
 - **需求名称**：Chrome 扩展多用户鉴权
