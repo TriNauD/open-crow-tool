@@ -19,6 +19,7 @@
 - `.cursor/rules/env-and-secrets.mdc` — 涉及环境变量或密钥时
 - `.cursor/rules/task-handoff-and-blockers.mdc` — 涉及任务交接或阻塞时
 - `.cursor/skills/product-delivery-pipeline/SKILL.md` — 要展开 QA/手测模板或逐步执行结项时 @ 此技能
+- `.cursor/skills/qa-e2e-smoke/SKILL.md` — 要把手测改成 Playwright 冒烟、或 E2E 与 QA 对表时 @
 - `docs/product/README.md` / `docs/tech/README.md` — 产品/技术**分卷**索引（`docs/PRD.md` / `docs/PLAN.md` 为总览）
 
 ## 用户与 AI 协作偏好（triage）
