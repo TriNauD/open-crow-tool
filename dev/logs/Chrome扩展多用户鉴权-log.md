@@ -1,7 +1,7 @@
 # Chrome 扩展多用户鉴权 — 问题与 Keyfix 记录
 
 > 功能分支建议：`fea/chrome-ext-user-auth-tri`  
-> 与活动文档目录：`dev/active/Chrome扩展多用户鉴权/`
+> 结项文档目录：`dev/done/Chrome扩展多用户鉴权/`
 
 ## 2026-04-27（Bugfix 轮次，已合入实现）
 
@@ -69,7 +69,13 @@
 
 ---
 
-## 后续（结项时由 PM/TL 补）
+## 结项
 
-- 通过用户验收后：commit、PR `dev`、将 `dev/active/Chrome扩展多用户鉴权/` 迁 `dev/done/`、本 log 可追加「结项日期与版本号」一行。  
-- 是否需要更新 `docs/PRD.md` / `docs/PLAN.md` 中「扩展连接」用户路径，由 PM 决定。
+- **日期**：2026-04-27  
+- **结果**：用户整体验收通过；`dev/active/Chrome扩展多用户鉴权/` 已迁 `dev/done/Chrome扩展多用户鉴权/`；`PRD` / `PLAN` 已同步为「网站连接插件 + Bearer + `chrome.storage`」。  
+- **待办（流程）**：在功能分支上 `commit` 后，由协作者向 `dev` 提 **PR**（不自动开）；合并前建议 **merge 最新 `dev` 进功能分支** 再验一遍（见 `git-branching.mdc`）。  
+- **生产注意**：线上必须部署含 `lib/utils/cors.ts` 中 `Authorization` 的 Web 版本，扩展在真实网页上 `POST /api/notes` 的预检才通过（BF-5）。
+
+## 后续（可选、非本需求必须）
+
+- 扩展内嵌 Supabase 登录：仍未做；当前路径为网站登录后点「连接插件」写 token（见 PRD/PLAN「out of scope」与 Phase 6 可选项）。

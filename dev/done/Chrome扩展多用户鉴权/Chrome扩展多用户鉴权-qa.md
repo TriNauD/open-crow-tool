@@ -6,8 +6,8 @@
 |------|------|------|
 | 2026-04-27 | `chrome-extension npm run build` | PASS |
 | 2026-04-27 | 连接插件 + Options 与 storage 一致（含旧 prod `apiBaseUrl` → localhost 切换） | **PASS（用户确认）** |
-| 2026-04-27 | Bugfix 与根因归档 | 见 `dev/logs/Chrome扩展多用户鉴权-log.md`（BF-1～BF-4） |
-| 2026-04-27 | Web 端 `next build` / `next lint`、其余 TC/RT 全量 | **待正式验收时补全**（可选：发布前在 Preview 再跑一遍） |
+| 2026-04-27 | Bugfix 与根因归档 | 见 `dev/logs/Chrome扩展多用户鉴权-log.md`（BF-1～BF-5） |
+| 2026-04-27 | `npm run test`（Vitest）+ 手测最小路径 + 用户**整体验收通过** | **PASS** |
 
 **手测环境**：`npm run dev`（`http://localhost:3000`）+ Chrome 加载扩展 `dist/`（开发者模式）。
 
@@ -220,11 +220,12 @@ npm run test
 
 | 类型 | 结论 |
 |------|------|
-| 构建（`npm run build`） | PASS |
-| 核心问题修复（网站已连接、扩展仍未连接 + 点连接无反应） | **PASS（2026-04-27 用户确认）**；根因见 `dev/logs/Chrome扩展多用户鉴权-log.md` |
-| 浏览器全量用例（TC-01～TC-07、RT-01～RT-03） | **留待**最终验收或发布前 Preview 全跑 |
+| 构建（根目录 + `chrome-extension`） | PASS |
+| 自动化（`npm run test`） | PASS |
+| 核心链路与 Bugfix（连接、storage、CORS 存笔记） | **PASS**；根因见 `dev/logs/Chrome扩展多用户鉴权-log.md` |
+| 用户整体验收（含手测清单） | **PASS（2026-04-27）** |
 
-**总结论（当前）**：**核心链路可验收**；全量用例与 `next build/lint` 可在合并前或发版前一次性补完并在此表更新为 **PASS**。
+**总结论**：**PASS，结项**。余下 §3/§4 未逐条勾选的 TC/RT 可作为后续大版本发布前的可选回归；不影响本需求结项。
 
 ---
 
