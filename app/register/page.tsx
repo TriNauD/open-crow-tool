@@ -14,6 +14,14 @@ export default function RegisterPage() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!email.trim() || !password.trim() || state === 'loading') return;
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      setState('error');
+      setError('请输入有效的邮箱地址');
+      return;
+    }
+
     if (!authConfigured) {
       setState('error');
       setError('缺少 NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY 配置');
@@ -77,7 +85,7 @@ export default function RegisterPage() {
           />
 
           {state === 'error' && <p className="text-sm text-red-400">{error}</p>}
-          {state === 'success' && <p className="text-sm text-green-400">注册成功，请登录后继续。</p>}
+          {state === 'success' && <p className="text-sm text-green-400">注册邮件已发送，请前往邮箱完成验证后再登录。</p>}
 
           <button
             type="submit"
