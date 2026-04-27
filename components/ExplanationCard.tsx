@@ -82,8 +82,8 @@ export default function ExplanationCard({
     window.getSelection()?.removeAllRanges();
   }, [popover]);
 
-  // Normalize inputText for duplicate matching: trim + lowercase
-  const normalizedInput = inputText.trim().toLowerCase();
+  // Normalize inputText for duplicate matching: trim + lowercase + collapse whitespace
+  const normalizedInput = inputText.trim().toLowerCase().replace(/\s+/g, '');
 
   // Only check for duplicates on top-level notes (depth === 0, no parent context)
   const shouldCheckDuplicate = depth === 0 && !context;
@@ -91,7 +91,7 @@ export default function ExplanationCard({
   function findGuestDuplicate(): NoteEntry | null {
     if (!shouldCheckDuplicate) return null;
     const match = getGuestNotes().find(
-      (n) => n.inputText.trim().toLowerCase() === normalizedInput
+      (n) => n.inputText.trim().toLowerCase().replace(/\s+/g, '') === normalizedInput
     );
     if (!match) return null;
     return {
@@ -110,7 +110,7 @@ export default function ExplanationCard({
     if (!accessToken || !shouldCheckDuplicate) return null;
     const notes = await fetchNotes(accessToken, inputText.trim());
     return notes.find(
-      (n) => n.inputText.trim().toLowerCase() === normalizedInput && !n.parentText
+      (n) => n.inputText.trim().toLowerCase().replace(/\s+/g, '') === normalizedInput && !n.parentText
     ) ?? null;
   }
 

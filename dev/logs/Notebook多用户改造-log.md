@@ -1,14 +1,22 @@
-# Notebook 多用户改造日志
+# Notebook 多用户改造 日志
 
-## 2026-04-26
-- 修正流程执行偏差：补充 `dev/active/Notebook多用户改造/` 任务与上下文的实时状态，新增“待验证任务”与“下一步”。
-- 新增会话态数据库客户端 `createUserDbClient(accessToken)`，用于用户 token 访问。
-- 改造 `/api/notes` 与 `/api/notes/[id]`：去除 admin-secret 依赖，改为 Bearer token + 用户身份校验。
-- 新增 `/api/notes/migrate-guest`，支持游客笔记登录后一次性迁移（幂等 upsert）。
-- 新增浏览器 Supabase 客户端与会话 hook，补齐 `/login`、`/register` 页面。
-- `ExplanationCard` 增加游客保存逻辑；`Notebook` 增加游客视图与迁移确认弹窗。
-- 新增 SQL migration：`notes.client_note_id` + `RLS policies` + 幂等唯一索引。
-- 新增上线手册：`docs/notebook-multi-user-rollout.md`，包含监控、阈值、回滚。
-- 完成本地验证：`npm run lint` 通过（仅残留既有 warning），`npm run build` 通过。
-- 新增 QA 文档：`dev/active/Notebook多用户改造/Notebook多用户改造-qa.md`，按影响域/功能/回归/结论结构可直接勾选执行。
-- 登录页增加密码可见性切换按钮（显示/隐藏），提升录入可用性。
+## 2026-04-26（Luna 开发）
+- 新增会话态数据库客户端 `createUserDbClient(accessToken)`
+- 改造 `/api/notes` 与 `/api/notes/[id]`：去除 admin-secret，改为 Bearer token + 用户身份校验
+- 新增 `/api/notes/migrate-guest`，支持游客笔记登录后一次性迁移
+- 新增浏览器 Supabase 客户端与会话 hook，补齐 `/login`、`/register` 页面
+- `ExplanationCard` 增加游客保存逻辑；`Notebook` 增加游客视图与迁移确认弹窗
+- 新增 SQL migration：`notes.client_note_id` + RLS policies + 幂等唯一索引
+- 新增上线手册：`docs/notebook-multi-user-rollout.md`
+
+## 2026-04-27（验收修复）
+- 修复注册/登录按钮被环境变量检查静默禁用（无提示）
+- 修正注册成功提示文案（改为邮件验证引导）
+- 新增邮箱格式正则校验
+- 登录错误提示改为中文，区分凭证错误与邮箱未验证
+- merge main（Open Crow 改名），补全 login/register 页头文案及 localStorage key
+- 修复游客笔记迁移：upsert 偏函数索引兼容问题，改为先查再插
+- 全部 TC 用户验收通过（TC-01 ～ TC-09，RT-01 ～ RT-03）
+
+## 遗留问题（不阻塞上线）
+- TC-05：跨账号删除返回 200 而非 404，安全无隐患，后续迭代优化

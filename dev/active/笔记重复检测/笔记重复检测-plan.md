@@ -4,7 +4,8 @@
 存笔记前检测是否已有相同问题，展示新旧答案对比，由用户决定覆盖或都保留。
 
 ## 匹配规则
-- `inputText.trim().toLowerCase()` 精确匹配
+- `inputText.trim().toLowerCase().replace(/\s+/g, '')` 折叠空白后精确匹配
+- 即 "RAG 是啥" = "rag是啥" = "RAG是啥"
 - 追问笔记（`parentId` 不为空）跳过检测
 - 登录态：查后端；游客态：查 localStorage
 
