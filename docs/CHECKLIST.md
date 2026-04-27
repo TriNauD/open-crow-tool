@@ -1,20 +1,20 @@
 # 这是啥？— 任务清单 (CHECKLIST)
 
-> 版本：v1.1 | 最后更新：2026-04-24
+> 版本：v1.2 | 最后更新：2026-04-27
 > 
-> 使用说明：每次开始一个任务前，先读 PRD.md 和 PLAN.md。完成后在对应项打 ✅。
+> 使用说明：先读 [`docs/PRD.md`](./PRD.md) / [`docs/PLAN.md`](./PLAN.md) 总览，再按任务打开 [`docs/product/`](./product/README.md) 与 [`docs/tech/`](./tech/README.md) 对应分卷。完成后在对应项打 ✅。
 
 ---
 
 ## Phase 1：数据库地基
 
 > 目标：笔记本从 localStorage 迁移到 Supabase，跨设备同步。
-> 依赖文档：PRD § 二-笔记本、§ 四-认证方案；PLAN § 三、§ 四
+> 依赖文档：`docs/product/notebook.md`、`docs/product/auth.md`；`docs/tech/database.md`、`docs/tech/phase-1-database-baseline.md`（或总览中 § 三、§ 四 所指分卷）
 
 ### 1.1 Supabase 初始化
 
 - [x] 创建 Supabase 项目（supabase.com）
-- [x] 在 SQL Editor 执行 PLAN.md 中的 DDL 建表语句（notes 表 + 索引）
+- [x] 在 SQL Editor 执行 `docs/tech/database.md` 中 DDL 建表语句（notes 表 + 索引）
 - [x] 复制 `SUPABASE_URL`、`SUPABASE_SERVICE_ROLE_KEY` 到 `.env.local`
 - [x] 生成 `ADMIN_SECRET` 写入 `.env.local`
 - [x] 生成 `ADMIN_USER_ID` 写入 `.env.local`
@@ -65,7 +65,7 @@
 ## Phase 2：Chrome 插件
 
 > 目标：在任意网页划词，原地弹出 AI 解释气泡，可一键存入云端笔记本。
-> 依赖文档：PRD § 二-模块B；PLAN § 五
+> 依赖文档：`docs/product/chrome-extension.md`；`docs/tech/phase-2-chrome-extension.md`
 
 ### 2.1 插件项目初始化
 
@@ -117,14 +117,14 @@
 **需求变更记录：**
 - 快捷键由单一 `Alt+W` 改为双平台适配（Mac: `Ctrl+Shift+W`，Win: `Alt+W`）
   - 原因：Mac 上 `Alt+W` 输入特殊字符 `∑`，实测不可用
-  - 影响：`manifest.json` + `popup/main.tsx` + `PRD.md`
+  - 影响：`manifest.json` + `popup/main.tsx` + `docs/product/chrome-extension.md`（与总 PRD 导航）
 
 ---
 
 ## Phase 3：GitHub Trending 周报邮件
 
 > 目标：每周一自动爬取 GitHub Trending，AI 五档评审后发邮件。
-> 依赖文档：PRD § 二-模块C（v1.1）；PLAN § 六（v1.1）
+> 依赖文档：`docs/product/weekly-digest.md`（v1.1 变更）；`docs/tech/phase-3-weekly-digest.md`（v1.1）
 > 需求变更 v1.1（2026-04-25）：新增五档排名 + 双维度打分 + CTA文案 + 邮件标题风格
 
 ### 3.1 依赖安装

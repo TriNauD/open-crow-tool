@@ -1,0 +1,25 @@
+---
+description: 六步产品交付：PM/TL 评估→总览+分卷（docs/PRD、docs/PLAN、docs/product 与 docs/tech）→QA/手测→用户验收→修 bug→结项
+alwaysApply: true
+---
+
+# 产品交付管道（与 `dev-workflow.mdc` 配合）
+
+本规则固化「需求从提出到结项」的**顺序与门控**。产品/技术**长文**在 `docs/product/*.md` 与 `docs/tech/*.md`，`docs/PRD.md` 与 `docs/PLAN.md` 为**总览与索引**。**详细模板、手测结构、结项清单**见项目技能：`.cursor/skills/product-delivery-pipeline/SKILL.md`（在对话中 @ 该技能或说「按产品交付管道执行」）。
+
+## 六步总览
+
+| 步 | 内容 | 门控（未满足不得进入下一步） |
+|---|------|-----------------------------|
+| 1 | 用户提需求；PM + TL 论可行性，输出结论给用户 | 用户**明确同意**后再更新 `docs/PRD.md`（总览）、`docs/PLAN.md`（总览），并在对应 **`docs/product/*`** / **`docs/tech/*`** 分卷中写清模块级变更；同时建 `dev/active/需求名称/*`（阶段 1 仍禁写业务代码，见 `dev-workflow`） |
+| 2 | 用户确认方案后，**commit 文档**（总览+分卷 + 可选 context/plan/tasks 初稿） | 至少一次 **仅文档** 的 `git commit` |
+| 3 | 生成 `需求名称-qa.md`（**自动化** + **手动**），并含**可执行手测流程**（最小路径 + 全量可选）；commit 文档 | 文档可单独 commit；**不得**在未经用户手测前宣称「可上线」 |
+| 4 | TL/QA 跑完**自动化**后交用户；用户**照手测文档**验收 | 用户**明确**通过/不通过；不通过回第 5 步 |
+| 5 | 有 bug 时：TL/QA 修代码，在 `dev/logs/需求名称-log.md` 以 **BF-n** 记录根因与修复 | 每个 BF 至少：现象、根因、涉及文件、验证方式 |
+| 6 | 用户整体验收通过后**结项**：迁 `dev/done/`、补 log、更新 `docs/PRD.md` / `docs/PLAN.md` 及所涉 **分卷**（若需）、**收尾 commit**；PR 由人发起（见 `git-branching`） | 与 `dev-workflow` 阶段 5 一致 |
+
+## AI 须遵守
+
+- 步骤 1 结束前：**不写**产品代码、**不改** `package.json` 业务行为（与 `dev-workflow` 阶段 1 一致）。
+- 手测流程须**逐步可复现**（环境、账号、点哪里、预期结果、失败时看哪里），与「最小路径 + 全量可选项」同级结构。
+- 与 `team-roles`：讨论用 `[PM]`/`[TL]`/`[QA]` 前缀；决策写 `[Decision]`。

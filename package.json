@@ -10,7 +10,9 @@
     "dev": "npx -y node@20 node_modules/next/dist/bin/next dev",
     "build": "npx -y node@20 node_modules/next/dist/bin/next build",
     "start": "npx -y node@20 node_modules/next/dist/bin/next start",
-    "lint": "npx -y node@20 node_modules/eslint/bin/eslint.js"
+    "lint": "npx -y node@20 node_modules/eslint/bin/eslint.js",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.104.1",
@@ -32,6 +34,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.4",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^3.2.4"
   }
 }
