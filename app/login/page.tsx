@@ -34,7 +34,7 @@ export default function LoginPage() {
       setState('error');
       const msg = signInError.message.toLowerCase();
       if (msg.includes('invalid login credentials') || msg.includes('invalid credentials')) {
-        setError('邮箱或密码不正确。如果还没有账号，请先去注册。');
+        setError('邮箱或密码不正确，请检查后重试。');
       } else if (msg.includes('email not confirmed')) {
         setError('邮箱尚未验证，请先前往邮箱点击验证链接。');
       } else {
