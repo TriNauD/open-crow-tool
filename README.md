@@ -48,6 +48,11 @@ npm run dev
 | 存储 | localStorage (MVP) |
 | 部署 | Vercel |
 
+## CI（持续集成）
+
+向 `dev` / `main` **推送**或 **开 PR** 时，GitHub Actions 会自动执行：`npm ci` → `npm run lint` → `npm run test` → `npm run build` → `chrome-extension` 下 `npm ci` + `npm run build`。  
+这样能在合并前发现「忘跑测试、类型/ESLint 挂了、Next 或扩展打不出包」等问题；工作流见 [`.github/workflows/ci.yml`](.github/workflows/ci.yml)。构建阶段使用**仅占位**的 Supabase 环境变量（不含真实密钥），与本地用 `.env.local` 不同。
+
 ## 目录结构
 
 ```
