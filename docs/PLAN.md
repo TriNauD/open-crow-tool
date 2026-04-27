@@ -1,30 +1,32 @@
 # 这他妈是啥？— 技术架构与执行计划 (PLAN)
 
-> 版本：v1.2 | 作者：TL | 最后更新：2026-04-26
+> 版本：v1.3 | 作者：TL | 最后更新：2026-04-27
 
 ---
 
 ## 一、整体架构
 
 ```
-┌─────────────────────────────────────────────────────┐
-│                     用户入口                          │
-│   Web (Next.js)          Chrome Extension (Vite)     │
-└──────────┬──────────────────────┬────────────────────┘
-           │                      │
-           ▼                      ▼
-┌─────────────────────────────────────────────────────┐
-│              Next.js API Routes (Vercel)              │
-│  /api/explain   /api/notes   /api/cron/weekly-digest  │
-│         ↑ 所有请求带 x-admin-secret header            │
-└──────────┬──────────────────────┬────────────────────┘
-           │                      │
-           ▼                      ▼
-    ┌─────────────┐      ┌───────────────────┐
-    │  AI Provider │      │  Supabase Postgres │
-    │  (OpenAI /   │      │  (notes 表)        │
-    │  SiliconFlow)│      └───────────────────┘
-    └─────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│                          用户入口                              │
+│   Web (Next.js)                 Chrome Extension (Vite)       │
+│   （登录态：Bearer JWT）          （admin-secret header）      │
+└──────────┬─────────────────────────────┬──────────────────────┘
+           │                             │
+           ▼                             ▼
+┌──────────────────────────────────────────────────────────────┐
+│                Next.js API Routes (Vercel)                    │
+│  /api/explain   /api/notes   /api/notes/[id]                 │
+│  /api/notes/migrate-guest    /api/cron/weekly-digest          │
+│  ↑ Web 笔记 API：Bearer JWT → getRequestUser() 校验           │
+└──────────┬─────────────────────────────┬──────────────────────┘
+           │                             │
+           ▼                             ▼
+    ┌─────────────┐      ┌──────────────────────────────┐
+    │  AI Provider │      │       Supabase Postgres       │
+    │  (OpenAI /   │      │  notes 表（RLS 行级隔离 ✅）   │
+    │  SiliconFlow)│      │  subscribers 表               │
+    └─────────────┘      └──────────────────────────────┘
 ```
 
 ---
@@ -80,12 +82,14 @@ create index if not exists notes_fts_idx
 ```bash
 # Supabase
 SUPABASE_URL=https://xxxx.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=xxxx   # 后端专用，不暴露给前端
-SUPABASE_ANON_KEY=xxxx           # 可选，暂时用不到
+SUPABASE_SERVICE_ROLE_KEY=xxxx           # 后端专用，绝对不暴露给前端
+SUPABASE_ANON_KEY=xxxx                   # Phase 5 新增：用于用户态 DB 客户端
+NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co   # Phase 5 新增：浏览器端登录用
+NEXT_PUBLIC_SUPABASE_ANON_KEY=xxxx       # Phase 5 新增：浏览器端登录用
 
-# 鉴权（B方案）
+# 鉴权（历史遗留，Phase 1-2，Chrome 插件仍在使用）
 ADMIN_SECRET=你自己设置的随机字符串（建议 32 位）
-ADMIN_USER_ID=一个固定 UUID（建议用 crypto.randomUUID() 生成一次后写死）
+# ADMIN_USER_ID 已废弃，Phase 5 后不再使用
 ```
 
 ---
@@ -402,11 +406,83 @@ Vercel Cron → GET /api/cron/weekly-digest
 
 ---
 
-## 八、代码规范与约束
+## 八、Phase 5：Notebook 多用户改造（2026-04-26 ✅）
+
+### 目标
+
+将笔记本从单管理员模式（`ADMIN_SECRET` + 固定 `ADMIN_USER_ID`）升级为真实多用户系统，每个注册用户的笔记完全隔离。
+
+### 改动文件清单
+
+```
+新增：
+  app/login/page.tsx                        — 登录页
+  app/register/page.tsx                     — 注册页
+  app/api/notes/migrate-guest/route.ts      — 游客笔记迁移 API（幂等 upsert）
+  components/AuthNav.tsx                    — 导航栏登录态组件
+  components/GuestMigrationModal.tsx        — 登录后游客笔记迁移弹窗
+  hooks/useAuthSession.ts                   — Supabase 会话管理 hook
+  lib/supabase/browser.ts                   — 浏览器端 Supabase 客户端单例
+  lib/api/notes-client.ts                   — 前端笔记 API 调用封装
+  lib/guest-notes.ts                        — localStorage 游客笔记读写工具
+  lib/config/notebook.ts                    — NOTEBOOK_MULTI_USER_ENABLED 开关
+  lib/observability/notebook.ts             — 笔记模块可观测性埋点
+  db/migrations/20260426_notebook_multi_user.sql — RLS 策略 + client_note_id 字段
+
+修改：
+  lib/db/client.ts    — 新增 createUserDbClient(accessToken)
+  lib/db/notes.ts     — 所有操作改为接受 NoteDbContext { db, userId } 参数
+  lib/utils/auth.ts   — 废弃 isAuthorized，新增 getRequestUser / unauthorizedResponse
+  app/api/notes/route.ts         — 改为 Bearer token 鉴权 + 用户态 DB 客户端
+  app/api/notes/[id]/route.ts    — 同上
+  app/notebook/page.tsx          — 接入会话 hook，支持游客/登录双模式
+  app/page.tsx                   — 接入会话 hook，加 GuestMigrationModal
+  components/ExplanationCard.tsx — 游客保存走 localStorage，登录态走 API
+  .env.local.example             — 新增前端 NEXT_PUBLIC_* 变量，移除 ADMIN_USER_ID
+
+删除：
+  app/actions.ts                 — 原 Server Actions 模式废弃
+```
+
+### 数据库 Migration
+
+```sql
+-- 见 db/migrations/20260426_notebook_multi_user.sql
+-- 1. notes 表新增 client_note_id 字段（游客迁移幂等用）
+-- 2. 启用 RLS，配置四条策略（select/insert/update/delete 各一条）
+-- 3. 创建 (user_id, client_note_id) 唯一索引（幂等插入防重）
+```
+
+### 鉴权架构
+
+```
+浏览器（已登录）
+  → Supabase Auth Session（JWT）
+  → fetch /api/notes  { Authorization: Bearer <jwt> }
+
+API Route
+  → getAccessTokenFromRequest(req)  → Bearer token
+  → getRequestUser(req)             → db.auth.getUser(token) → User
+  → createUserDbClient(token)       → anon key + Bearer → 用户态 Supabase client
+  → getNotes({ db, userId }) / saveNote / deleteNote / ...
+
+Supabase Postgres
+  → RLS: auth.uid() = user_id       → 每行只能被归属用户操作
+```
+
+### 上线风控
+
+- **熔断**：`NOTEBOOK_MULTI_USER_ENABLED=false` → API 返回 503，快速止损
+- **监控**：`logNotebookMetric` 埋点，覆盖 `auth_failed` / `request_failed` / `guest_migration_*`
+- **回滚手册**：见 `docs/notebook-multi-user-rollout.md`
+
+---
+
+## 九、代码规范与约束
 
 1. **绝对不能做的事**：
    - 不能把 `SUPABASE_SERVICE_ROLE_KEY` 或 `ADMIN_SECRET` 暴露给客户端代码（不能出现在 `'use client'` 组件或任何会打包到前端的文件里）
-   - 不能跳过 `isAuthorized` 校验直接操作 DB
+   - 不能绕过鉴权（`getRequestUser` / RLS）直接操作 DB
 
 2. **API 规范**：
    - 所有写操作必须先鉴权
@@ -425,7 +501,7 @@ Vercel Cron → GET /api/cron/weekly-digest
 
 ---
 
-## 九、里程碑时间线（参考）
+## 十、里程碑时间线（参考）
 
 | 里程碑 | 目标 | 预计周期 |
 |---|---|---|
@@ -434,3 +510,4 @@ Vercel Cron → GET /api/cron/weekly-digest
 | M3 | Phase 3 完成，周报邮件运行 | 按兴趣，随时加 |
 | M4 | Phase 4 完成，外部用户可订阅 | 2026-04-25 ✅ |
 | M4.5 | 周报生产就绪（欢迎邮件/退订确认/防滥用/发送隔离） | 2026-04-26 ✅ |
+| M5 | Phase 5 完成，Notebook 多用户隔离上线 | 2026-04-26 ✅（待最终用户验收）|
