@@ -5,8 +5,12 @@
 ## 功能
 
 - **这是啥** — 粘贴任意文本、链接或术语，流式 AI 大白话解释
-- **这又是啥** — 在答案里选中任意词，递归追问，无限套娃
-- **这都是啥** — 笔记本，存下问过的东西随时翻
+- **这又是啥** — 在答案里选中任意词，递归追问
+- **这都是啥** — 笔记本（登录用户云端同步；未登录可用游客态本地暂存）
+
+更完整的产品说明见 **[`docs/PRD.md`](docs/PRD.md)**，技术架构与 Phase 说明见 **[`docs/PLAN.md`](docs/PLAN.md)**，任务级清单见 **[`docs/CHECKLIST.md`](docs/CHECKLIST.md)**。
+
+---
 
 ## 快速启动
 
@@ -16,65 +20,57 @@
 cp .env.local.example .env.local
 ```
 
-编辑 `.env.local`，选择你的模型提供方：
+按 `.env.local.example` 注释配置 AI 提供方（如 `AI_PROVIDER`、`AI_API_KEY`）及 Supabase 等；生产/预览环境在 Vercel 面板配置同名变量。
 
-- OpenAI：`AI_PROVIDER=openai` + `OPENAI_API_KEY`
-- 硅基流动：`AI_PROVIDER=siliconflow` + `AI_API_KEY`（模型名需带命名空间，如 `deepseek-ai/DeepSeek-V3`）
-- 英伟达 NIM（OpenAI 兼容）：`AI_PROVIDER=nvidia` + `NVIDIA_API_KEY`（或 `AI_API_KEY`），默认 `https://integrate.api.nvidia.com/v1`
-
-**英伟达作备用**：主线路由仍用 siliconflow/openai 等，另设 `NVIDIA_API_KEY`，并打开 `AI_ENABLE_NVIDIA_FALLBACK=true`，主线路由请求失败时会自动用英伟达再试一次。
-
-### 2. 安装依赖
+### 2. 安装与开发
 
 ```bash
-npm install
-```
-
-### 3. 启动开发服务器
-
-```bash
+npm ci
 npm run dev
 ```
 
-打开 [http://localhost:3000](http://localhost:3000)。
+打开 [http://localhost:3000](http://localhost:3000)。团队约定 Node / npm 版本见 `.nvmrc` 与 `package.json` 的 `engines`。
 
-## 技术栈
+### 3. 合并前自检（与 CI 一致）
+
+```bash
+npm run verify
+```
+
+顺序执行：`lint` → `test`（Vitest）→ Next 生产构建（无 `.env.local` 时使用**仅占位**的 Supabase 变量，与 [`.github/workflows/ci.yml`](.github/workflows/ci.yml) 一致）→ `chrome-extension` 下 `npm ci` 与扩展构建。脚本实现见 [`scripts/verify.mjs`](scripts/verify.mjs)。
+
+单独跑测试：`npm run test`；监听模式：`npm run test:watch`。
+
+---
+
+## 技术栈（摘要）
 
 | 层 | 技术 |
 |---|---|
-| 框架 | Next.js 16 (App Router) |
-| 样式 | Tailwind CSS v4 |
-| AI | OpenAI SDK（兼容 OpenAI / SiliconFlow / NVIDIA NIM） |
-| 存储 | localStorage (MVP) |
+| Web | Next.js（App Router）、React、Tailwind CSS v4 |
+| 数据与身份 | Supabase（Postgres + Auth），笔记多用户与 RLS |
+| AI | OpenAI 兼容 SDK（多厂商路由见 `lib/ai/`） |
+| 扩展 | `chrome-extension/`，Vite + React（Manifest V3） |
 | 部署 | Vercel |
 
-## CI（持续集成）
+---
 
-向 `dev` / `main` **推送**或 **开 PR** 时，GitHub Actions 会自动执行：`npm ci` → `npm run lint` → `npm run test` → `npm run build` → `chrome-extension` 下 `npm ci` + `npm run build`。  
-这样能在合并前发现「忘跑测试、类型/ESLint 挂了、Next 或扩展打不出包」等问题；工作流见 [`.github/workflows/ci.yml`](.github/workflows/ci.yml)。构建阶段使用**仅占位**的 Supabase 环境变量（不含真实密钥），与本地用 `.env.local` 不同。
+## CI
 
-## 目录结构
+向 `dev` / `main` **推送**或 **开 PR** 时，GitHub Actions 跑与 `npm run verify` 等价的步骤（依赖安装用 `npm ci`）。工作流见 [`.github/workflows/ci.yml`](.github/workflows/ci.yml)。
 
-```
-app/
-  page.tsx              主页（解释器）
-  notebook/page.tsx     笔记本页
-  api/explain/route.ts  流式 AI 解释 API
-components/
-  ExplanationCard.tsx   核心卡片（含递归追问逻辑）
-hooks/
-  useStreamExplain.ts   流式请求 hook
-lib/
-  prompts.ts            AI prompt 模板
-  ai-providers.ts       多厂商 API 客户端与模型解析
-  storage.ts            localStorage 笔记本工具
-  cn.ts                 className 工具
-```
+---
 
-## 部署到 Vercel
+## 部署（Vercel）
 
 ```bash
 vercel --prod
 ```
 
-记得在 Vercel 的环境变量里设置对应 provider 的 key（如 `OPENAI_API_KEY`、`AI_API_KEY`、`NVIDIA_API_KEY` 等）。
+在 Vercel 中配置与 `.env.local.example` 对应的环境变量。若发版同时涉及 **网站 API / CORS 与扩展**，需确认**两端**均已部署/重装扩展，避免只更新一边导致跨域或鉴权异常。
+
+---
+
+## 仓库与目录
+
+应用代码主要在 `app/`、`components/`、`lib/`；Chrome 扩展在 **`chrome-extension/`**（独立 `package.json`）。开发过程与结项文档在 **`dev/`** 下。目录细部以仓库内实际结构为准，避免在 README 重复维护易过时的树状列表。
