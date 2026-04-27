@@ -7,7 +7,7 @@ export interface GuestNote {
   savedAt: number;
 }
 
-const GUEST_NOTES_STORAGE_KEY = 'wtf_guest_notes_v1';
+const GUEST_NOTES_STORAGE_KEY = 'crow_guest_notes_v1';
 
 function canUseStorage(): boolean {
   return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';

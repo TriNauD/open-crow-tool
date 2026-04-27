@@ -1,4 +1,4 @@
-# 这他妈是啥？— 任务清单 (CHECKLIST)
+# 这是啥？— 任务清单 (CHECKLIST)
 
 > 版本：v1.1 | 最后更新：2026-04-24
 > 
@@ -83,7 +83,7 @@
 
 ### 2.3 Content Script — 浮动按钮
 
-- [x] Shadow DOM 挂载，`wtf-` 前缀 CSS，完全隔离页面样式
+- [x] Shadow DOM 挂载，`crow-` 前缀 CSS，完全隔离页面样式
 - [x] 选词 → FloatingButton 出现在选词旁边（viewport 边界防溢出）
 - [x] 点击外部 / Esc 关闭
 
@@ -97,7 +97,7 @@
 ### 2.5 Background Service Worker — 快捷键
 
 - [x] 监听 `chrome.commands.onCommand`
-- [x] 转发 `WTF_EXPLAIN` 消息给 content script
+- [x] 转发 `CROW_EXPLAIN` 消息给 content script
 
 ### 2.6 Web 端 CORS 支持
 

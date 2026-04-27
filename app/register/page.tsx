@@ -56,7 +56,7 @@ export default function RegisterPage() {
     <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col">
       <header className="border-b border-zinc-800 px-6 py-4">
         <Link href="/" className="font-bold text-lg tracking-tight text-white hover:text-orange-400 transition-colors">
-          这他妈是啥<span className="text-orange-400">？</span>
+          这是啥<span className="text-orange-400">？</span>
         </Link>
       </header>
 

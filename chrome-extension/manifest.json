@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "这他妈是啥？",
+  "name": "这是啥？",
   "version": "0.1.0",
   "description": "划词即解释，AI 大白话，一键存入笔记本",
   "permissions": ["storage"],
@@ -31,6 +31,6 @@
   },
   "action": {
     "default_popup": "src/popup/index.html",
-    "default_title": "这他妈是啥？"
+      "default_title": "这是啥？"
   }
 }

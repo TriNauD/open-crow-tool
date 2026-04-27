@@ -8,7 +8,7 @@ const geist = Geist({
 });
 
 export const metadata: Metadata = {
-  title: "这他妈是啥？",
+  title: "这是啥？",
   description: "用大白话解释任何让你头大的 AI 术语和新工具",
 };
 
@@ -18,7 +18,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="zh-CN" data-wtf-native="true" className={`${geist.variable} h-full antialiased`}>
+    <html lang="zh-CN" data-crow-native="true" className={`${geist.variable} h-full antialiased`}>
       <body className="min-h-full bg-zinc-950">{children}</body>
     </html>
   );
