@@ -5,8 +5,8 @@ function Popup() {
   const [configured, setConfigured] = useState<boolean | null>(null);
 
   useEffect(() => {
-    chrome.storage.sync.get(['apiBaseUrl', 'adminSecret']).then((result) => {
-      setConfigured(!!(result.apiBaseUrl && result.adminSecret));
+    chrome.storage.sync.get(['apiBaseUrl', 'accessToken']).then((result) => {
+      setConfigured(!!(result.apiBaseUrl && result.accessToken));
     });
   }, []);
 
