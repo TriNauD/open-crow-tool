@@ -18,7 +18,9 @@ async function sendMail(to: string, subject: string, html: string): Promise<void
     return;
   }
   const resend = new Resend(process.env.RESEND_API_KEY);
-  const from = process.env.RESEND_FROM ?? 'onboarding@resend.dev';
+  const address = process.env.RESEND_FROM ?? 'onboarding@resend.dev';
+  const displayName = process.env.RESEND_FROM_NAME ?? 'Crow\'s Pick';
+  const from = `${displayName} <${address}>`;
   const { error } = await resend.emails.send({ from, to, subject, html });
   if (error) throw new Error(`Resend error: ${JSON.stringify(error)}`);
 }
