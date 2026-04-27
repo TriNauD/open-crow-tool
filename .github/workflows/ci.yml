@@ -1,0 +1,57 @@
+# CI：在合入前自动跑静态检查、单元测试、生产构建（与扩展打包）。
+# 与仓库约定一致：Node 见 .nvmrc；依赖用 npm ci（见 dependency-and-lockfile.mdc）。
+
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    # Next 在 collect page data 时会 import 服务端 Supabase 客户端；无 env 时 build 失败。
+    # 以下为占位值，不连真实项目，只满足构建期校验，不是密钥。
+    env:
+      SUPABASE_URL: https://ci-placeholder.supabase.co
+      SUPABASE_SERVICE_ROLE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.placeholder
+      SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.placeholder
+      NEXT_PUBLIC_SUPABASE_URL: https://ci-placeholder.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.placeholder
+      NOTEBOOK_MULTI_USER_ENABLED: "true"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            chrome-extension/package-lock.json
+
+      - name: Install dependencies (app)
+        run: npm ci
+
+      - name: ESLint
+        run: npm run lint
+
+      - name: Unit tests (Vitest)
+        run: npm run test
+
+      - name: Production build (Next.js)
+        run: npm run build
+
+      - name: Build Chrome extension
+        working-directory: chrome-extension
+        run: |
+          npm ci
+          npm run build

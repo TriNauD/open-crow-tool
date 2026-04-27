@@ -12,7 +12,8 @@
     "start": "npx -y node@20 node_modules/next/dist/bin/next start",
     "lint": "npx -y node@20 node_modules/eslint/bin/eslint.js",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "verify": "node scripts/verify.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.104.1",
