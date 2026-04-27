@@ -2,8 +2,12 @@
 
 import { useEffect, useState, useTransition } from 'react';
 import Link from 'next/link';
-import { getNotesAction, deleteNoteAction, searchNotesAction } from '@/app/actions';
 import type { NoteEntry } from '@/lib/db/notes';
+import { AuthNav } from '@/components/AuthNav';
+import { GuestMigrationModal } from '@/components/GuestMigrationModal';
+import { useAuthSession } from '@/hooks/useAuthSession';
+import { deleteNoteById, fetchNotes } from '@/lib/api/notes-client';
+import { getGuestNotes, removeGuestNote } from '@/lib/guest-notes';
 
 function formatDate(ts: number): string {
   return new Intl.DateTimeFormat('zh-CN', {
@@ -15,44 +19,84 @@ function formatDate(ts: number): string {
 }
 
 export default function NotebookPage() {
-  const [notes, setNotes] = useState<NoteEntry[]>([]);
+  const { accessToken, user, isLoading: sessionLoading } = useAuthSession();
+  const [notes, setNotes] = useState<NoteEntry[] | null>(null);
   const [query, setQuery] = useState('');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [isLoading, setIsLoading] = useState(true);
   const [isPending, startTransition] = useTransition();
 
-  useEffect(() => {
-    getNotesAction()
-      .then(setNotes)
-      .catch(console.error)
-      .finally(() => setIsLoading(false));
-  }, []);
+  function loadGuestNotes(q?: string): NoteEntry[] {
+    const keyword = q?.trim().toLowerCase() ?? '';
+    const data = getGuestNotes().filter((note) => {
+      if (!keyword) return true;
+      return (
+        note.inputText.toLowerCase().includes(keyword) ||
+        note.explanation.toLowerCase().includes(keyword)
+      );
+    });
+
+    return data.map((note): NoteEntry => ({
+        id: note.clientNoteId,
+        user_id: 'guest',
+        inputText: note.inputText,
+        explanation: note.explanation,
+        parentText: note.parentText,
+        source: note.source,
+        savedAt: note.savedAt,
+        tags: [],
+      }));
+  }
 
   useEffect(() => {
-    if (!query.trim()) {
-      getNotesAction().then(setNotes).catch(console.error);
-      return;
-    }
+    if (sessionLoading) return;
+    let cancelled = false;
+
     const timer = setTimeout(() => {
-      searchNotesAction(query).then(setNotes).catch(console.error);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [query]);
+      (async () => {
+        try {
+          const data = accessToken
+            ? await fetchNotes(accessToken, query)
+            : loadGuestNotes(query);
+          if (!cancelled) {
+            setNotes(data);
+          }
+        } catch (err) {
+          console.error(err);
+          if (!cancelled) {
+            setNotes([]);
+          }
+        }
+      })();
+    }, query.trim() ? 300 : 0);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [query, accessToken, sessionLoading]);
 
   function toggleExpand(id: string) {
     setExpanded((prev) => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   }
 
   function handleDelete(id: string) {
     startTransition(async () => {
-      await deleteNoteAction(id);
-      setNotes((prev) => prev.filter((n) => n.id !== id));
+      if (accessToken) {
+        await deleteNoteById(accessToken, id);
+      } else {
+        removeGuestNote(id);
+      }
+      setNotes((prev) => (prev ?? []).filter((n) => n.id !== id));
     });
   }
+
+  const isLoading = sessionLoading || notes === null;
+  const visibleNotes = notes ?? [];
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col">
@@ -63,7 +107,10 @@ export default function NotebookPage() {
         >
           这是啥<span className="text-orange-400">？</span>
         </Link>
-        <span className="text-sm text-zinc-500">这都是啥 — 笔记本</span>
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-zinc-500">这都是啥 — 笔记本</span>
+          <AuthNav />
+        </div>
       </header>
 
       <main className="flex-1 px-4 py-10 max-w-3xl mx-auto w-full">
@@ -73,9 +120,9 @@ export default function NotebookPage() {
             <p className="text-zinc-500 text-sm">
               {isLoading
                 ? '加载中...'
-                : notes.length === 0
+                : visibleNotes.length === 0
                   ? '还没存过任何东西'
-                  : `共 ${notes.length} 条，上次那个玩意儿你还记得吗`}
+                  : `${user ? '账号' : '游客'}共 ${visibleNotes.length} 条，上次那个玩意儿你还记得吗`}
             </p>
           </div>
           <Link
@@ -86,7 +133,7 @@ export default function NotebookPage() {
           </Link>
         </div>
 
-        {!isLoading && notes.length > 0 && (
+        {!isLoading && visibleNotes.length > 0 && (
           <div className="mb-6">
             <input
               type="text"
@@ -107,7 +154,7 @@ export default function NotebookPage() {
               <span>加载中...</span>
             </div>
           </div>
-        ) : notes.length === 0 ? (
+        ) : visibleNotes.length === 0 ? (
           <div className="text-center py-20">
             <p className="text-zinc-600 text-base mb-4">
               {query ? '没找到匹配的记录' : '什么都没有，去问几个试试'}
@@ -123,7 +170,7 @@ export default function NotebookPage() {
           </div>
         ) : (
           <div className="flex flex-col gap-3">
-            {notes.map((note) => (
+            {visibleNotes.map((note) => (
               <NoteCard
                 key={note.id}
                 note={note}
@@ -136,6 +183,14 @@ export default function NotebookPage() {
           </div>
         )}
       </main>
+      <GuestMigrationModal
+        accessToken={accessToken}
+        onMigrated={() => {
+          if (accessToken) {
+            fetchNotes(accessToken).then(setNotes).catch(console.error);
+          }
+        }}
+      />
     </div>
   );
 }
