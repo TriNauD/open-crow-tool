@@ -21,5 +21,9 @@
 - `.cursor/skills/product-delivery-pipeline/SKILL.md` — 要展开 QA/手测模板或逐步执行结项时 @ 此技能
 - `docs/product/README.md` / `docs/tech/README.md` — 产品/技术**分卷**索引（`docs/PRD.md` / `docs/PLAN.md` 为总览）
 
+## 用户与 AI 协作偏好（triage）
+- **收尾**：每段任务做完后，用简短**总结**（做了什么、若要接着做下一步是什么）收束，避免戛然而止。
+- **讲技术**：用户追问技术概念、流程、工具对比时，优先用**通俗易懂的大白话**（必要时再点一下专业名词即可），少默认上密集行话。
+
 ## 新增或修改规则
 优先编辑对应的 `.cursor/rules/*.mdc` 文件，不要在本文件堆内容。
