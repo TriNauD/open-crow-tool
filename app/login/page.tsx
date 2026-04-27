@@ -84,7 +84,7 @@ export default function LoginPage() {
 
           <button
             type="submit"
-            disabled={state === 'loading' || !authConfigured}
+            disabled={state === 'loading'}
             className="w-full bg-orange-500 hover:bg-orange-400 disabled:opacity-40 text-white text-sm font-semibold px-4 py-2.5 rounded-lg transition-colors"
           >
             {state === 'loading' ? '登录中...' : '登录'}
