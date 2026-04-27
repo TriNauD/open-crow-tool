@@ -67,8 +67,10 @@
 │   └── src/popup/          插件 Popup
 ├── scripts/                Phase 3 cron 等脚本（待填充）
 ├── docs/                   产品文档
-│   ├── PRD.md              需求文档
-│   ├── PLAN.md             技术架构方案
+│   ├── PRD.md              产品总览（索引进 `product/` 分卷）
+│   ├── PLAN.md             技术总览（索引进 `tech/` 分卷）
+│   ├── product/            产品按域分卷
+│   ├── tech/               技术按章分卷
 │   └── CHECKLIST.md        任务清单
 └── dev/                    开发过程文档
     ├── active/             当前需求（空 = 当前无进行中任务）

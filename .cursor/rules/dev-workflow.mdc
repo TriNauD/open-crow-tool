@@ -22,6 +22,8 @@ PM 和 TL 进行评估，输出：
 
 ## 阶段 3：开发准备
 
+**文档提交节奏**（与 `product-delivery-pipeline.mdc` 对齐）：用户批准总体方案后，先更新并 **commit** `docs/PRD.md` / `docs/PLAN.md`（**总览**）及本次涉及的 `docs/product/*`、`docs/tech/*` **分卷**，与下方 `dev/active`，再进入编码；**QA/手测文档**在开发方案稳定后单独立项 commit。
+
 用户批准后，TL 建立需求文档目录：
 
 ```
@@ -50,7 +52,7 @@ dev/active/需求名称/
 2. 向 `dev` 提 PR
 3. 将文档迁移到 `dev/done/需求名称/`（含 plan/context/tasks/qa）
 4. 在 `dev/logs/需求名称-log.md` 记录问题与关键变更
-5. PM 更新 `docs/PRD.md` 和 `docs/PLAN.md`
+5. PM 更新 `docs/PRD.md`、`docs/PLAN.md` 及所涉 `docs/product/*` / `docs/tech/*` 分卷（大需求写分卷，小改可只动总览一句）
 
 # 流程总览
 

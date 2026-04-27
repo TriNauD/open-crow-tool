@@ -3,7 +3,7 @@ import { useStreamExplain } from './useStreamExplain';
 
 interface Config {
   apiBaseUrl: string;
-  adminSecret: string;
+  accessToken: string;
 }
 
 interface Props {
@@ -16,7 +16,7 @@ interface Props {
 
 export default function ExplainCard({ text, anchorX, anchorY, config, onClose }: Props) {
   const [savedId, setSavedId] = useState<string | null>(null);
-  const [saveError, setSaveError] = useState(false);
+  const [saveError, setSaveError] = useState<'generic' | 'expired' | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const { text: explanation, isLoading, error, isDone, explain } = useStreamExplain(
     config.apiBaseUrl
@@ -56,8 +56,8 @@ export default function ExplainCard({ text, anchorX, anchorY, config, onClose }:
   }, [onClose]);
 
   async function handleSave() {
-    if (!config.adminSecret) {
-      setSaveError(true);
+    if (!config.accessToken) {
+      setSaveError('expired');
       return;
     }
     try {
@@ -65,18 +65,24 @@ export default function ExplainCard({ text, anchorX, anchorY, config, onClose }:
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-admin-secret': config.adminSecret,
+          Authorization: `Bearer ${config.accessToken}`,
         },
-        body: JSON.stringify({ inputText: text, explanation }),
+        body: JSON.stringify({
+          inputText: text,
+          explanation,
+          source: 'chrome_extension',
+        }),
       });
       if (res.ok) {
         const data = await res.json();
         setSavedId(data.data?.id ?? 'saved');
+      } else if (res.status === 401 || res.status === 403) {
+        setSaveError('expired');
       } else {
-        setSaveError(true);
+        setSaveError('generic');
       }
     } catch {
-      setSaveError(true);
+      setSaveError('generic');
     }
   }
 
@@ -118,9 +124,21 @@ export default function ExplainCard({ text, anchorX, anchorY, config, onClose }:
             <button className="crow-save-btn saved" disabled>
               ✓ 已存入笔记本
             </button>
-          ) : saveError ? (
+          ) : saveError === 'expired' ? (
             <span className="crow-error" style={{ fontSize: 12 }}>
-              保存失败，请检查插件设置
+              ⚠️ 登录已过期，请
+              <a
+                href={config.apiBaseUrl}
+                target="_blank"
+                rel="noreferrer"
+                style={{ color: '#fb923c', marginLeft: 2 }}
+              >
+                回网站点「连接插件」
+              </a>
+            </span>
+          ) : saveError === 'generic' ? (
+            <span className="crow-error" style={{ fontSize: 12 }}>
+              保存失败，请稍后重试
             </span>
           ) : (
             <button className="crow-save-btn" onClick={handleSave}>

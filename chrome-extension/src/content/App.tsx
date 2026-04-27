@@ -4,7 +4,7 @@ import ExplainCard from './ExplainCard';
 
 interface Config {
   apiBaseUrl: string;
-  adminSecret: string;
+  accessToken: string;
 }
 
 interface Selection {
@@ -14,22 +14,22 @@ interface Selection {
 }
 
 export default function App() {
-  const [config, setConfig] = useState<Config>({ apiBaseUrl: '', adminSecret: '' });
+  const [config, setConfig] = useState<Config>({ apiBaseUrl: '', accessToken: '' });
   const [selection, setSelection] = useState<Selection | null>(null);
   const [explaining, setExplaining] = useState<Selection | null>(null);
 
   useEffect(() => {
-    chrome.storage.sync.get(['apiBaseUrl', 'adminSecret']).then((result) => {
+    chrome.storage.sync.get(['apiBaseUrl', 'accessToken']).then((result) => {
       setConfig({
         apiBaseUrl: (result.apiBaseUrl as string) || '',
-        adminSecret: (result.adminSecret as string) || '',
+        accessToken: (result.accessToken as string) || '',
       });
     });
     chrome.storage.onChanged.addListener((changes) => {
-      if (changes.apiBaseUrl || changes.adminSecret) {
+      if (changes.apiBaseUrl || changes.accessToken) {
         setConfig((prev) => ({
           apiBaseUrl: (changes.apiBaseUrl?.newValue as string) ?? prev.apiBaseUrl,
-          adminSecret: (changes.adminSecret?.newValue as string) ?? prev.adminSecret,
+          accessToken: (changes.accessToken?.newValue as string) ?? prev.accessToken,
         }));
       }
     });

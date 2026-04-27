@@ -1,14 +1,15 @@
 # 团队协作协议（入口）
 
 ## 强制初始化（每次会话必读）
-每次会话开始，AI 必须先读取以下四个核心规则文件，再接受任何任务：
+每次会话开始，AI 必须先读取以下五个核心规则文件，再接受任何任务：
 
 - `.cursor/rules/team-roles.mdc` — 角色分工与输出格式
 - `.cursor/rules/dev-workflow.mdc` — 开发流程与验收门控
+- `.cursor/rules/product-delivery-pipeline.mdc` — 六步交付：PRD/PLAN、QA/手测、结项
 - `.cursor/rules/qa-process.mdc` — QA 测试流程
 - `.cursor/rules/pr-and-commit.mdc` — Commit 与 PR 规范
 
-未读完以上四个文件前，不得输出方案、写代码或做任何改动。
+未读完以上五个文件前，不得输出方案、写代码或做任何改动。
 
 ## 按需读取（涉及相关场景时才读）
 - `.cursor/rules/git-branching.mdc` — 涉及分支操作时
@@ -17,7 +18,8 @@
 - `.cursor/rules/cross-platform.mdc` — 涉及跨平台兼容性时
 - `.cursor/rules/env-and-secrets.mdc` — 涉及环境变量或密钥时
 - `.cursor/rules/task-handoff-and-blockers.mdc` — 涉及任务交接或阻塞时
-- `.cursor/rules/communication.mdc` — 涉及沟通或决策分歧时
+- `.cursor/skills/product-delivery-pipeline/SKILL.md` — 要展开 QA/手测模板或逐步执行结项时 @ 此技能
+- `docs/product/README.md` / `docs/tech/README.md` — 产品/技术**分卷**索引（`docs/PRD.md` / `docs/PLAN.md` 为总览）
 
 ## 新增或修改规则
 优先编辑对应的 `.cursor/rules/*.mdc` 文件，不要在本文件堆内容。
