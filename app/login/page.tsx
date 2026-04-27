@@ -32,7 +32,14 @@ export default function LoginPage() {
 
     if (signInError) {
       setState('error');
-      setError(signInError.message);
+      const msg = signInError.message.toLowerCase();
+      if (msg.includes('invalid login credentials') || msg.includes('invalid credentials')) {
+        setError('邮箱或密码不正确。如果还没有账号，请先去注册。');
+      } else if (msg.includes('email not confirmed')) {
+        setError('邮箱尚未验证，请先前往邮箱点击验证链接。');
+      } else {
+        setError(signInError.message);
+      }
       return;
     }
 
@@ -91,9 +98,9 @@ export default function LoginPage() {
           </button>
 
           <p className="text-sm text-zinc-500">
-            还没有账号？{' '}
+            第一次来？{' '}
             <Link href="/register" className="text-orange-400 hover:text-orange-300">
-              去注册
+              注册新账号
             </Link>
           </p>
         </form>
