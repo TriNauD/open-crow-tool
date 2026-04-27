@@ -53,6 +53,18 @@
 1. sync 中预置**旧线上** `apiBaseUrl`、无或旧 `accessToken`。  
 2. 打开 `http://localhost:3000`，登录，点「连接插件」。  
 3. 打开扩展 Options → 应为**已连接**，且 `apiBaseUrl` 为 `http://localhost:3000`（或与当前站一致）。  
+4. **BF-5 / CORS**：在任意第三方页划词存笔记；Network 中 `OPTIONS` + `POST /api/notes` 成功，响应头含 `Access-Control-Allow-Headers` 且含 `Authorization`；或 DevTools 无 CORS 红字。
+
+---
+
+## Git 提交与本次 Bug 修复对应（归档）
+
+| 提交 | 摘要 | 覆盖 BF |
+|------|------|---------|
+| `a263036` | `feat: Chrome 扩展多用户鉴权与网站「连接插件」` — Bearer、Options/ExplainCard/AuthNav、**index 顶层 postMessage 桥**、`samePageOrigin` 等 | BF-1～BF-4（功能与连接路径） |
+| `dc6cb22` | `fix: CORS 允许 Authorization 头` — `lib/utils/cors.ts`；本 log 内 BF-5 文案 | **BF-5**（扩展跨域 `POST` 带 Bearer 预检必过） |
+
+> 若本地 `git log` 的 hash 与上表不一致（rebase/修改历史），以 `git log --oneline fea/chrome-ext-user-auth-tri` 为准，本表为结项时的**快照**。
 
 ---
 
