@@ -26,5 +26,6 @@ QA 文档应包含：
 
 # 自动化与回归库
 
-- 核心链路写 Jest 自动化，放在 `__tests__/`，命名 `__tests__/模块名.test.ts`。
-- 维护 `dev/regression.md`，记录核心链路及自动化覆盖状态。
+- **单元/契约**（Vitest）：`__tests__/**/*.test.ts`，不启动浏览器，跑 `npm run test`。
+- **浏览器冒烟（E2E）**（建议 Playwright，可选阶段）：`e2e/` 或 `tests/e2e/`，用例与 `需求名称-qa.md` 的 **§0.2** 中 `E2E-xx` 编号**对表**；流程与落地方见项目技能 `qa-e2e-smoke`（`.cursor/skills/qa-e2e-smoke/SKILL.md`）。手测中无法自动化的项仍须在 §0.2 注明原因。
+- 维护 `dev/regression.md`（如存在），记录核心链路及自动化覆盖状态。
