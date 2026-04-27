@@ -108,10 +108,14 @@ export default function ExplanationCard({
 
   async function findCloudDuplicate(): Promise<NoteEntry | null> {
     if (!accessToken || !shouldCheckDuplicate) return null;
+    // 用 GET /api/notes?q= 做候选集，再在本地做标准化后精确比；同题变体若与 ilike 搜索错位，后续再改后端或专用接口，避免拉全量。
     const notes = await fetchNotes(accessToken, inputText.trim());
-    return notes.find(
-      (n) => n.inputText.trim().toLowerCase().replace(/\s+/g, '') === normalizedInput && !n.parentText
-    ) ?? null;
+    return (
+      notes.find(
+        (n) =>
+          n.inputText.trim().toLowerCase().replace(/\s+/g, '') === normalizedInput && !n.parentText
+      ) ?? null
+    );
   }
 
   const handleSave = useCallback(async () => {
