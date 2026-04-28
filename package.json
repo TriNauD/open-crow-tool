@@ -14,6 +14,8 @@
     "lint": "npx -y node@20 node_modules/eslint/bin/eslint.js",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test:e2e:full": "npm run build && npm run test:e2e",
     "verify": "node scripts/verify.mjs"
   },
   "dependencies": {
@@ -29,6 +31,7 @@
     "resend": "^6.12.2"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
