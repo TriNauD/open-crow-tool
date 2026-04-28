@@ -5,7 +5,7 @@
 ## 来源
 
 - 原始收集：`notes/BRAINSTORM-todo.md`
-- 优先级与阶段划分：见同目录 `BRAINSTORM迭代计划-plan.md`
+- 优先级与阶段划分：见 [`dev/active/BRAINSTORM需求池/roadmap.md`](../../active/BRAINSTORM需求池/roadmap.md)（矩阵）；本目录仅保留 **阶段 A** 正文
 
 ## 产品假设
 
@@ -15,7 +15,7 @@
 ## 约束
 
 - 分支与发布：遵循 `.cursor/rules/git-branching.mdc`（从 `dev` 切 `fea/*`，不直接推 `main`/`dev`）。
-- 阶段 A 不引入新依赖、不改 `package-lock.json`，除非后续任务明确要求。
+- 阶段 A 早期约定「尽量不改 lockfile」；最终交付含 **Playwright E2E**（`@playwright/test`）等，以实际 `package-lock.json` 为准。
 
 ## 待产品拍板（阶段 A 内已给默认）
 
@@ -26,5 +26,9 @@
 
 ## 交接
 
-- 接手开发前：更新 `BRAINSTORM迭代计划-tasks.md` 状态，避免重复开工。
-- 开发完成后：按 `BRAINSTORM迭代计划-qa.md` 执行测试并更新结论；与 `tasks.md` 手测勾选对表。
+- 接手开发前：更新 `阶段A-tasks.md` 状态，避免重复开工。
+- 开发完成后：按 `阶段A-qa.md` 执行测试并更新结论；与 `tasks.md` 手测勾选对表。
+
+## 结项
+
+- **2026-04-28**：阶段 A **用户验收 PASS**（见 `阶段A-qa.md`）；结项目录为 `dev/done/BRAINSTORM阶段A/`；结项提要见 `dev/logs/BRAINSTORM阶段A-log.md`。需求池总索引：[`dev/active/BRAINSTORM需求池/README.md`](../../active/BRAINSTORM需求池/README.md)。
