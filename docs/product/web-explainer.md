@@ -14,3 +14,6 @@
 - 响应要快，流式输出不能卡
 - 移动端可用（但不是重点优化对象）
 - UI 简洁，信息密度合适，不花哨
+
+**迭代说明（BRAINSTORM 阶段 A ✅，2026-04）：**  
+首页输入区快捷键提示按操作系统显示（Mac `⌘↵` / Win/Linux `Ctrl+Enter`，手机浏览器不展示）；关键输入控件使用足够字号以免 iOS 聚焦时整页缩放。归档：`dev/done/BRAINSTORM阶段A/阶段A-plan.md`、`阶段A-qa.md`。**需求池**（含后续阶段条目）：[`dev/active/BRAINSTORM需求池/README.md`](../../dev/active/BRAINSTORM需求池/README.md)。
