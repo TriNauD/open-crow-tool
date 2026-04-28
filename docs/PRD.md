@@ -1,7 +1,8 @@
 # 这是啥？— 产品需求文档 (PRD)
 
-> 版本：v1.5 | 作者：PM | 最后更新：2026-04-27  
-> **v1.5**：产品口径**按域拆卷**到 [`docs/product/`](./product/README.md)，本文件为**总览与导航**，避免单文件无限膨胀。
+> 版本：v1.5 | 作者：PM | 最后更新：2026-04-28  
+> **v1.5**：产品口径**按域拆卷**到 [`docs/product/`](./product/README.md)，本文件为**总览与导航**，避免单文件无限膨胀。  
+> **2026-04-28**：BRAINSTORM **阶段 A 已结项**（其余阶段 B～D 仍排期）；总索引 [`dev/active/BRAINSTORM需求池/README.md`](../dev/active/BRAINSTORM需求池/README.md)，归档 [`dev/done/BRAINSTORM阶段A/`](../dev/done/BRAINSTORM阶段A/)。
 
 ---
 

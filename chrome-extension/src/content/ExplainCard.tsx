@@ -35,9 +35,11 @@ export default function ExplainCard({ text, anchorX, anchorY, config, onClose }:
   if (top < margin) top = anchorY + 24;
   top = Math.max(margin, Math.min(top, vh - cardH - margin));
 
+  const notebookUrl = `${config.apiBaseUrl.replace(/\/+$/, '')}/notebook`;
+
   useEffect(() => {
     explain(text);
-  }, [text]);
+  }, [text, explain]);
 
   useEffect(() => {
     function onMouseDown(e: MouseEvent) {
@@ -145,6 +147,10 @@ export default function ExplainCard({ text, anchorX, anchorY, config, onClose }:
               存入笔记本
             </button>
           )}
+          <span className="crow-sep">·</span>
+          <a className="crow-save-btn" href={notebookUrl} target="_blank" rel="noreferrer">
+            打开笔记本
+          </a>
           <span className="crow-sep">·</span>
           <span className="crow-hint">Esc 关闭</span>
         </div>
