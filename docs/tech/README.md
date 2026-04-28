@@ -5,6 +5,7 @@
 | 章节 | 文件 |
 |------|------|
 | 一、二 整体架构与技术选型 | [overview.md](./overview.md) |
+| **分环境（本地 / Preview / 生产）** | [**environments-and-deployment.md**](./environments-and-deployment.md) |
 | 三 数据库与 DDL 草案 | [database.md](./database.md) |
 | 四 Phase 1：数据库地基 | [phase-1-database-baseline.md](./phase-1-database-baseline.md) |
 | 五 Phase 2：Chrome 插件 | [phase-2-chrome-extension.md](./phase-2-chrome-extension.md) |

@@ -39,3 +39,9 @@
 | Cron | Vercel Cron | 免费，配置简单，在 vercel.json 声明 |
 | 部署 | Vercel | 现有 |
 
+---
+
+## 分环境与发布
+
+开发与 PR 预览、生产在 **Vercel / Supabase / 扩展连接**上的约定见 **[分环境：开发 / Preview / 生产](./environments-and-deployment.md)**。
+
