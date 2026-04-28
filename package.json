@@ -11,12 +11,13 @@
     "dev:lan": "node scripts/dev-lan.mjs",
     "build": "npx -y node@20 node_modules/next/dist/bin/next build",
     "start": "npx -y node@20 node_modules/next/dist/bin/next start",
-    "lint": "npx -y node@20 node_modules/eslint/bin/eslint.js",
+    "lint": "npx -y node@20 node_modules/eslint/bin/eslint.js . chrome-extension/src e2e",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:full": "npm run build && npm run test:e2e",
-    "verify": "node scripts/verify.mjs"
+    "verify": "node scripts/verify.mjs",
+    "verify:e2e": "VERIFY_E2E=1 node scripts/verify.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.104.1",
