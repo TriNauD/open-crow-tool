@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import ExplanationCard from '@/components/ExplanationCard';
 import { AuthNav } from '@/components/AuthNav';
@@ -21,12 +21,26 @@ const EXAMPLES = [
   'Cursor Rules',
 ];
 
+function isApplePlatform(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  return (
+    /Mac|iPhone|iPad|iPod/.test(navigator.platform) ||
+    /Mac OS/.test(navigator.userAgent)
+  );
+}
+
 export default function HomePage() {
   const { accessToken } = useAuthSession();
   const [input, setInput] = useState('');
   const [queries, setQueries] = useState<Query[]>([]);
   const [notebookFlash, setNotebookFlash] = useState(false);
+  /** null until mounted so SSR + first paint stay aligned; avoids hydration mismatch */
+  const [sendShortcutHint, setSendShortcutHint] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    setSendShortcutHint(isApplePlatform() ? '⌘↵ 发送' : 'Ctrl+Enter 发送');
+  }, []);
 
   function submitQuery(text: string) {
     const trimmed = text.trim();
@@ -94,7 +108,9 @@ export default function HomePage() {
               className="w-full bg-transparent resize-none rounded-xl px-4 pt-4 pb-12 text-sm text-zinc-100 placeholder:text-zinc-600 outline-none leading-relaxed"
             />
             <div className="absolute bottom-3 right-3 flex items-center gap-2">
-              <span className="text-xs text-zinc-600">⌘↵ 发送</span>
+              <span className="text-xs text-zinc-600 tabular-nums">
+                {sendShortcutHint ?? '\u00a0'}
+              </span>
               <button
                 onClick={() => submitQuery(input)}
                 disabled={!input.trim()}

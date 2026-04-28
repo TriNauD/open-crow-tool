@@ -15,16 +15,16 @@
 
 ### A-1 Web 快捷键提示
 
-- [ ] 从 `dev` 切分支 `fea/brainstorm-phase-a-<owner>`（按团队规范）
-- [ ] 在 `app/page.tsx` 实现平台检测 + 文案（Mac：`⌘↵`，其他：`Ctrl+Enter`）
-- [ ] 处理 SSR/hydration（无警告、可接受的首屏表现）
+- [x] 从 `dev` 切分支 `fea/brainstorm-phase-a-tri`（按团队规范）
+- [x] 在 `app/page.tsx` 实现平台检测 + 文案（Mac：`⌘↵`，其他：`Ctrl+Enter`）
+- [x] 处理 SSR/hydration（无警告、可接受的首屏表现）
 - [ ] 手测：Mac Safari/Chrome；Windows Chrome（或 DevTools UA）
 - [ ] 更新本文件勾选
 
 ### A-2 Extension 打开笔记本
 
-- [ ] 在 `chrome-extension/src/content/ExplainCard.tsx` 增加「打开笔记本」入口
-- [ ] URL 使用 `config.apiBaseUrl` + `/notebook`
+- [x] 在 `chrome-extension/src/content/ExplainCard.tsx` 增加「打开笔记本」入口
+- [x] URL 使用 `config.apiBaseUrl` + `/notebook`
 - [ ] 手测：划词 → 打开笔记本；保存流程仍可用；Esc 关闭正常
 - [ ] 更新本文件勾选
 
