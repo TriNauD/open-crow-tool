@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { getEmailConfirmRedirectUrl } from '@/lib/auth/email-confirm-redirect';
 import { getBrowserSupabase, hasBrowserSupabaseEnv } from '@/lib/supabase/browser';
 
 export default function RegisterPage() {
@@ -31,10 +32,20 @@ export default function RegisterPage() {
     setState('loading');
     setError('');
 
+    const emailRedirectTo = getEmailConfirmRedirectUrl();
+    if (!emailRedirectTo) {
+      setState('error');
+      setError('无法确定回调地址：请配置 NEXT_PUBLIC_SITE_URL 或在浏览器中完成注册。');
+      return;
+    }
+
     const supabase = getBrowserSupabase();
     const { data, error: signUpError } = await supabase.auth.signUp({
       email: email.trim(),
       password,
+      options: {
+        emailRedirectTo,
+      },
     });
 
     if (signUpError) {
