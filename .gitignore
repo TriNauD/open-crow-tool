@@ -60,6 +60,5 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# personal notes (brainstorm, scratch pads — not for repo)
-/notes/**
-!/notes/需求与反馈收件箱.md
+# personal notes (local only — do not commit)
+/notes/
