@@ -6,6 +6,7 @@ import ExplanationCard from '@/components/ExplanationCard';
 import { AuthNav } from '@/components/AuthNav';
 import { GuestMigrationModal } from '@/components/GuestMigrationModal';
 import { useAuthSession } from '@/hooks/useAuthSession';
+import { getKeyboardSendShortcutHintLabel } from '@/lib/keyboard-send-hint';
 
 interface Query {
   id: string;
@@ -21,25 +22,17 @@ const EXAMPLES = [
   'Cursor Rules',
 ];
 
-function isApplePlatform(): boolean {
-  if (typeof navigator === 'undefined') return false;
-  return (
-    /Mac|iPhone|iPad|iPod/.test(navigator.platform) ||
-    /Mac OS/.test(navigator.userAgent)
-  );
-}
-
 export default function HomePage() {
   const { accessToken } = useAuthSession();
   const [input, setInput] = useState('');
   const [queries, setQueries] = useState<Query[]>([]);
   const [notebookFlash, setNotebookFlash] = useState(false);
-  /** null until mounted so SSR + first paint stay aligned; avoids hydration mismatch */
+  /** null = 未挂载；'' = 手机端等不展示快捷键提示；否则为文案 */
   const [sendShortcutHint, setSendShortcutHint] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    setSendShortcutHint(isApplePlatform() ? '⌘↵ 发送' : 'Ctrl+Enter 发送');
+    setSendShortcutHint(getKeyboardSendShortcutHintLabel());
   }, []);
 
   function submitQuery(text: string) {
@@ -108,9 +101,13 @@ export default function HomePage() {
               className="w-full bg-transparent resize-none rounded-xl px-4 pt-4 pb-12 text-sm text-zinc-100 placeholder:text-zinc-600 outline-none leading-relaxed"
             />
             <div className="absolute bottom-3 right-3 flex items-center gap-2">
-              <span className="text-xs text-zinc-600 tabular-nums">
-                {sendShortcutHint ?? '\u00a0'}
-              </span>
+              {sendShortcutHint === null ? (
+                <span className="text-xs text-zinc-600 tabular-nums" aria-hidden>
+                  {'\u00a0'}
+                </span>
+              ) : sendShortcutHint ? (
+                <span className="text-xs text-zinc-600 tabular-nums">{sendShortcutHint}</span>
+              ) : null}
               <button
                 onClick={() => submitQuery(input)}
                 disabled={!input.trim()}

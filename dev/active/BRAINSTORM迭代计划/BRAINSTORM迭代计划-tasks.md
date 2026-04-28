@@ -19,7 +19,7 @@
 - [x] 从 `dev` 切分支 `fea/brainstorm-phase-a-tri`（按团队规范）
 - [x] 在 `app/page.tsx` 实现平台检测 + 文案（Mac：`⌘↵`，其他：`Ctrl+Enter`）
 - [x] 处理 SSR/hydration（无警告、可接受的首屏表现）
-- [ ] 手测：`BRAINSTORM迭代计划-qa.md` §0.2（Web）；Mac Safari/Chrome；Windows Chrome（「仅 UA」不能完全代替实机）
+- [ ] 手测：`BRAINSTORM迭代计划-qa.md` §0.2（Web）— 桌面 Mac/Win；**手机端无快捷键提示**
 
 ### A-2 Extension 打开笔记本
 

@@ -28,25 +28,28 @@
 
 ## 3. 阶段 A — 详细计划
 
-### A-1 Web：按平台显示「发送」快捷键提示
+### A-1 Web：按客户端显示「发送」快捷键提示（手机不显示）
 
-**问题**：首页输入框右下角固定为 `⌘↵ 发送`，与 Windows/Linux 实际可用的 `Ctrl+Enter` 不一致（逻辑上已支持 `e.ctrlKey`，仅文案错误）。
+**问题**：首页输入框右下角固定为 `⌘↵ 发送`，与 Windows/Linux 实际可用的 `Ctrl+Enter` 不一致（逻辑上已支持 `e.ctrlKey`，仅文案错误）。**补充（A-1 迭代）**：在手机浏览器上 ⌘/Ctrl+Enter 不适用作普适提示，**不展示该行提示文案**。
 
 **方案**：
 
-- 客户端根据平台展示文案：
-  - Apple 系（Mac / iOS 浏览器若适用）：`⌘↵ 发送` 或 `⌘ + Enter 发送`（与现有一致即可）。
-  - 其他：`Ctrl+Enter 发送`（或 `Ctrl+↵ 发送`，二选一保持简短）。
-- 实现要点：在 `app/page.tsx` 用 `useState` + `useEffect` 读取 `navigator.userAgent` / `navigator.platform`（或抽 5～10 行小函数 `isAppleDevice()`），避免 SSR 与客户端 hydration 不一致（hint 仅客户端挂载后渲染，或默认非 Apple 文案再在 effect 里切换 —— 以无闪烁、无控制台 warning 为准）。
+- **手机浏览器**（iPhone/iPod、`Android … Mobile …`、常见移动浏览器 UA）：**不显示**快捷键提示文案；仍保留「这是啥？」按钮发送。
+- **非手机的桌面/平板**：按平台展示文案：
+  - Apple 系（桌面 Mac / iPad 等）：`⌘↵ 发送`。
+  - Windows / Linux：**`Ctrl+Enter 发送`**。
+- 实现要点：`lib/keyboard-send-hint.ts` 封装 UA/`platform` 判断；在 `app/page.tsx` 用 `useEffect` 设文案（或空串），避免 SSR 与 hydration 不一致。
 
 **主要改动文件**：
 
-- `app/page.tsx`（约第 96–97 行附近的提示文案）
+- `lib/keyboard-send-hint.ts`（UA 判别与文案；可供 Vitest）
+- `app/page.tsx`（挂载后写入提示；手机端不写提示）
 
 **验收**：
 
-- macOS + Windows（或模拟 UA）各测：提示与真实可发送快捷键一致。
-- `Enter` + `Ctrl` / `⌘` 行为与改前一致。
+- macOS + Windows：**提示**与物理键盘可发送组合键一致。
+- **手机**：输入区右下角**无** ⌘/Ctrl 提示文案，仅按钮；控制台无 hydration 报错。
+- 桌面：`Enter` + `Ctrl` / `⌘` 行为与改前一致（仅提示展示策略变）。
 
 **风险**：极低。注意 hydration：hint 区域若初渲染与客户端不一致，用 `mounted` 门闩或仅在 `useEffect` 后显示平台文案。
 
@@ -89,6 +92,6 @@
 ## 5. 测试与发布（阶段 A）
 
 - **QA 主文档**：`BRAINSTORM迭代计划-qa.md`（影响域、TC/RT、`§0` 执行记录、测试结论）。
-- 自动化：`npm run test`（既有用例）；平台提示未单独加单测，见 QA `§0.1`。
+- 自动化：`npm run test`（含 `__tests__/keyboard-send-hint.test.ts`）。
 - 手测：按 QA `§0.2` 最小路径执行，结果回填 QA `§0` 与 `tasks.md`。
 - 合并：PR 描述附 QA 结论或 PASS 截图要点；低风险发布可按 `qa-process.mdc` 对核心链路做 smoke 豁免说明。

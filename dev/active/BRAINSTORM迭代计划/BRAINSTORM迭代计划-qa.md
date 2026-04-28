@@ -25,10 +25,10 @@ npm run test
 
 **覆盖（阶段 A 相关）**：
 
-- 本需求**未**新增 Vitest 用例（平台检测在 `useEffect` 内，依赖 `navigator`）。
+- **`__tests__/keyboard-send-hint.test.ts`**：手机 / 桌面 UA → 是否跳过提示、⌘ vs Ctrl（`lib/keyboard-send-hint.ts`）。
 - 既有 `__tests__/cors.test.ts`、`__tests__/same-page-origin.test.ts` 应仍 **PASS**，作为邻域回归锚点。
 
-**不能自动化、须手测**：真实 OS 上快捷键提示文案、扩展内链接打开正确 origin 的 `/notebook`、浏览器新标签行为。
+**不能自动化、仍须手测**：真机手机屏幕是否**无** ⌘/Ctrl 角标（UA 特例）、扩展内链接打开 `{apiBaseUrl}/notebook`、新标签行为。
 
 ---
 
@@ -40,11 +40,11 @@ npm run test
 
 **Web：快捷键提示（A-1）**
 
-1. 打开首页 `/`，找到输入框右下角灰色提示。
-2. **在 Mac（或 iPad 上桌面 Safari）**：应为 `⌘↵ 发送`；在输入框内按 `⌘ + Enter` 应能提交非空问题（与改前一致）。
-3. **在 Windows 或 Linux**：应为 `Ctrl+Enter 发送`；按 `Ctrl + Enter` 应能提交。
-4. **仅用 Chrome DevTools（可选）**：暂无实机时，`More tools → Sensors` 或覆盖 User-Agent 不能完全模拟 `navigator.platform`，仍以**实机或通过远程浏览器**核验为准。
-5. 打开浏览器控制台：首屏hydration **无** React #418 / 「Text content does not match」类报错（与本页提示文案相关）。
+1. **桌面 — Mac**：打开首页 `/`，输入框右下角灰色提示应为 `⌘↵ 发送`；在输入框内 `⌘ + Enter`（非空）应能提交。
+2. **桌面 — Windows 或 Linux**：提示应为 `Ctrl+Enter 发送`；`Ctrl + Enter` 应能提交。
+3. **手机（必选）**：用 iPhone / Android 自带浏览器或扫码打开同一站点首页，输入区右下角**不出现** ⌘/Ctrl 类快捷键提示（仅保留「这是啥？」按钮）；无误导性台式键盘文案。
+4. **仅用 Chrome DevTools（可选补充）**：覆盖 UA 不能完全代替真机触控；以第 3 步真机为准。
+5. 打开浏览器控制台：首屏 **无** 与文案相关的 hydration 报错。
 
 **扩展：打开笔记本（A-2）**
 
@@ -73,7 +73,8 @@ npm run test
 
 | 模块 | 文件 | 改动性质 |
 |------|------|----------|
-| Web 首页输入区 | `app/page.tsx` | 按平台显示发送快捷键提示；`useEffect` 设文案 |
+| Web 首页输入区 | `app/page.tsx` | 挂载后依 UA 显示 ⌘↵ / Ctrl+Enter；**手机不显示** |
+| 快捷键决策 | `lib/keyboard-send-hint.ts` | 纯函数 UA 判别 + 文案；Vitest |
 | 扩展划词卡片 | `chrome-extension/src/content/ExplainCard.tsx` | Footer 增加「打开笔记本」外链 |
 
 ### 不受影响（可跳过深度回归）
@@ -85,14 +86,15 @@ npm run test
 
 ## 2. 功能测试（TC）
 
-### TC-A1 Web：提示与真实快捷键一致
+### TC-A1 Web：桌面提示一致；手机不展示
 
 | 步骤 | 预期 |
 |------|------|
-| Mac：查看提示 | 展示 `⌘↵ 发送` |
-| Mac：`⌘+Enter` | 提交当前输入（非空） |
-| Win/Linux：查看提示 | 展示 `Ctrl+Enter 发送` |
-| Win/Linux：`Ctrl+Enter` | 提交当前输入（非空） |
+| **桌面 Mac**：查看提示 | 展示 `⌘↵ 发送` |
+| **桌面 Mac**：`⌘+Enter` | 提交当前输入（非空） |
+| **桌面 Win/Linux**：查看提示 | 展示 `Ctrl+Enter 发送` |
+| **桌面 Win/Linux**：`Ctrl+Enter` | 提交当前输入（非空） |
+| **手机浏览器**（iPhone / Android 手机 UA） | 输入区右下角**无**快捷键提示文案 |
 
 **结果**：［　］ PASS ［　］ FAIL — 备注：___________
 
