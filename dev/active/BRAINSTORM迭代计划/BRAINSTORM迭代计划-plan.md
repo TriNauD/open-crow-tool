@@ -38,7 +38,7 @@
 - **非手机的桌面/平板**：按平台展示文案：
   - Apple 系（桌面 Mac / iPad 等）：`⌘↵ 发送`。
   - Windows / Linux：**`Ctrl+Enter 发送`**。
-- 实现要点：`lib/keyboard-send-hint.ts` 封装 UA/`platform` 判断；在 `app/page.tsx` 用 `useEffect` 设文案（或空串），避免 SSR 与 hydration 不一致。
+- 实现要点：`lib/keyboard-send-hint.ts` 封装 UA/`platform` 判断；在 `app/page.tsx` 用 `useEffect` 设文案（或空串），避免 SSR 与 hydration 不一致。**移动端**：输入类控件使用 **`text-base md:text-sm`（≥16px）**，避免 **iOS Safari 聚焦表单时强制缩放整页**；登录 / 订阅等页同理。
 
 **主要改动文件**：
 

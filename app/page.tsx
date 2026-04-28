@@ -56,7 +56,7 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col">
       {/* Nav */}
-      <header className="border-b border-zinc-800 px-6 py-4 flex items-center justify-between">
+      <header className="border-b border-zinc-800 px-4 sm:px-6 py-4 flex items-center justify-between gap-2 shrink-0">
         <span className="font-bold text-lg tracking-tight text-white">
           这是啥<span className="text-orange-400">？</span>
         </span>
@@ -75,14 +75,14 @@ export default function HomePage() {
         </div>
       </header>
 
-      <main className="flex-1 flex flex-col items-center px-4 py-12 max-w-3xl mx-auto w-full">
+      <main className="flex-1 flex flex-col items-center px-4 py-8 md:py-12 max-w-3xl mx-auto w-full min-w-0">
         {/* Hero */}
         {queries.length === 0 && (
-          <div className="text-center mb-10">
-            <h1 className="text-4xl font-bold mb-3">
+          <div className="text-center mb-8 md:mb-10">
+            <h1 className="text-3xl sm:text-4xl font-bold mb-3 px-1">
               这是<span className="text-orange-400">啥</span>？
             </h1>
-            <p className="text-zinc-400 text-base">
+            <p className="text-zinc-400 text-base leading-relaxed px-1">
               把任何让你头大的 AI 术语、新工具、震惊体新闻丢进来，用大白话告诉你这玩意儿是干嘛的。
             </p>
           </div>
@@ -98,7 +98,7 @@ export default function HomePage() {
               onKeyDown={handleKeyDown}
               placeholder="粘贴文章标题、链接、截图文字，或者直接输入不懂的词..."
               rows={3}
-              className="w-full bg-transparent resize-none rounded-xl px-4 pt-4 pb-12 text-sm text-zinc-100 placeholder:text-zinc-600 outline-none leading-relaxed"
+              className="w-full min-w-0 bg-transparent resize-none rounded-xl px-4 pt-4 pb-14 md:pb-12 text-base md:text-sm text-zinc-100 placeholder:text-zinc-600 outline-none leading-relaxed"
             />
             <div className="absolute bottom-3 right-3 flex items-center gap-2">
               {sendShortcutHint === null ? (
@@ -111,7 +111,7 @@ export default function HomePage() {
               <button
                 onClick={() => submitQuery(input)}
                 disabled={!input.trim()}
-                className="bg-orange-500 hover:bg-orange-400 disabled:opacity-30 disabled:cursor-not-allowed text-white text-sm font-semibold px-4 py-1.5 rounded-lg transition-colors"
+                className="touch-manipulation bg-orange-500 hover:bg-orange-400 disabled:opacity-30 disabled:cursor-not-allowed text-white text-base md:text-sm font-semibold min-h-11 md:min-h-0 px-4 py-2 md:py-1.5 rounded-lg transition-colors"
               >
                 这是啥？
               </button>

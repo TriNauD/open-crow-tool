@@ -71,7 +71,7 @@ export default function RegisterPage() {
             onChange={(e) => setEmail(e.target.value)}
             placeholder="邮箱"
             required
-            className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-orange-400"
+            className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-4 py-2.5 text-base md:text-sm outline-none focus:border-orange-400"
           />
 
           <input
@@ -81,7 +81,7 @@ export default function RegisterPage() {
             placeholder="密码（至少 6 位）"
             minLength={6}
             required
-            className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-orange-400"
+            className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-4 py-2.5 text-base md:text-sm outline-none focus:border-orange-400"
           />
 
           {state === 'error' && <p className="text-sm text-red-400">{error}</p>}
@@ -90,7 +90,7 @@ export default function RegisterPage() {
           <button
             type="submit"
             disabled={state === 'loading'}
-            className="w-full bg-orange-500 hover:bg-orange-400 disabled:opacity-40 text-white text-sm font-semibold px-4 py-2.5 rounded-lg transition-colors"
+            className="w-full touch-manipulation bg-orange-500 hover:bg-orange-400 disabled:opacity-40 text-white text-base md:text-sm font-semibold px-4 py-2.5 rounded-lg transition-colors min-h-[44px] md:min-h-0"
           >
             {state === 'loading' ? '注册中...' : '注册'}
           </button>

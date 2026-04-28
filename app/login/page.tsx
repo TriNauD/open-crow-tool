@@ -65,7 +65,7 @@ export default function LoginPage() {
             onChange={(e) => setEmail(e.target.value)}
             placeholder="邮箱"
             required
-            className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-orange-400"
+            className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-4 py-2.5 text-base md:text-sm outline-none focus:border-orange-400"
           />
 
           <div className="relative">
@@ -75,7 +75,7 @@ export default function LoginPage() {
               onChange={(e) => setPassword(e.target.value)}
               placeholder="密码"
               required
-              className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-4 pr-16 py-2.5 text-sm outline-none focus:border-orange-400"
+              className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-4 pr-16 py-2.5 text-base md:text-sm outline-none focus:border-orange-400"
             />
             <button
               type="button"
@@ -92,7 +92,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={state === 'loading'}
-            className="w-full bg-orange-500 hover:bg-orange-400 disabled:opacity-40 text-white text-sm font-semibold px-4 py-2.5 rounded-lg transition-colors"
+            className="w-full touch-manipulation bg-orange-500 hover:bg-orange-400 disabled:opacity-40 text-white text-base md:text-sm font-semibold px-4 py-2.5 rounded-lg transition-colors min-h-[44px] md:min-h-0"
           >
             {state === 'loading' ? '登录中...' : '登录'}
           </button>
