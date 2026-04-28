@@ -32,7 +32,9 @@ export default function HomePage() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    setSendShortcutHint(getKeyboardSendShortcutHintLabel());
+    queueMicrotask(() => {
+      setSendShortcutHint(getKeyboardSendShortcutHintLabel());
+    });
   }, []);
 
   function submitQuery(text: string) {

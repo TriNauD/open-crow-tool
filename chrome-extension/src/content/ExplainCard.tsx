@@ -39,7 +39,7 @@ export default function ExplainCard({ text, anchorX, anchorY, config, onClose }:
 
   useEffect(() => {
     explain(text);
-  }, [text]);
+  }, [text, explain]);
 
   useEffect(() => {
     function onMouseDown(e: MouseEvent) {
