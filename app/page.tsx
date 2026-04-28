@@ -106,7 +106,12 @@ export default function HomePage() {
                   {'\u00a0'}
                 </span>
               ) : sendShortcutHint ? (
-                <span className="text-xs text-zinc-600 tabular-nums">{sendShortcutHint}</span>
+                <span
+                  className="text-xs text-zinc-600 tabular-nums"
+                  data-testid="home-send-shortcut-hint"
+                >
+                  {sendShortcutHint}
+                </span>
               ) : null}
               <button
                 onClick={() => submitQuery(input)}
