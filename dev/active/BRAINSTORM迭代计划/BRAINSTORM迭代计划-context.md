@@ -27,3 +27,4 @@
 ## 交接
 
 - 接手开发前：更新 `BRAINSTORM迭代计划-tasks.md` 状态，避免重复开工。
+- 开发完成后：按 `BRAINSTORM迭代计划-qa.md` 执行测试并更新结论；与 `tasks.md` 手测勾选对表。

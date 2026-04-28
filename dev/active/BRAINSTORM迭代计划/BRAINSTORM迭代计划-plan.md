@@ -88,6 +88,7 @@
 
 ## 5. 测试与发布（阶段 A）
 
-- 自动化：若有可复用的平台检测纯函数，可抽 `lib/` 并加 Vitest（可选，非强制）。
-- 手测：按 `BRAINSTORM迭代计划-tasks.md` 中 A 节勾选。
-- 合并：小步 commit；PR 描述含 Web + 扩展手测说明。
+- **QA 主文档**：`BRAINSTORM迭代计划-qa.md`（影响域、TC/RT、`§0` 执行记录、测试结论）。
+- 自动化：`npm run test`（既有用例）；平台提示未单独加单测，见 QA `§0.1`。
+- 手测：按 QA `§0.2` 最小路径执行，结果回填 QA `§0` 与 `tasks.md`。
+- 合并：PR 描述附 QA 结论或 PASS 截图要点；低风险发布可按 `qa-process.mdc` 对核心链路做 smoke 豁免说明。
