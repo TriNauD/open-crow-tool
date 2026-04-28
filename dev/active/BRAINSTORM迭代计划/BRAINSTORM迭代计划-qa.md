@@ -11,7 +11,7 @@
 | （待填） | 手测 §0.2 最小路径（Web + 扩展） | （待填） |
 | （待填） | 测试结论 | **PENDING**（PASS / FAIL + 遗留） |
 
-**手测建议环境**：`npm run dev` → `http://localhost:3000`；Chrome 加载 `chrome-extension/dist/`；扩展 `apiBaseUrl` 与本机 Web 一致。**Vercel Preview** 上复核时，将扩展 Options 中 API 地址改为 Preview URL 后重载扩展。
+**手测建议环境**：桌面用 `npm run dev` → `http://localhost:3000`。**真机与同网电脑**：`npm run dev:lan`（监听 `0.0.0.0`，终端会打印 `http://<局域网IP>:3000`；扩展 Options 里 `apiBaseUrl` 填该机 IP，不要用 `localhost`）。Chrome 加载 `chrome-extension/dist/`。**Vercel Preview** 上复核时，将扩展 Options 中 API 地址改为 Preview URL 后重载扩展。
 
 ---
 
