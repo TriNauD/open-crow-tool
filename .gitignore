@@ -59,4 +59,5 @@ yarn-error.log*
 next-env.d.ts
 
 # personal notes (brainstorm, scratch pads — not for repo)
-/notes/
+/notes/**
+!/notes/需求与反馈收件箱.md
