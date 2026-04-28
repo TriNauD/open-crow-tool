@@ -1,0 +1,15 @@
+---
+description: BRAINSTORM 需求池取用条目时须在 dev/active 单独立项建档
+alwaysApply: true
+---
+
+# BRAINSTORM 需求池 — 立项建档
+
+从 `dev/active/BRAINSTORM需求池/` 取用条目进入开发时：
+
+1. **必须**在仓库根下创建 **`dev/active/<需求简称>/`**（与 `dev-workflow` 阶段 3 一致），内含 **`<需求简称>-plan.md`、`-context.md`、`-tasks.md`**；QA 阶段补 **`<需求简称>-qa.md`**。不得仅依赖该池内 `待办-*.md` 作为唯一需求文档。
+2. **回填**：更新 `dev/active/BRAINSTORM需求池/README.md` 中该条「文档位置」，指向新建的 `dev/active/<需求简称>/`。
+3. **阶段 A**：已整包归档 `dev/done/BRAINSTORM阶段A/`；**自 B/C/D 或其他从池子新开工的条目**，均按本条执行。
+4. **进池之前的随手记**：想法 / bug / 小优化的入口与「三条流」分拣见同目录 **`README`** 一节「收件箱 → 分拣（进池前）」（含 `notes/需求与反馈收件箱.md` 约定）。
+
+细则与表格见 `dev/active/BRAINSTORM需求池/README.md` 章节「从需求池立项（必做）」。

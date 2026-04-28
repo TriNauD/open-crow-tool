@@ -1,6 +1,11 @@
 /**
  * 本地/CI 对齐的一次性校验：lint → test → Next build（占位 Supabase）→ 扩展 build。
  * 环境变量与 .github/workflows/ci.yml 中 job 级 env 保持一致；若改这里请同步改 CI。
+ *
+ * 与 GitHub Actions 的差异（有意识保留）：
+ * - CI 在 Next build 之后还会 playwright install + npm run test:e2e；本脚本默认不跑 E2E（慢、需浏览器）。
+ *   提 PR 前若要完全对齐 CI：先 npm run build，再 npx playwright install --with-deps chromium，再 npm run test:e2e
+ *   （或设 VERIFY_E2E=1 走下方可选步骤）。
  */
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -41,6 +46,14 @@ function run(cmd, args, { cwd = root, env } = {}) {
 run('npm', ['run', 'lint'], { cwd: root, env: { ...process.env } });
 run('npm', ['run', 'test'], { cwd: root, env: { ...process.env } });
 run('npm', ['run', 'build'], { cwd: root, env: { ...ciBuildEnv } });
+
+if (process.env.VERIFY_E2E === '1') {
+  run('npx', ['playwright', 'install', '--with-deps', 'chromium'], { cwd: root });
+  run('npm', ['run', 'test:e2e'], {
+    cwd: root,
+    env: { ...process.env, PORT: process.env.PORT ?? '3107' },
+  });
+}
 
 const extRoot = join(root, 'chrome-extension');
 run('npm', ['ci'], { cwd: extRoot, env: { ...process.env } });

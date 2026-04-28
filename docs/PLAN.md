@@ -1,7 +1,8 @@
 # 这是啥？— 技术架构与执行计划 (PLAN)
 
-> 版本：v1.5 | 作者：TL | 最后更新：2026-04-27  
-> **v1.5**：技术长文**按章拆卷**到 [`docs/tech/`](./tech/README.md)，本文件为**总览与导航**。
+> 版本：v1.5 | 作者：TL | 最后更新：2026-04-28  
+> **v1.5**：技术长文**按章拆卷**到 [`docs/tech/`](./tech/README.md)，本文件为**总览与导航**。  
+> **2026-04-28**：BRAINSTORM **阶段 A** 已结项（Vitest、Playwright E2E、扩展 build 见 CI）；归档 `dev/done/BRAINSTORM阶段A/`。需求池与未启动条目见 [`dev/active/BRAINSTORM需求池/README.md`](../dev/active/BRAINSTORM需求池/README.md)。
 
 ---
 

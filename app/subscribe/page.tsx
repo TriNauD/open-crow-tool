@@ -124,7 +124,7 @@ export default function SubscribePage() {
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="w-full max-w-md mx-auto space-y-3">
-            <div className="flex gap-2">
+            <div className="flex flex-wrap sm:flex-nowrap items-stretch gap-2">
               <input
                 type="email"
                 value={email}
@@ -132,12 +132,12 @@ export default function SubscribePage() {
                 placeholder="your@email.com"
                 required
                 disabled={state === 'loading'}
-                className="flex-1 bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-3 text-sm text-zinc-100 placeholder:text-zinc-600 outline-none focus:border-orange-400 transition-colors disabled:opacity-50"
+                className="min-w-0 flex-1 basis-full sm:basis-auto bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-3 text-base md:text-sm text-zinc-100 placeholder:text-zinc-600 outline-none focus:border-orange-400 transition-colors disabled:opacity-50"
               />
               <button
                 type="submit"
                 disabled={state === 'loading' || !email.trim()}
-                className="bg-orange-500 hover:bg-orange-400 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-semibold px-5 py-3 rounded-lg transition-colors whitespace-nowrap"
+                className="touch-manipulation w-full sm:w-auto shrink-0 bg-orange-500 hover:bg-orange-400 disabled:opacity-40 disabled:cursor-not-allowed text-white text-base md:text-sm font-semibold px-5 py-3 rounded-lg transition-colors whitespace-nowrap min-h-[44px]"
               >
                 {state === 'loading' ? '订阅中...' : '免费订阅'}
               </button>

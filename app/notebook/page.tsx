@@ -140,7 +140,7 @@ export default function NotebookPage() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="搜索笔记..."
-              className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-600 outline-none focus:border-orange-400 transition-colors"
+              className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-2.5 text-base md:text-sm text-zinc-100 placeholder:text-zinc-600 outline-none focus:border-orange-400 transition-colors"
             />
           </div>
         )}
