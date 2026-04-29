@@ -91,6 +91,7 @@ dev/active/需求名称/
 ### 2）合并到 `dev`（Vercel Preview）
 
 - 功能与约定回归在 **本地/CI 通过**后，**仅当用户明确允许代开 PR** 时，AI 生成 **title / body** 并执行 `gh pr create --base dev`（无 `gh` 时给 **compare URL**）；**默认由用户 merge**。
+- **提 PR 前**：须 **`npm run lint` 通过**（与 `pr-and-commit.mdc`、CI 对齐）；详见下文「全绿」约定。
 - 代提前：**merge `origin/dev` 入当前功能分支**、工作区已提交、可 **`push`**；详见 `pr-and-commit.mdc`。
 
 ### 3）Preview 手测
@@ -110,4 +111,11 @@ dev/active/需求名称/
 
 ### 「全绿」约定
 
-合并 `dev` 前，至少 **CI 或与 CI 等价的本地命令**通过；**扩展 / 划词相关改动**须 **先构建 `chrome-extension/dist`** 再跑 Playwright（顺序见 `.github/workflows/ci.yml` 与 `docs/tech/chrome-extension-e2e-and-regression.md`）。
+合并 `dev` 前，至少 **CI 或与 CI 等价的本地命令**通过，且顺序建议与 `.github/workflows/ci.yml` 一致：
+
+1. **`npm run lint`**（必跑；提 PR 前门槛，避免仅跑测试而漏掉与 CI 不同步的 rules）
+2. **`npm run test`**
+3. **`npm run build`**（与 CI 相同占位 env 时更贴近）
+4. **`npm ci` + `npm run build`**（在 `chrome-extension/`）再 **`npm run test:e2e`**（扩展/页面 E2E 相关改动时）
+
+**扩展 / 划词相关改动**须 **先构建 `chrome-extension/dist`** 再跑 Playwright；详见 `docs/tech/chrome-extension-e2e-and-regression.md`。

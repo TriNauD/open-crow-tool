@@ -28,6 +28,7 @@ alwaysApply: true
   - **`dev` → `main`（生产）**：仅在用户明确要求发布 / 合并到 main 时操作；仍须遵守 `release-and-hotfix.mdc` 与双人 review。
 - **代提时 AI 须交付**：符合上文「PR 规范」的 **title** + **body**（推荐可复制的 `markdown` 代码块）；若环境无 `gh`，同时给出 **compare URL**（`https://github.com/<owner>/<repo>/compare/<base>...<head>`）供浏览器创建。
 - **代提前检查**：合并最新 **`origin/dev`**（或用户指定的 base）进当前分支、工作区已提交、远程可 `push`；勿强推公共分支。
+- **提 PR 前 ESLint（强制）**：在仓库根执行 **`npm run lint`**，**直至退出码 0**。与 CI 第一步一致；**未通过不得** `push`/`gh pr create`（避免仅跑单测或 E2E 而 CI 卡在 lint）。AI 代提 PR 时须在终端实际跑一遍并依据输出修到通过。
 
 ### 本地安装 GitHub CLI（`gh`）以便代提 PR
 
