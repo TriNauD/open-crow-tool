@@ -1,6 +1,7 @@
 # 这是啥？— 技术架构与执行计划 (PLAN)
 
-> 版本：v1.5 | 作者：TL | 最后更新：2026-04-28  
+> 版本：v1.6 | 作者：TL | 最后更新：2026-04-28  
+> **v1.6**：**C-3 Chrome 扩展内登录** 立项 — `CrowAuth` / `persistCrowAuth` 契约不变，网站 `CROW_CONNECT_EXT` 保留；详见 [`dev/active/Chrome扩展内登录/`](../dev/active/Chrome扩展内登录/)、[`docs/tech/phase-2-chrome-extension.md`](./tech/phase-2-chrome-extension.md)。  
 > **v1.5**：技术长文**按章拆卷**到 [`docs/tech/`](./tech/README.md)，本文件为**总览与导航**。  
 > **2026-04-28**：BRAINSTORM **阶段 A** 已结项（Vitest、Playwright E2E、扩展 build 见 CI）；归档 `dev/done/BRAINSTORM阶段A/`。需求池与未启动条目见 [`dev/active/BRAINSTORM需求池/README.md`](../dev/active/BRAINSTORM需求池/README.md)。
 
@@ -20,6 +21,8 @@
 
 **新需求/结项**时：在涉及的分卷中更新实现细节与文件清单；与产品不一致处先对 `docs/product/` 或 PM 确认。回滚、风控以 `dev/logs/…`、`docs/notebook-multi-user-rollout.md` 等专文为准时，从对应分卷链出即可。
 
+**进行中的需求轨道（摘要）**：**C-3** — 扩展 Options **独立登录流**（方案 A/B 见 plan），与网站连接并存、存储契约不变；目录 [`dev/active/Chrome扩展内登录/`](../dev/active/Chrome扩展内登录/)。
+
 ---
 
 ## 二、与团队流程的关系
@@ -37,7 +40,7 @@
 │                          用户入口                              │
 │   Web (Next.js)                 Chrome Extension (Vite)       │
 │   登录态 Bearer JWT；「连接插件」   存笔记：Bearer（与 Web 一致）   │
-│   postMessage → storage.sync      （`accessToken` + `apiBaseUrl`）│
+│   postMessage → chrome.storage.local   （CrowAuth；网站桥接或扩展内登录）│
 └──────────┬─────────────────────────────┬──────────────────────┘
            │                             │
            ▼                             ▼

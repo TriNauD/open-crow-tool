@@ -19,13 +19,13 @@
 - 支持关闭卡片（点击外部区域 / 按 Esc）
 
 **鉴权（与多用户笔记本对齐，2026-04-27 ✅）：**
-- 用户在 **Web 端登录** 后，导航栏点 **「连接插件」**；网站通过 `postMessage` 将 `accessToken` 与自洽的 `apiBaseUrl` 写入扩展的 `chrome.storage.sync`（content script 在 `index.tsx` **模块顶层**监听，Crow 自站点不挂载浮层 App 时也能收到）。
+- 用户在 **Web 端登录** 后，导航栏点 **「连接插件」**；网站通过 `postMessage` 将会话字段（含 `accessToken`、`apiBaseUrl`、refresh 与 Supabase 公开配置等）写入扩展的 **`chrome.storage.local`**（content script 在 `index.tsx` **模块顶层**监听，Crow 自站点不挂载浮层 App 时也能收到）。
 - 划词存笔记时请求带 `Authorization: Bearer <jwt>`，与网站笔记本 API 一致；CORS 预检需允许 `Authorization`（由 Web 端 `cors` 工具配置保证）。
 
 **进行中需求（与文档同步）：**
+- **C-3 扩展内独立登录（已立项）**：扩展 **Options 主路径** 提供非技术流登录（与网站同一 Supabase 项目）；**保留** 网站「连接插件」快捷同步；**手动粘贴 Token** 仅保留在折叠「高级/开发者」区。计划与任务：[`dev/active/Chrome扩展内登录/`](../dev/active/Chrome扩展内登录/)。
 - **插件内 session refresh（开发中，`fea/chrome-ext-session-refresh-tri`）**：网站「连接插件」下发 `refresh_token` 与公开 Supabase URL/anon key；扩展写入 `chrome.storage.local`，在存笔记前与 401 时用 Supabase 刷新 access token。需求目录：`dev/active/Chrome扩展插件内refresh/`。
 - **暂停划词开关（已立项，开发顺延）**：Popup/Options 共用开关，关闭时不挂载划词 UI、不响应解释快捷键，**保留**网站「连接插件」桥接。待 refresh 合并后再开工：`dev/active/Chrome扩展暂停划词开关/`。
 
 **不做（本阶段仍不考虑）：**
-- 插件内独立登录 / 完整账户系统（可列 Phase 6+）
 - 离线缓存解释结果

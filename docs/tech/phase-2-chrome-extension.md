@@ -58,7 +58,7 @@ chrome-extension/
 触发解释：
     → 获取选中文字
     → 在选中文字旁边挂载 ExplainCard 组件（React Portal）
-    → fetch 到 Web 端 /api/explain（URL 从 chrome.storage.sync 读取）
+    → fetch 到 Web 端 /api/explain（URL 从 chrome.storage.local 的 apiBaseUrl 读取）
     → 流式渲染解释内容
     → 用户点"存入笔记本" → fetch /api/notes（`Authorization: Bearer`，与 CORS/预检一致）
     → 用户点击卡片外部 / 按 Esc → 卸载卡片
@@ -67,13 +67,16 @@ chrome-extension/
 ### 鉴权配置存储
 
 ```typescript
-// chrome.storage.sync 存储结构（多用户，与网站 Session 一致）
-interface ExtensionConfig {
-  apiBaseUrl: string;   // 与「连接」时页面 origin 自洽，见 samePageOrigin
-  accessToken: string;  // Supabase access_token，请求头 Authorization: Bearer
-  // 历史键 adminSecret 在成功连接或新配置保存时 remove，避免与 Bearer 混用
+// chrome.storage.local（CrowAuth，与网站 Session 一致；由 postMessage 桥接或扩展内登录写入）
+interface CrowAuth {
+  apiBaseUrl: string;
+  accessToken: string;
+  refreshToken: string;
+  supabaseUrl: string;
+  supabaseAnonKey: string;
+  expiresAt?: number;
 }
 ```
 
-网站 `AuthNav` 在已登录时发 `postMessage({ type: 'CROW_CONNECT_EXT', apiBaseUrl, accessToken })`；`lib/utils/cors.ts` 的 `Access-Control-Allow-Headers` 须含 `Authorization`（跨域 `POST /api/notes` 预检）。
+网站 `AuthNav` 可发 `postMessage({ type: 'CROW_CONNECT_EXT', … })`；**C-3** 扩展内登录成功后将写入同一 `CrowAuth` 形态（与网站桥接互斥于「最后一次写入为准」）。`lib/utils/cors.ts` 的 `Access-Control-Allow-Headers` 须含 `Authorization`（跨域 `POST /api/notes` 预检）。扩展内在请求前使用 `ensureFreshAuth` 刷新 access token。立项文档：[`dev/active/Chrome扩展内登录/`](../../dev/active/Chrome扩展内登录/)。
 
