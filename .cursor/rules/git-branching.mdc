@@ -53,3 +53,4 @@ git checkout dev && git merge hotfix/问题简称-<owner>
 - 禁止直接 push 到 `main` 或 `dev`。
 - 禁止从 `main` 直接切功能分支（应从 `dev` 切）。
 - AI 不主动创建 PR，除非用户明确要求。
+- **AI 不得在 `dev` / `main` 上直接 `git commit`**（含文档-only）；一律先 `git checkout -b fea/…-<owner>`（或按流程用 `hotfix/…`）。**唯一例外**：用户**明确**说可「快速修复 / 快速更改」并允许直提 `dev`/`main` 时。
