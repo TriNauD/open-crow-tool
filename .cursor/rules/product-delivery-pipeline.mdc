@@ -14,7 +14,7 @@ alwaysApply: true
 | 1 | 用户提需求；PM + TL 论可行性，输出结论给用户 | 用户**明确同意**后再更新 `docs/PRD.md`（总览）、`docs/PLAN.md`（总览），并在对应 **`docs/product/*`** / **`docs/tech/*`** 分卷中写清模块级变更；**同时**建 `dev/active/需求名称/*`，并在 **`docs/product/README.md` / `docs/tech/README.md`** 的 **「进行中」** 小节加上链接（见 `dev-workflow` 阶段 3）（阶段 1 仍禁写业务代码，见 `dev-workflow`） |
 | 2 | 用户确认方案后，**commit 文档**（总览+分卷 + 可选 context/plan/tasks 初稿） | 至少一次 **仅文档** 的 `git commit` |
 | 3 | 生成 `需求名称-qa.md`（**自动化** + **手动**），并含**可执行手测流程**（最小路径 + 全量可选）；commit 文档 | 文档可单独 commit；**不得**在未经用户手测前宣称「可上线」 |
-| 4 | TL/QA 跑完**自动化**后交用户；用户**照手测文档**验收 | 用户**明确**通过/不通过；不通过回第 5 步 |
+| 4 | TL/QA 跑完**自动化**后交用户；用户**照手测文档**验收 | 用户**明确**通过/不通过；不通过回第 5 步；**若已合入 `dev`**，须有 **`需求名称-dev-preview-acceptance.md`**（或 `dev/logs/…-dev-preview-acceptance.md`）作为 Preview 手测清单，见 `dev-workflow` §3 |
 | 5 | 有 bug 时：TL/QA 修代码，在 `dev/logs/需求名称-log.md` 以 **BF-n** 记录根因与修复 | 每个 BF 至少：现象、根因、涉及文件、验证方式 |
 | 6 | 用户整体验收通过后**结项**：迁 `dev/done/`、补 log、更新 `docs/PRD.md` / `docs/PLAN.md` 及所涉 **分卷**（若需）、**收尾 commit**；PR 由人发起（见 `git-branching`） | 与 `dev-workflow` 阶段 5 一致 |
 

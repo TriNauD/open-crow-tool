@@ -28,9 +28,11 @@ PM 和 TL 进行评估，输出：
 
 ```
 dev/active/需求名称/
-├── 需求名称-plan.md      # 技术方案细节
-├── 需求名称-context.md   # 背景、约束、关键决策
-└── 需求名称-tasks.md     # 分步任务清单（逐步打勾）
+├── 需求名称-plan.md
+├── 需求名称-context.md
+├── 需求名称-tasks.md
+├── 需求名称-qa.md
+└── 需求名称-dev-preview-acceptance.md  # 合入 dev、Preview 就绪后由 AI 生成/更新（见本节「与 AI 协作」§3）
 ```
 
 **立项默认可发现性（与 `dev/active` 同一批或紧随其后的仅文档 commit）：**
@@ -58,7 +60,7 @@ dev/active/需求名称/
 **必须等用户明确验收通过后，才能执行：**
 1. `git commit` 提交代码
 2. 向 `dev` 提 PR
-3. 将文档迁移到 `dev/done/需求名称/`（含 plan/context/tasks/qa）
+3. 将文档迁移到 `dev/done/需求名称/`（含 plan/context/tasks/qa 与 **`需求名称-dev-preview-acceptance.md`**（若存在））
 4. 在 `dev/logs/需求名称-log.md` 记录问题与关键变更
 5. PM 更新 `docs/PRD.md`、`docs/PLAN.md` 及所涉 `docs/product/*` / `docs/tech/*` 分卷（大需求写分卷，小改可只动总览一句）
 
@@ -94,9 +96,20 @@ dev/active/需求名称/
 - **提 PR 前**：须 **`npm run lint` 通过**（与 `pr-and-commit.mdc`、CI 对齐）；详见下文「全绿」约定。
 - 代提前：**merge `origin/dev` 入当前功能分支**、工作区已提交、可 **`push`**；详见 `pr-and-commit.mdc`。
 
-### 3）Preview 手测
+### 3）Preview 手测（`dev` 合并后须落盘验收 MD）
 
-- 合并 `dev` 并部署 Preview 后，AI 须给出 **可复制的验收步骤**（Preview URL、账号/数据前提、逐步操作与预期），并与 `需求名称-qa.md` 中的**最小路径**对齐。
+- **触发**：对应功能 **已合并进 `dev`**、Vercel **Preview 部署就绪**后（用户告知「已合 dev」或请 AI 跟进出验收文档时），AI 除在对话中给出步骤外，**必须**在仓库中新增或更新一份 **Markdown 验收清单**。
+- **路径与命名**（优先级）：
+  1. 有明确 `dev/active/需求名称/` 目录时：`dev/active/需求名称/需求名称-dev-preview-acceptance.md`（文件名与目录名**同一前缀**，与 `需求名称-qa.md`、plan/context 并列）。
+  2. 单次合并涉及多个需求时：以 **PR / 用户指定的主需求** 目录写入一份；其余需求可在该文件「范围」小节逐条列出或各目录各写**短文**链到主文件。
+  3. 纯基建/无 `dev/active` 归属时：写入 **`dev/logs/<YYYY-MM-DD 或分支简写>-dev-preview-acceptance.md`**，并在 PR 或对话中说明链接。
+- **正文须包含**（可按需求删减列，但结构保持清晰）：
+  - **环境前提**：Preview **URL 占位**（写明代入最新 Deployment）、扩展是否需本地 `chrome-extension/dist`、Vercel **Preview** 变量与 **Redeploy**、**Deployment Protection** 对扩展联调的影响（见 **`docs/tech/environments-and-deployment.md`**）。
+  - **网站**：登录、**「连接插件」**、**AuthNav** 无 token 时的提示等步骤表（操作 / 预期）。
+  - **扩展 × 第三方页**（若本期 touch 扩展）：未连接无浮标、已连接有浮标、**先划词再连接**、Options 后台切回等步骤表。
+  - **自动化旁证**（可选）：与本分支相关的 `npm run test` / `test:e2e` 命令。
+  - **结论**：勾选或 PASS/FAIL 区，便于你手测打勾。
+- 内容须与 `需求名称-qa.md` 中的**最小路径**一致或在其上扩展；**勿**把密钥写进该 MD。
 
 ### 4）缺陷与需求变更
 
