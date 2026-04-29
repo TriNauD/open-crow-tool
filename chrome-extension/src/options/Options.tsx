@@ -1,5 +1,9 @@
-import { useEffect, useState } from 'react';
-import { loadCrowAuth } from '../lib/crow-session';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  CROW_AUTH_LOCAL_KEYS,
+  ensureFreshAuth,
+  loadCrowAuth,
+} from '../lib/crow-session';
 
 const DEFAULT_SITE_ORIGIN = 'https://dev.crowknows.tech';
 
@@ -11,9 +15,13 @@ export default function Options() {
   const [manualUrl, setManualUrl] = useState('');
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [refreshHint, setRefreshHint] = useState('');
+  /** 忽略本轮 local 授权键变更（手动保存 / 设置内刷新），避免误显示「网站已同步」 */
+  const skipAuthStorageEventsRef = useRef(false);
 
-  useEffect(() => {
-    void (async () => {
+  const applyAuthStateFromStorage = useCallback(
+    async (opts: { showWebSyncHint: boolean }) => {
       const auth = await loadCrowAuth();
       const sync = await chrome.storage.sync.get(['adminSecret']);
       const url = auth?.apiBaseUrl || '';
@@ -24,11 +32,81 @@ export default function Options() {
       setManualToken(token);
       if (!token && sync.adminSecret) {
         setError('检测到旧版配置，请在网站登录后点「连接插件」重新授权。');
+      } else {
+        setError('');
       }
-    })();
-  }, []);
+      if (opts.showWebSyncHint && token) {
+        setRefreshHint('已通过网站同步连接状态。');
+        setTimeout(() => setRefreshHint(''), 2800);
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    const id = window.setTimeout(() => {
+      void applyAuthStateFromStorage({ showWebSyncHint: false });
+    }, 0);
+    return () => window.clearTimeout(id);
+  }, [applyAuthStateFromStorage]);
+
+  useEffect(() => {
+    function onStorageChanged(
+      changes: Record<string, chrome.storage.StorageChange>,
+      areaName: chrome.storage.AreaName
+    ) {
+      if (areaName !== 'local') return;
+      const hit = CROW_AUTH_LOCAL_KEYS.some((k) => changes[k] !== undefined);
+      if (!hit || skipAuthStorageEventsRef.current) return;
+      void applyAuthStateFromStorage({ showWebSyncHint: true });
+    }
+    chrome.storage.onChanged.addListener(onStorageChanged);
+    return () => chrome.storage.onChanged.removeListener(onStorageChanged);
+  }, [applyAuthStateFromStorage]);
 
   const isConnected = !!(apiBaseUrl && accessToken);
+
+  async function refreshConnectionStatus() {
+    skipAuthStorageEventsRef.current = true;
+    setIsRefreshing(true);
+    setRefreshHint('');
+    try {
+      const before = await loadCrowAuth();
+      const after = await ensureFreshAuth(before, { force: true });
+      const sync = await chrome.storage.sync.get(['adminSecret']);
+      const fromDisk = after ?? (await loadCrowAuth());
+
+      if (fromDisk?.accessToken) {
+        setApiBaseUrl(fromDisk.apiBaseUrl);
+        setAccessToken(fromDisk.accessToken);
+        setManualUrl(fromDisk.apiBaseUrl);
+        setManualToken(fromDisk.accessToken);
+      } else {
+        setApiBaseUrl('');
+        setAccessToken('');
+      }
+
+      if (after) {
+        setRefreshHint('连接状态已更新（如已续期会话）。');
+        setTimeout(() => setRefreshHint(''), 2800);
+      } else if (before) {
+        setRefreshHint('未能续期会话，请在网站打开并点「连接插件」重新授权。');
+      } else {
+        setRefreshHint('当前无已保存的登录状态。');
+      }
+
+      if (!fromDisk?.accessToken && sync.adminSecret) {
+        setError('检测到旧版配置，请在网站登录后点「连接插件」重新授权。');
+      } else if (!fromDisk?.accessToken) {
+        setError('');
+      }
+    } finally {
+      setIsRefreshing(false);
+      queueMicrotask(() => {
+        skipAuthStorageEventsRef.current = false;
+      });
+    }
+  }
 
   async function handleManualSave(e: React.FormEvent) {
     e.preventDefault();
@@ -36,20 +114,27 @@ export default function Options() {
     const url = manualUrl.trim().replace(/\/$/, '');
     if (!url) { setError('请填写 API 地址'); return; }
     if (!manualToken.trim()) { setError('请填写访问令牌'); return; }
-    await chrome.storage.local.set({
-      apiBaseUrl: url,
-      accessToken: manualToken.trim(),
-      refreshToken: '',
-      supabaseUrl: '',
-      supabaseAnonKey: '',
-      expiresAt: null,
-    });
-    await chrome.storage.sync.remove(['accessToken', 'apiBaseUrl', 'adminSecret']);
-    setApiBaseUrl(url);
-    setAccessToken(manualToken.trim());
-    setError('');
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
+    skipAuthStorageEventsRef.current = true;
+    try {
+      await chrome.storage.local.set({
+        apiBaseUrl: url,
+        accessToken: manualToken.trim(),
+        refreshToken: '',
+        supabaseUrl: '',
+        supabaseAnonKey: '',
+        expiresAt: null,
+      });
+      await chrome.storage.sync.remove(['accessToken', 'apiBaseUrl', 'adminSecret']);
+      setApiBaseUrl(url);
+      setAccessToken(manualToken.trim());
+      setError('');
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } finally {
+      queueMicrotask(() => {
+        skipAuthStorageEventsRef.current = false;
+      });
+    }
   }
 
   function openSite() {
@@ -67,13 +152,36 @@ export default function Options() {
         <div style={styles.statusBox}>
           <div style={styles.statusRow}>
             <span style={isConnected ? styles.dotGreen : styles.dotRed} />
-            <span style={styles.statusText}>
+            <span style={styles.statusTextWrap}>
               {isConnected ? '插件已连接到你的账号' : '插件尚未连接'}
             </span>
+            <button
+              type="button"
+              onClick={() => void refreshConnectionStatus()}
+              disabled={isRefreshing}
+              style={isRefreshing ? styles.btnRefreshDisabled : styles.btnRefresh}
+            >
+              {isRefreshing ? '刷新中…' : '刷新状态'}
+            </button>
           </div>
           {isConnected && (
             <p style={styles.statusHint}>{apiBaseUrl}</p>
           )}
+          {refreshHint ? (
+            <p
+              style={{
+                ...styles.refreshHint,
+                color: refreshHint.startsWith('连接状态已更新') ||
+                  refreshHint.startsWith('已通过网站')
+                  ? '#22c55e'
+                  : refreshHint.startsWith('未能续期')
+                    ? '#fbbf24'
+                    : '#71717a',
+              }}
+            >
+              {refreshHint}
+            </p>
+          ) : null}
         </div>
 
         {/* 主操作：去网站连接 */}
@@ -175,6 +283,46 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     gap: 8,
+    flexWrap: 'wrap',
+  },
+  statusTextWrap: {
+    flex: '1 1 120px',
+    minWidth: 0,
+    fontSize: 14,
+    fontWeight: 600,
+    color: '#f4f4f5',
+  },
+  btnRefresh: {
+    background: '#27272a',
+    color: '#d4d4d8',
+    border: '1px solid #3f3f46',
+    borderRadius: 8,
+    padding: '6px 12px',
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: 'pointer',
+    flexShrink: 0,
+    marginLeft: 'auto',
+  },
+  btnRefreshDisabled: {
+    background: '#27272a',
+    color: '#71717a',
+    border: '1px solid #3f3f46',
+    borderRadius: 8,
+    padding: '6px 12px',
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: 'default',
+    flexShrink: 0,
+    marginLeft: 'auto',
+    opacity: 0.85,
+  },
+  refreshHint: {
+    fontSize: 12,
+    marginTop: 8,
+    marginLeft: 16,
+    lineHeight: 1.5,
+    marginBottom: 0,
   },
   dotGreen: {
     width: 8, height: 8, borderRadius: '50%',
@@ -185,11 +333,6 @@ const styles: Record<string, React.CSSProperties> = {
     width: 8, height: 8, borderRadius: '50%',
     background: '#f87171',
     flexShrink: 0,
-  },
-  statusText: {
-    fontSize: 14,
-    fontWeight: 600,
-    color: '#f4f4f5',
   },
   statusHint: {
     fontSize: 12,

@@ -1,12 +1,26 @@
 import { createRoot } from 'react-dom/client';
 import { useEffect, useState } from 'react';
-import { isCrowConfigured } from '../lib/crow-session';
+import { CROW_AUTH_LOCAL_KEYS, isCrowConfigured } from '../lib/crow-session';
 
 function Popup() {
   const [configured, setConfigured] = useState<boolean | null>(null);
 
   useEffect(() => {
-    void isCrowConfigured().then(setConfigured);
+    function reload() {
+      void isCrowConfigured().then(setConfigured);
+    }
+    reload();
+    function onStorageChanged(
+      changes: Record<string, chrome.storage.StorageChange>,
+      areaName: chrome.storage.AreaName
+    ) {
+      if (areaName !== 'local') return;
+      const hit = CROW_AUTH_LOCAL_KEYS.some((k) => changes[k] !== undefined);
+      if (!hit) return;
+      reload();
+    }
+    chrome.storage.onChanged.addListener(onStorageChanged);
+    return () => chrome.storage.onChanged.removeListener(onStorageChanged);
   }, []);
 
   function openOptions() {
