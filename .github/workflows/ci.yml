@@ -50,14 +50,14 @@ jobs:
       - name: Production build (Next.js)
         run: npm run build
 
+      - name: Build Chrome extension (E2E + artifact)
+        working-directory: chrome-extension
+        run: |
+          npm ci
+          npm run build
+
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
 
       - name: E2E (Playwright)
         run: npm run test:e2e
-
-      - name: Build Chrome extension
-        working-directory: chrome-extension
-        run: |
-          npm ci
-          npm run build

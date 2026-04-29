@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="zh">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>E2E — Crow extension host</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        padding: 24px;
+        margin: 0;
+      }
+      #selectable {
+        max-width: 520px;
+        line-height: 1.65;
+      }
+      #inner {
+        width: min(520px, 100%);
+        height: 140px;
+        border: 1px solid #cbd5e1;
+        margin-top: 20px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>E2E host（顶层文档）</h1>
+    <p id="selectable">
+      这段文字用于划词自动化测试，至少需要十个字符才能触发扩展的有效选区逻辑。Here is a second
+      sentence so the range is non-trivial.
+    </p>
+    <!-- 使用同源 src，避免 about:srcdoc 不匹配 content_scripts 的 &lt;all_urls&gt; -->
+    <iframe
+      id="inner"
+      title="inner-frame"
+      src="/e2e-extension-iframe-inner.html"
+    ></iframe>
+  </body>
+</html>

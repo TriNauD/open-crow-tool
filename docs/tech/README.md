@@ -13,5 +13,15 @@
 | 七 Phase 4：外部订阅 | [phase-4-subscribe.md](./phase-4-subscribe.md) |
 | 八 Phase 5：多用户笔记本 | [phase-5-notebook-multi-user.md](./phase-5-notebook-multi-user.md) |
 | 九、十 规范与里程碑 | [constraints-and-milestones.md](./constraints-and-milestones.md) |
+| **扩展：划词/连接回归与 E2E** | [**chrome-extension-e2e-and-regression.md**](./chrome-extension-e2e-and-regression.md) |
+
+## 进行中（`dev/active`）
+
+| 需求 | 目录 | 摘要 |
+|------|------|------|
+| Chrome 扩展插件内 session refresh | [Chrome扩展插件内refresh](../../dev/active/Chrome扩展插件内refresh/) | 扩展内 Supabase refresh；涉及 `phase-2-chrome-extension` 与鉴权 |
+| Chrome 扩展暂停划词开关 | [Chrome扩展暂停划词开关](../../dev/active/Chrome扩展暂停划词开关/) | 运行时 gate 划词/UI；**排期在 refresh 合并之后** |
+
+**立项默认**：新需求在本表增一行（与 `dev/active/…` 同批文档 commit）；结项后删除或改写。见 `.cursor/rules/dev-workflow.mdc` 阶段 3。
 
 **单需求**的 patch 与排障仍以 `dev/done/需求名/` 及 `dev/logs/…-log.md` 为准；本目录是**可维护的技术长文档**，宜与 `docs/product/` 同步迭代。
