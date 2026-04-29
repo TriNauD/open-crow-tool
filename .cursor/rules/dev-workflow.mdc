@@ -52,6 +52,8 @@ dev/active/需求名称/
 
 ## 阶段 5：用户验收与收尾
 
+**注**：合并到 **`dev`** 的迭代 commit / PR、Preview 多轮验收，见下文 **「与 AI 协作的交付节奏」**。本条是在**用户整体验收通过**后执行的**结项**动作。
+
 将测试结果提交用户验收。
 **必须等用户明确验收通过后，才能执行：**
 1. `git commit` 提交代码
@@ -75,3 +77,37 @@ dev/active/需求名称/
     ↓
 [阶段5] 用户验收 → 等待明确通过 ✋ → commit + 文档收尾
 ```
+
+## 与 AI 协作的交付节奏（PR、自动化与用户验收）
+
+与 `pr-and-commit.mdc`（含 **AI 代提 PR 闸门**）、`product-delivery-pipeline.mdc`、`git-branching.mdc`、`release-and-hotfix.mdc` **一并遵守**。本节是在五阶段之上的**操作节奏**：允许在阶段 4 内**多次 commit**、**多次 PR 进 `dev`**，在 Preview 上迭代；**阶段 5 结项与上 `main`** 仍以用户明确验收与发布门控为准。
+
+### 1）测试文档与自动化（阶段 3 起、随开发迭代）
+
+- 用户批准进入阶段 3 后：在 `dev/active/需求名称/` 维护 **`需求名称-qa.md`**（或等价 QA 文档），含 **用例 ID、手测步骤、自动化对表**（Vitest / `e2e/*.spec.ts` / 仅手测）。
+- **首个可测增量前**：为本需求补齐可运行的自动化（**优先单测**；高回归价值链路再上 Playwright）；在 QA 文档或所涉 **`docs/tech/*`** 写明 **如何运行**（如 `npm run test`、`npm run test:e2e`、`npm run test:e2e:ext`、与 CI 中扩展 build 顺序）。
+- 阶段 1～2 **不写**产品代码；测试代码在阶段 3 文档就位后与实现**同步迭代**（立项瞬间不必强行写完所有 E2E，避免需求微调导致大量返工）。
+
+### 2）合并到 `dev`（Vercel Preview）
+
+- 功能与约定回归在 **本地/CI 通过**后，**仅当用户明确允许代开 PR** 时，AI 生成 **title / body** 并执行 `gh pr create --base dev`（无 `gh` 时给 **compare URL**）；**默认由用户 merge**。
+- 代提前：**merge `origin/dev` 入当前功能分支**、工作区已提交、可 **`push`**；详见 `pr-and-commit.mdc`。
+
+### 3）Preview 手测
+
+- 合并 `dev` 并部署 Preview 后，AI 须给出 **可复制的验收步骤**（Preview URL、账号/数据前提、逐步操作与预期），并与 `需求名称-qa.md` 中的**最小路径**对齐。
+
+### 4）缺陷与需求变更
+
+- 用户指出问题或变更范围：为对应 **case** **补/改自动化**（或更新手测条目）→ AI 修复并跑通约定门禁（`lint`、`test`、本需求涉及的 **`test:e2e`** 等）→ **再交用户验收**（可多轮）。
+- 根因与验证写入 **`dev/logs/需求名称-log.md`**（可与 `product-delivery-pipeline` 的 BF-n 记录方式一致）。
+
+### 5）结项与 `dev` → `main`
+
+- **仅当用户明确说验收通过**后：执行阶段 5 清单（`dev/done/`、log、`docs/PRD.md` / `docs/PLAN.md` 及分卷等）。
+- **`dev` → `main`**：**另开 PR**；须用户**明确授权**后 AI 方可代开；合并、上线与发布后观察遵守 **`release-and-hotfix.mdc`**。
+- **Hotfix**：不走过本条主线时，按 **`release-and-hotfix.mdc`**：`hotfix/*` → `main`，再 **backport** `dev`。
+
+### 「全绿」约定
+
+合并 `dev` 前，至少 **CI 或与 CI 等价的本地命令**通过；**扩展 / 划词相关改动**须 **先构建 `chrome-extension/dist`** 再跑 Playwright（顺序见 `.github/workflows/ci.yml` 与 `docs/tech/chrome-extension-e2e-and-regression.md`）。

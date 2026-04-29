@@ -20,6 +20,48 @@ alwaysApply: true
   - **推荐**：用**单个** fenced 代码块，首行为 `markdown`，内层即完整 PR 正文；用户只复制代码块内部（不含围栏）粘贴即可。
   - 若不用代码块，则逐行输出未渲染的 Markdown 文本，并明确写一句「以下为可直接粘贴进 PR 的 Markdown」。
 
+## AI 代提 PR（闸门与默认分支）
+
+- **默认不代开 PR**：仅当用户**明确说**可以提 PR（例如「可以提 PR」「帮我代开 PR 到 dev」）时，AI 才在终端执行 `git push` / `gh pr create` 或等价操作。**禁止**在用户未开口的情况下主动创建 PR。
+- **默认 target 分支**（除非用户另行指定）：
+  - 当前功能分支（`fea/*`、`hotfix/*` 等）→ **`dev`**
+  - **`dev` → `main`（生产）**：仅在用户明确要求发布 / 合并到 main 时操作；仍须遵守 `release-and-hotfix.mdc` 与双人 review。
+- **代提时 AI 须交付**：符合上文「PR 规范」的 **title** + **body**（推荐可复制的 `markdown` 代码块）；若环境无 `gh`，同时给出 **compare URL**（`https://github.com/<owner>/<repo>/compare/<base>...<head>`）供浏览器创建。
+- **代提前检查**：合并最新 **`origin/dev`**（或用户指定的 base）进当前分支、工作区已提交、远程可 `push`；勿强推公共分支。
+
+### 本地安装 GitHub CLI（`gh`）以便代提 PR
+
+适用于本机终端执行；AI 在已安装且已登录的环境中可直接 `gh pr create`。
+
+**macOS（Homebrew）**
+
+```bash
+brew install gh
+gh auth login
+```
+
+按提示选择：GitHub.com → HTTPS → 浏览器登录或粘贴 token（勿把 token 贴进聊天）。
+
+**验证**
+
+```bash
+gh auth status
+cd /path/to/open-crow-tool && gh pr view 2>/dev/null || true
+```
+
+**由 AI 代开 PR 到 `dev` 的典型命令**（在仓库根、已 push 当前分支后）
+
+```bash
+gh pr create --base dev --head "$(git branch --show-current)" \
+  --title "…" \
+  --body "$(cat <<'EOF'
+…PR 正文 Markdown…
+EOF
+)"
+```
+
+若标题/正文较长，也可用 `gh pr create --base dev` 进入交互向导。合并方式仍按团队约定在 GitHub UI 选择 **Create a merge commit**。
+
 # 合并规则
 
 - 至少 1 人 review 通过再合并（双人团队互审）。
