@@ -67,7 +67,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...（仅 JWT 字符串）
 
 - **`apiBaseUrl` + `accessToken`** 来自网站「连接插件」；须与当前测的环境一致。  
 - **换环境**：从 Vercel Preview 换到生产域名（或相反）时，须在 **对应环境的网站** 上 **重新点「连接插件」**，扩展里的 `apiBaseUrl`/token 才会与目标一致。
-- Options 里「打开网站」的 fallback 若指向旧域名，以 **已连接成功** 时显示的 `apiBaseUrl` 为准。  
+- Options 里「打开网站」的 fallback 默认 **`https://dev.crowknows.tech`**（团队 Preview）；若与当前环境不符可改扩展源码常量或仍以 **已连接成功** 时显示的 `apiBaseUrl` 为准。  
 - **CORS**：`/api/explain`、`/api/notes` 已带 `OPTIONS` 与跨域头；若仍失败，先排除 **401（部署保护）** 与 **环境变量错误**。
 
 ---
@@ -83,5 +83,6 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...（仅 JWT 字符串）
 
 | 日期 | 说明 |
 |------|------|
+| 2026-04-29 | Options「打开网站」fallback 默认 `https://dev.crowknows.tech`（团队 Preview）。 |
 | 2026-04-29 | Chrome 扩展：换 Preview/生产域名需在该环境网站重新「连接插件」。 |
 | 2026-04-28 | 首版：Vercel 分环境、Deployment Protection、Supabase 双项目、扩展联调、混合内容、Env 勿合并为一项。 |

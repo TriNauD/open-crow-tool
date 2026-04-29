@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { loadCrowAuth } from '../lib/crow-session';
 
+const DEFAULT_SITE_ORIGIN = 'https://dev.crowknows.tech';
+
 export default function Options() {
   const [apiBaseUrl, setApiBaseUrl] = useState('');
   const [accessToken, setAccessToken] = useState('');
@@ -51,7 +53,7 @@ export default function Options() {
   }
 
   function openSite() {
-    chrome.tabs.create({ url: apiBaseUrl || 'https://open-crow-tool.vercel.app' });
+    chrome.tabs.create({ url: apiBaseUrl || DEFAULT_SITE_ORIGIN });
   }
 
   return (
@@ -106,7 +108,7 @@ export default function Options() {
                 type="url"
                 value={manualUrl}
                 onChange={(e) => setManualUrl(e.target.value)}
-                placeholder="https://open-crow-tool.vercel.app"
+                placeholder="https://dev.crowknows.tech"
                 spellCheck={false}
               />
             </div>
