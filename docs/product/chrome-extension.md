@@ -24,6 +24,7 @@
 
 **进行中需求（与文档同步）：**
 - **插件内 session refresh（开发中，`fea/chrome-ext-session-refresh-tri`）**：网站「连接插件」下发 `refresh_token` 与公开 Supabase URL/anon key；扩展写入 `chrome.storage.local`，在存笔记前与 401 时用 Supabase 刷新 access token。需求目录：`dev/active/Chrome扩展插件内refresh/`。
+- **暂停划词开关（已立项，开发顺延）**：Popup/Options 共用开关，关闭时不挂载划词 UI、不响应解释快捷键，**保留**网站「连接插件」桥接。待 refresh 合并后再开工：`dev/active/Chrome扩展暂停划词开关/`。
 
 **不做（本阶段仍不考虑）：**
 - 插件内独立登录 / 完整账户系统（可列 Phase 6+）

@@ -19,6 +19,7 @@
 | 需求 | 目录 | 摘要 |
 |------|------|------|
 | Chrome 扩展插件内 session refresh | [Chrome扩展插件内refresh](../../dev/active/Chrome扩展插件内refresh/) | 扩展内 Supabase refresh；涉及 `phase-2-chrome-extension` 与鉴权 |
+| Chrome 扩展暂停划词开关 | [Chrome扩展暂停划词开关](../../dev/active/Chrome扩展暂停划词开关/) | 运行时 gate 划词/UI；**排期在 refresh 合并之后** |
 
 **立项默认**：新需求在本表增一行（与 `dev/active/…` 同批文档 commit）；结项后删除或改写。见 `.cursor/rules/dev-workflow.mdc` 阶段 3。
 
