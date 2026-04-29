@@ -30,7 +30,9 @@ PM 和 TL 进行评估，输出：
 dev/active/需求名称/
 ├── 需求名称-plan.md      # 技术方案细节
 ├── 需求名称-context.md   # 背景、约束、关键决策
-└── 需求名称-tasks.md     # 分步任务清单（逐步打勾）
+├── 需求名称-tasks.md     # 分步任务清单（逐步打勾）
+├── 需求名称-qa.md
+└── 需求名称-dev-preview-acceptance.md  # 与 qa 同批；**最小路径**约一页（见「与 AI 协作」§1、§3）；合入 dev 后只更新 URL 等
 ```
 
 **立项默认可发现性（与 `dev/active` 同一批或紧随其后的仅文档 commit）：**
@@ -45,7 +47,7 @@ dev/active/需求名称/
 
 - 每完成一步，立即更新 `tasks.md`。
 - 上下文快用完时，先将进度和下一步写入文档，再继续。
-- TL 开发完成后，QA 介入，创建 `需求名称-qa.md`，执行测试。
+- TL 开发完成后，QA 介入，创建或迭代 **`需求名称-qa.md`**，并确保 **`需求名称-dev-preview-acceptance.md`**（或与 qa 内 Preview 章）**已存在且结构与 `dev-workflow`「与 AI 协作」§1、§3 一致**；若阶段 3 漏建须此时补全，执行测试。
 - QA 通过后，PM 审核 `tasks.md`，确认验收标准全部满足。
 
 **🚫 QA 未通过或 PM 未审核前，不得提交代码。**
@@ -55,12 +57,14 @@ dev/active/需求名称/
 **注**：合并到 **`dev`** 的迭代 commit / PR、Preview 多轮验收，见下文 **「与 AI 协作的交付节奏」**。本条是在**用户整体验收通过**后执行的**结项**动作。
 
 将测试结果提交用户验收。
-**必须等用户明确验收通过后，才能执行：**
-1. `git commit` 提交代码
-2. 向 `dev` 提 PR
-3. 将文档迁移到 `dev/done/需求名称/`（含 plan/context/tasks/qa）
-4. 在 `dev/logs/需求名称-log.md` 记录问题与关键变更
-5. PM 更新 `docs/PRD.md`、`docs/PLAN.md` 及所涉 `docs/product/*` / `docs/tech/*` 分卷（大需求写分卷，小改可只动总览一句）
+**必须等用户明确验收通过后，才能执行结项：**
+
+1. 将文档迁移到 `dev/done/需求名称/`（含 plan/context/tasks/qa 与 **`需求名称-dev-preview-acceptance.md`**（若存在））。
+2. 在 `dev/logs/需求名称-log.md` 记录问题与关键变更。
+3. PM 更新 `docs/PRD.md`、`docs/PLAN.md` 及所涉 `docs/product/*` / `docs/tech/*` 分卷（大需求写分卷，小改可只动总览一句）；**qa / dev-preview-acceptance** 写明验收结论（PASS、日期、Preview URL 等）；**`tasks.md`** 结项勾选。
+4. **`git commit` 与推送**（见 **`git-branching.mdc`**「`dev` 直推破例」）：
+   - **仅文档 / 规则 / 技能 / 上述结项类 `.md`**（无业务代码、无依赖与构建配置）：**允许**在 **`dev`** 上直接 commit + **`push`**。
+   - **若仍含代码或行为变更**：**fea/* → PR → `dev`**，不得夹带。
 
 # 流程总览
 
@@ -85,6 +89,8 @@ dev/active/需求名称/
 ### 1）测试文档与自动化（阶段 3 起、随开发迭代）
 
 - 用户批准进入阶段 3 后：在 `dev/active/需求名称/` 维护 **`需求名称-qa.md`**（或等价 QA 文档），含 **用例 ID、手测步骤、自动化对表**（Vitest / `e2e/*.spec.ts` / 仅手测）。
+- **与 `需求名称-qa.md` 同时**（同一 commit 或紧随其后的仅文档 commit）：须具备 **`需求名称-dev-preview-acceptance.md`**，或在 `qa.md` 内用 **独立章节「Vercel Preview（dev）验收」** 承担同一职责。该文件 **只做最小路径**（团队默认 **约一页**：**Preview URL 占位** + **前置一至三句** + **编号步骤通常 3～6 条** + **结论一行**），与 `qa.md` 里「最小路径 / §0.2」**逐条对应**即可；**迁移、DevTools、Options 扫尾、大表格式回归**等放进 **`qa.md` 或 `docs/tech/*`**，**勿**在 acceptance 里展开。须便于**单独打印**；**推荐单独文件**以免 qa 过长；可链至 **`docs/tech/environments-and-deployment.md`**，**勿**写密钥。
+- **多需求同批次 / 无** `dev/active` **单需求目录时**：`dev-preview-acceptance` **一份**即可（放主需求 `dev/active/…` 或 `dev/logs/YYYY-MM-批次简称-dev-preview-acceptance.md`），勿为每个子点复制多份自相矛盾正文。
 - **首个可测增量前**：为本需求补齐可运行的自动化（**优先单测**；高回归价值链路再上 Playwright）；在 QA 文档或所涉 **`docs/tech/*`** 写明 **如何运行**（如 `npm run test`、`npm run test:e2e`、`npm run test:e2e:ext`、与 CI 中扩展 build 顺序）。
 - 阶段 1～2 **不写**产品代码；测试代码在阶段 3 文档就位后与实现**同步迭代**（立项瞬间不必强行写完所有 E2E，避免需求微调导致大量返工）。
 
@@ -94,9 +100,19 @@ dev/active/需求名称/
 - **提 PR 前**：须 **`npm run lint` 通过**（与 `pr-and-commit.mdc`、CI 对齐）；详见下文「全绿」约定。
 - 代提前：**merge `origin/dev` 入当前功能分支**、工作区已提交、可 **`push`**；详见 `pr-and-commit.mdc`。
 
-### 3）Preview 手测
+### 3）Preview 手测（合入 `dev` 后：**更新**验收 MD，而非从零写）
 
-- 合并 `dev` 并部署 Preview 后，AI 须给出 **可复制的验收步骤**（Preview URL、账号/数据前提、逐步操作与预期），并与 `需求名称-qa.md` 中的**最小路径**对齐。
+- **文档应在立项/写 `qa.md` 时已具备**（见 §1）：`需求名称-dev-preview-acceptance.md` 或 `qa.md` 内「Vercel Preview（dev）验收」章，且含 **URL 占位**。
+- **触发**：对应功能 **已合并进 `dev`**、Vercel **Preview 部署就绪**后（用户告知或请 AI 跟进），AI 须 **打开已有文件**：
+  - **替换** Preview **URL 占位**为本次 Deployment 真实链接（或注明从 Vercel Dashboard 哪条部署取）；
+  - **补充**仅与本次环境相关的一两句（如 Deployment Protection、某变量变更后需 Redeploy）；
+  - 若需求范围变化，**同步**改正文步骤表，并与 `需求名称-qa.md` **互链或对齐**。
+- **疏漏补救**：若立项时未生成该文件，须在 **合入 `dev` 后立刻补全**（仍放 `dev/active/需求名称/` 或按 §1 之 `dev/logs/` 规则），并在 log 中记一笔疏漏。
+- **正文须满足**（首版即定稿；合 dev 后只做 **URL / 一句环境说明**）：**最小路径**清单——
+  - **环境**：Preview URL 占位 + **极短前置**（扩展 dist、Protection/变量类 **链文档** 即可，勿在此抄长表）。
+  - **步骤**：仅保留**不可替代的手测**编号流（通常合并网站与扩展为一条线，**不**要求大表、**不**要求「可选旁证」段；自动化命令放 `qa.md`）。
+  - **结论**：**一行** PASS/FAIL（+ 备注）。
+- **勿**把密钥写进该 MD。
 
 ### 4）缺陷与需求变更
 

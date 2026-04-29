@@ -40,6 +40,7 @@
 
 ## QA / 发布
 
+- [x] `Chrome扩展插件内refresh-dev-preview-acceptance.md`（Preview **最小路径**手测约一页；合入 `dev` 后填 URL）
 - [ ] 本地 + Staging：过期 JWT 场景、退出登录场景、旧存储无 refresh 场景
 - [ ] 合并前 `npm run lint` / `verify` 通过
 - [ ] 合并后创建 `Chrome扩展插件内refresh-qa.md`（由 QA 按流程补）

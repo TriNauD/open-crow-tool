@@ -11,6 +11,7 @@ alwaysApply: true
 
 # PR 规范
 
+- **`dev` 直推（代码无关）**：**仅** `docs/**`、`.cursor/rules/**`、`.cursor/skills/**`、`.cursorrules`、`AGENTS.md`/`CLAUDE.md`、`dev/**` 下**纯 `.md` 流程文档**（含结项迁移、qa、acceptance、log、tasks 等）时，**允许**直接在 **`dev`** 上 commit 并 push，**无需** PR；**禁止**与业务代码、依赖或 CI 配置混在同一 commit。完整允许/禁止清单见 **`git-branching.mdc`**。
 - 小步提交，小 PR 优先（建议 < 300 行核心改动）。
 - PR 描述至少包含：背景、改动点、测试结果、回滚方式。
 - 有 UI 改动时附截图；有接口改动时附请求示例。

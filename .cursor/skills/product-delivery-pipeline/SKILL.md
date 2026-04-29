@@ -29,6 +29,8 @@ description: 将需求从 PM/TL 评估推进到 PRD/PLAN 总览与 docs/product 
 
 ## 第 3 步：生成 `需求名称-qa.md` + 手测流程 + 文档 commit
 
+**`需求名称-dev-preview-acceptance.md`（或与 `qa.md` 内「Vercel Preview（dev）验收」章）**：必须与下文的 **`## 0.2 手测详细流程（最小路径，必做）` 同口径**，但 **再压缩为约一页**：仅 URL 占位、一至三句前置、**3～6 条编号步骤**、一行结论；边缘场景、对表自动化、大表回归 **只放在 `qa.md`**，勿塞进 acceptance。
+
 在 `dev/active/需求名称/需求名称-qa.md` 中至少包含以下结构（可直接复制再填空）。
 
 ### 建议目录结构
@@ -73,7 +75,7 @@ description: 将需求从 PM/TL 评估推进到 PRD/PLAN 总览与 docs/product 
 2. `git mv dev/active/需求名称 dev/done/需求名称`
 3. 补全 `dev/logs/需求名称-log.md`（结项段、生产注意点、可选 Git 表）。
 4. 若产品/架构有持久变化，再改 `docs/PRD.md` / `docs/PLAN.md` 与所涉 **分卷**；总览可仅更新版本与链接。
-5. **收尾 commit**；向 `dev` 提 **PR** 由人执行（见团队约定）。
+5. **收尾 commit**：若改动**全部为**结项文档 / `docs` / `.cursor/rules` / `.cursor/skills` 等「代码无关」项，**允许**在 **`dev` 分支直接 `push`**，见 `.cursor/rules/git-branching.mdc`；若夹带业务代码或依赖变更则须分支 → PR → `dev`。
 
 ---
 
