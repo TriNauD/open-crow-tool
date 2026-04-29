@@ -23,6 +23,28 @@ const REFRESH_SKEW_SEC = 120;
 
 let refreshTail: Promise<void> = Promise.resolve();
 
+/** `exp` from access_token JWT (seconds), no verify — only for client-side refresh timing */
+function accessTokenExpSeconds(accessToken: string): number | null {
+  try {
+    const payloadB64 = accessToken.split('.')[1];
+    if (!payloadB64) return null;
+    const b64 = payloadB64.replace(/-/g, '+').replace(/_/g, '/');
+    const pad = b64.length % 4 === 0 ? '' : '===='.slice(b64.length % 4);
+    const payload = JSON.parse(atob(b64 + pad)) as { exp?: number };
+    return typeof payload.exp === 'number' ? payload.exp : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Earliest known access-token expiry (seconds) — avoids relying only on stored `expires_at`. */
+function effectiveAccessExpSec(auth: CrowAuth): number {
+  const jwtExp = accessTokenExpSeconds(auth.accessToken);
+  const stored = auth.expiresAt && auth.expiresAt > 0 ? auth.expiresAt : 0;
+  if (jwtExp && stored) return Math.min(jwtExp, stored);
+  return jwtExp || stored || 0;
+}
+
 function withRefreshLock<T>(fn: () => Promise<T>): Promise<T> {
   const next = refreshTail.then(fn, fn);
   refreshTail = next.then(
@@ -109,8 +131,8 @@ export async function ensureFreshAuth(
     }
 
     const now = Math.floor(Date.now() / 1000);
-    const exp = current.expiresAt ?? 0;
-    if (!opts?.force && exp > now + REFRESH_SKEW_SEC) {
+    const expSec = effectiveAccessExpSec(current);
+    if (!opts?.force && expSec > now + REFRESH_SKEW_SEC) {
       return current;
     }
 
