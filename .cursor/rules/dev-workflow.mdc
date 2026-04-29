@@ -96,7 +96,7 @@ dev/active/需求名称/
 
 ### 2）合并到 `dev`（Vercel Preview）
 
-- 功能与约定回归在 **本地/CI 通过**后，**仅当用户明确允许代开 PR** 时，AI 生成 **title / body** 并执行 `gh pr create --base dev`（无 `gh` 时给 **compare URL**）；**默认由用户 merge**。
+- 功能与约定回归在 **本地/CI 通过**后，**仅当用户明确允许代开 PR** 时，AI **执行 `gh pr create --base dev`**（或用户指定的 base），返回 **PR 链接**；title/body 须符合 `pr-and-commit.mdc`；无 `gh` 时给 **compare URL**。**默认由用户 merge**。
 - **提 PR 前**：须 **`npm run lint` 通过**（与 `pr-and-commit.mdc`、CI 对齐）；详见下文「全绿」约定。
 - 代提前：**merge `origin/dev` 入当前功能分支**、工作区已提交、可 **`push`**；详见 `pr-and-commit.mdc`。
 

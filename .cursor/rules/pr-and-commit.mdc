@@ -15,21 +15,23 @@ alwaysApply: true
 - 小步提交，小 PR 优先（建议 < 300 行核心改动）。
 - PR 描述至少包含：背景、改动点、测试结果、回滚方式。
 - 有 UI 改动时附截图；有接口改动时附请求示例。
-- **AI 代写 PR 描述时**（须遵守，便于用户粘贴到 GitHub）：
-  - 输出 **Markdown 源码**（含 `#`、`-`、行内代码、链接等），保证**复制后进 GitHub PR 编辑框格式仍正确**。
-  - **不要**以「预览态」为唯一交付：不要只口头列结构；不要只靠聊天里的渲染预览充当正文（复制时常丢语法）。用户要能 **一整段可复制**。
-  - **推荐**：用**单个** fenced 代码块，首行为 `markdown`，内层即完整 PR 正文；用户只复制代码块内部（不含围栏）粘贴即可。
-  - 若不用代码块，则逐行输出未渲染的 Markdown 文本，并明确写一句「以下为可直接粘贴进 PR 的 Markdown」。
+- **AI 撰写 PR 正文**：须满足上文「背景、改动点、测试、回滚」等要点；**在已由 AI 执行 `gh pr create` 的场景下**，仍以聊天或 PR 页为准查阅即可，**不**要求用户从聊天复制大段 Markdown。
+- **仅当无法代开时**（无 `gh`、未 `gh auth login`、非 GitHub 远程、`gh` 报错且短时无法修复）：再输出 **compare URL** + **完整 Markdown 正文**（单个 `markdown` 代码块或逐行可粘贴文本），供用户在浏览器里建 PR。
 
 ## AI 代提 PR（闸门与默认分支）
 
-- **默认不代开 PR**：仅当用户**明确说**可以提 PR（例如「可以提 PR」「帮我代开 PR 到 dev」）时，AI 才在终端执行 `git push` / `gh pr create` 或等价操作。**禁止**在用户未开口的情况下主动创建 PR。
+- **默认不主动开 PR**：未得到用户示意前，**不要**自行 `gh pr create`。**用户一旦明确要求**——包括口头说「提 PR / 开 PR / 合并进 dev / dev 合 main / 直接提不要我只复制」等——即视为授权；AI **应**在终端完成 **push（若尚未推送）+ `gh pr create`**，并把 **`gh pr view --web` 或命令输出里的 PR 链接**发回用户。
 - **默认 target 分支**（除非用户另行指定）：
   - 当前功能分支（`fea/*`、`hotfix/*` 等）→ **`dev`**
-  - **`dev` → `main`（生产）**：仅在用户明确要求发布 / 合并到 main 时操作；仍须遵守 `release-and-hotfix.mdc` 与双人 review。
-- **代提时 AI 须交付**：符合上文「PR 规范」的 **title** + **body**（推荐可复制的 `markdown` 代码块）；若环境无 `gh`，同时给出 **compare URL**（`https://github.com/<owner>/<repo>/compare/<base>...<head>`）供浏览器创建。
+  - **`dev` → `main`（生产）**：仅在用户明确要求发布 / 合并到 `main` 时操作；仍须遵守 `release-and-hotfix.mdc` 与双人 review。
+- **代提时默认动作顺序**（本地已安装且已登录 `gh` 为前提）：
+  1. 完成「代提前检查」与 **`npm run lint`**（见下）。
+  2. **`git push -u origin <current-branch>`**（若远程尚无该分支）。
+  3. 执行 **`gh pr create --base <base> --head <head> --title "…" --body-file <path>`**（或 `--body` + heredoc）；正文字段须符合「PR 规范」。
+  4. 将 **`gh pr create` 返回的 URL**（或 `gh pr view`）告知用户。
+  **备选**：环境无 `gh` 时，才退化为 compare URL + 可粘贴正文（见上文）。
 - **代提前检查**：合并最新 **`origin/dev`**（或用户指定的 base）进当前分支、工作区已提交、远程可 `push`；勿强推公共分支。
-- **提 PR 前 ESLint（强制）**：在仓库根执行 **`npm run lint`**，**直至退出码 0**。与 CI 第一步一致；**未通过不得** `push`/`gh pr create`（避免仅跑单测或 E2E 而 CI 卡在 lint）。AI 代提 PR 时须在终端实际跑一遍并依据输出修到通过。
+- **提 PR 前 ESLint（强制）**：在仓库根执行 **`npm run lint`**，**直至退出码 0**。与 CI 第一步一致；**未通过不得** `push`/`gh pr create`（避免仅跑单测或 E2E 而 CI 卡在 lint）。**纯文档 / 规则 / `dev` 直推类 commit 且明确不涉及前端源码时**，经用户确认可 **跳过** lint（须在 PR 正文中注一句「本次未改业务代码，未跑 lint」）。
 
 ### 本地安装 GitHub CLI（`gh`）以便代提 PR
 

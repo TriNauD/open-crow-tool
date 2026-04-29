@@ -58,5 +58,5 @@ git checkout dev && git merge hotfix/问题简称-<owner>
   **仍须走 PR 进 `dev` 的示例**：`app/`、`components/`、`lib/`、`hooks/`、`chrome-extension/src/`、`e2e/` 下测试源码、`__tests__/`、业务相关的 `.ts` / `.tsx` / `.js` / `.jsx`，以及 `package.json`、`tsconfig*`、`next.config.*`、`middleware.*`、`db/migrations/**` 等。
   **`main` 不适用直推**（上生产仍须 PR + review，见 `release-and-hotfix.mdc`）。
 - 禁止从 `main` 直接切功能分支（应从 `dev` 切）。
-- AI 不主动创建 PR，除非用户明确要求。
+- AI **不得**在用户未示意的情况下自行 `gh pr create`；用户一旦**明确要求**提 PR（含「直接提、不要只给可复制正文」），**应**代为创建并返回链接，见 `pr-and-commit.mdc`。
 - **AI 在 `dev` / `main` 上 commit**：**不得**在 `main` 上直 commit。**`dev` 上**仅当用户要求且当次改动**全部**属于上文「代码无关 / `dev` 直推破例」、并已核对 `git diff` 无禁用路径时，可 **commit + push `origin/dev`**；其它情况须 `fea/…-<owner>`（或 `hotfix/…`）→ PR。
