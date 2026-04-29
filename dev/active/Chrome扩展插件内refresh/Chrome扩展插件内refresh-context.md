@@ -25,6 +25,7 @@
 
 - `docs/product/auth.md`、`docs/product/chrome-extension.md`
 - `dev/done/Chrome扩展多用户鉴权/`（当前连接与 401 引导基线）
+- **`docs/tech/chrome-extension-e2e-and-regression.md`** — 划词浮标/连接/Options 等问题归纳与 Playwright 扩展 E2E（回归对照）
 
 ## 关键决策（立项确认）
 

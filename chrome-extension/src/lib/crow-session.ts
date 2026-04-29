@@ -1,4 +1,5 @@
-import { createClient } from '@supabase/supabase-js';
+import type { SupabaseRefreshResult } from './supabase-refresh-exchange';
+import { performSupabaseRefreshExchange } from './supabase-refresh-exchange';
 
 /** Keys persisted in chrome.storage.local for site-driven connect (see content bridge). */
 export const CROW_AUTH_LOCAL_KEYS = [
@@ -8,6 +9,8 @@ export const CROW_AUTH_LOCAL_KEYS = [
   'supabaseUrl',
   'supabaseAnonKey',
   'expiresAt',
+  /** 每次连接写入时间戳，token 未变时也能触发 storage.onChanged（Options 等 UI 刷新） */
+  'crowAuthUpdatedAt',
 ] as const;
 
 export type CrowAuth = {
@@ -45,41 +48,65 @@ function effectiveAccessExpSec(auth: CrowAuth): number {
   return jwtExp || stored || 0;
 }
 
-/** GoTrue REST fallback when `auth.refreshSession` fails in the content script context */
+/** 先走 background（SW）换票，失败再本上下文 fetch（Options 等 chrome-extension:// 页有时直连也可） */
 async function exchangeRefreshToken(
   supabaseUrl: string,
   supabaseAnonKey: string,
   refreshToken: string
-): Promise<{ access_token: string; refresh_token: string; expires_at: number } | null> {
-  const base = supabaseUrl.replace(/\/+$/, '');
-  const res = await fetch(`${base}/auth/v1/token?grant_type=refresh_token`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      apikey: supabaseAnonKey,
-      Authorization: `Bearer ${supabaseAnonKey}`,
-    },
-    body: JSON.stringify({ refresh_token: refreshToken }),
+): Promise<SupabaseRefreshResult | null> {
+  const viaBg = await exchangeRefreshViaBackground(supabaseUrl, supabaseAnonKey, refreshToken);
+  if (viaBg) return viaBg;
+  return performSupabaseRefreshExchange(supabaseUrl, supabaseAnonKey, refreshToken);
+}
+
+function exchangeRefreshViaBackground(
+  supabaseUrl: string,
+  supabaseAnonKey: string,
+  refreshToken: string
+): Promise<SupabaseRefreshResult | null> {
+  if (typeof chrome === 'undefined' || !chrome.runtime?.sendMessage) {
+    return Promise.resolve(null);
+  }
+  return new Promise((resolve) => {
+    try {
+      chrome.runtime.sendMessage(
+        {
+          type: 'CROW_EXCHANGE_REFRESH',
+          supabaseUrl,
+          supabaseAnonKey,
+          refreshToken,
+        },
+        (response: unknown) => {
+          if (chrome.runtime.lastError) {
+            console.warn('[Crow ext] background refresh:', chrome.runtime.lastError.message);
+            resolve(null);
+            return;
+          }
+          const r = response as {
+            ok?: boolean;
+            access_token?: string;
+            refresh_token?: string;
+            expires_at?: number;
+          };
+          if (r?.ok && r.access_token && r.refresh_token) {
+            resolve({
+              access_token: r.access_token,
+              refresh_token: r.refresh_token,
+              expires_at:
+                typeof r.expires_at === 'number'
+                  ? r.expires_at
+                  : Math.floor(Date.now() / 1000) + 3600,
+            });
+            return;
+          }
+          resolve(null);
+        }
+      );
+    } catch (e) {
+      console.warn('[Crow ext] background refresh catch', e);
+      resolve(null);
+    }
   });
-  if (!res.ok) return null;
-  const json = (await res.json()) as {
-    access_token?: string;
-    refresh_token?: string;
-    expires_at?: number;
-    expires_in?: number;
-  };
-  if (!json.access_token) return null;
-  const newRefresh = json.refresh_token || refreshToken;
-  const n = Math.floor(Date.now() / 1000);
-  const expires_at =
-    typeof json.expires_at === 'number'
-      ? json.expires_at
-      : n + (typeof json.expires_in === 'number' ? json.expires_in : 3600);
-  return {
-    access_token: json.access_token,
-    refresh_token: newRefresh,
-    expires_at,
-  };
 }
 
 function withRefreshLock<T>(fn: () => Promise<T>): Promise<T> {
@@ -89,6 +116,23 @@ function withRefreshLock<T>(fn: () => Promise<T>): Promise<T> {
     () => undefined
   );
   return next;
+}
+
+/** 打包时注入的公开 Supabase 配置，补齐旧版「连接插件」未写入的 url/anon，否则无法 refresh */
+function applyBuildSupabaseDefaults(auth: CrowAuth): CrowAuth {
+  const url =
+    auth.supabaseUrl ||
+    (typeof import.meta.env.VITE_PUBLIC_SUPABASE_URL === 'string'
+      ? import.meta.env.VITE_PUBLIC_SUPABASE_URL
+      : '') ||
+    '';
+  const anon =
+    auth.supabaseAnonKey ||
+    (typeof import.meta.env.VITE_PUBLIC_SUPABASE_ANON_KEY === 'string'
+      ? import.meta.env.VITE_PUBLIC_SUPABASE_ANON_KEY
+      : '') ||
+    '';
+  return { ...auth, supabaseUrl: url.trim(), supabaseAnonKey: anon.trim() };
 }
 
 function toCrowAuthFromLocal(raw: Record<string, unknown>): CrowAuth | null {
@@ -142,6 +186,7 @@ export async function persistCrowAuth(auth: CrowAuth): Promise<void> {
     supabaseUrl: auth.supabaseUrl,
     supabaseAnonKey: auth.supabaseAnonKey,
     expiresAt: auth.expiresAt ?? null,
+    crowAuthUpdatedAt: Date.now(),
   });
   await chrome.storage.sync.remove(['accessToken', 'apiBaseUrl', 'adminSecret']);
 }
@@ -154,16 +199,41 @@ export async function ensureFreshAuth(
   hint: CrowAuth | null,
   opts?: { force?: boolean }
 ): Promise<CrowAuth | null> {
-  if (!hint) return null;
+  if (!hint) {
+    return null;
+  }
 
   return withRefreshLock(async () => {
-    const current = await loadCrowAuth();
-    if (!current) return null;
+    const stored = await loadCrowAuth();
+    const raw = stored ?? hint;
+    if (!raw?.accessToken) return null;
+
+    const current = applyBuildSupabaseDefaults(raw);
+
+    const backfillSupabase =
+      Boolean(current.refreshToken) &&
+      Boolean(current.supabaseUrl) &&
+      Boolean(current.supabaseAnonKey) &&
+      (!raw.supabaseUrl || !raw.supabaseAnonKey);
+
+    if (backfillSupabase) {
+      await persistCrowAuth({
+        ...current,
+        accessToken: raw.accessToken,
+        refreshToken: raw.refreshToken,
+        expiresAt: raw.expiresAt,
+      });
+    }
 
     const canRefresh =
       Boolean(current.refreshToken) && Boolean(current.supabaseUrl) && Boolean(current.supabaseAnonKey);
 
     if (!canRefresh) {
+      console.warn('[Crow ext] cannot refresh (missing field)', {
+        hasRefreshToken: Boolean(current.refreshToken),
+        hasSupabaseUrl: Boolean(current.supabaseUrl),
+        hasSupabaseAnonKey: Boolean(current.supabaseAnonKey),
+      });
       const n = Math.floor(Date.now() / 1000);
       const expKnown = effectiveAccessExpSec(current);
       if (expKnown > 0 && expKnown <= n) {
@@ -178,46 +248,13 @@ export async function ensureFreshAuth(
       return current;
     }
 
-    let access_token: string | undefined;
-    let refresh_token: string | undefined;
-    let expires_at: number | undefined;
+    const rest = await exchangeRefreshToken(
+      current.supabaseUrl,
+      current.supabaseAnonKey,
+      current.refreshToken
+    );
 
-    try {
-      const client = createClient(current.supabaseUrl, current.supabaseAnonKey, {
-        auth: {
-          persistSession: false,
-          autoRefreshToken: false,
-          detectSessionInUrl: false,
-        },
-      });
-
-      const { data, error } = await client.auth.refreshSession({
-        refresh_token: current.refreshToken,
-      });
-
-      if (!error && data.session) {
-        access_token = data.session.access_token;
-        refresh_token = data.session.refresh_token || current.refreshToken;
-        expires_at = data.session.expires_at ?? undefined;
-      }
-    } catch {
-      /* fall through to REST */
-    }
-
-    if (!access_token || !refresh_token) {
-      const rest = await exchangeRefreshToken(
-        current.supabaseUrl,
-        current.supabaseAnonKey,
-        current.refreshToken
-      );
-      if (rest) {
-        access_token = rest.access_token;
-        refresh_token = rest.refresh_token;
-        expires_at = rest.expires_at;
-      }
-    }
-
-    if (!access_token || !refresh_token) {
+    if (!rest) {
       const expKnown = effectiveAccessExpSec(current);
       if (opts?.force || (expKnown > 0 && expKnown <= now)) {
         return null;
@@ -227,9 +264,9 @@ export async function ensureFreshAuth(
 
     const next: CrowAuth = {
       ...current,
-      accessToken: access_token,
-      refreshToken: refresh_token,
-      expiresAt: expires_at,
+      accessToken: rest.access_token,
+      refreshToken: rest.refresh_token,
+      expiresAt: rest.expires_at,
     };
     await persistCrowAuth(next);
     return next;

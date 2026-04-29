@@ -51,6 +51,20 @@ export default function Options() {
   }, [applyAuthStateFromStorage]);
 
   useEffect(() => {
+    function onBecameVisible() {
+      if (document.visibilityState !== 'visible') return;
+      void applyAuthStateFromStorage({ showWebSyncHint: false });
+    }
+    /** 设置页在后台时网站若已完成「连接插件」，切回时补拉 storage（避免错过 onChanged 或未刷新页面导致 UI 陈旧）。 */
+    document.addEventListener('visibilitychange', onBecameVisible);
+    window.addEventListener('focus', onBecameVisible);
+    return () => {
+      document.removeEventListener('visibilitychange', onBecameVisible);
+      window.removeEventListener('focus', onBecameVisible);
+    };
+  }, [applyAuthStateFromStorage]);
+
+  useEffect(() => {
     function onStorageChanged(
       changes: Record<string, chrome.storage.StorageChange>,
       areaName: chrome.storage.AreaName

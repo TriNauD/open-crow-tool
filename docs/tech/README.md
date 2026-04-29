@@ -13,6 +13,7 @@
 | 七 Phase 4：外部订阅 | [phase-4-subscribe.md](./phase-4-subscribe.md) |
 | 八 Phase 5：多用户笔记本 | [phase-5-notebook-multi-user.md](./phase-5-notebook-multi-user.md) |
 | 九、十 规范与里程碑 | [constraints-and-milestones.md](./constraints-and-milestones.md) |
+| **扩展：划词/连接回归与 E2E** | [**chrome-extension-e2e-and-regression.md**](./chrome-extension-e2e-and-regression.md) |
 
 ## 进行中（`dev/active`）
 

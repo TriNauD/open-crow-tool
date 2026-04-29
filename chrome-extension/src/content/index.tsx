@@ -1,4 +1,5 @@
 import { createRoot } from 'react-dom/client';
+import './crow-auth-broadcast';
 import { samePageOrigin } from '../../../lib/utils/same-page-origin';
 import {
   extensionContextLikelyOk,
@@ -6,6 +7,7 @@ import {
 } from '../lib/extension-context';
 import { persistCrowAuth, type CrowAuth } from '../lib/crow-session';
 import App from './App';
+import { fabDebug } from './debug-fab-log';
 import { STYLES } from './styles';
 
 // 「连接插件」桥接监听——必须在所有页面（含 Crow 自身站点）上运行，
@@ -41,6 +43,13 @@ window.addEventListener('message', (e: MessageEvent) => {
       if (!extensionContextLikelyOk()) return;
       await persistCrowAuth(auth);
       window.postMessage({ type: 'CROW_CONNECT_EXT_OK' }, '*');
+      try {
+        if (extensionContextLikelyOk()) {
+          chrome.runtime.sendMessage({ type: 'CROW_BROADCAST_AUTH_RELOAD', auth });
+        }
+      } catch {
+        /* ignore */
+      }
     } catch (err) {
       if (!isExtensionContextInvalidatedError(err)) {
         console.warn('[Crow ext] connect bridge storage failed', err);
@@ -70,6 +79,15 @@ function mount() {
   shadow.appendChild(container);
 
   createRoot(container).render(<App />);
+  fabDebug({
+    hypothesisId: 'H3',
+    location: 'index.tsx:mount',
+    message: 'createRoot App in shadow',
+    data: {
+      isTop: window === window.top,
+      href: window.location.href.slice(0, 96),
+    },
+  });
 }
 
 if (document.readyState === 'loading') {

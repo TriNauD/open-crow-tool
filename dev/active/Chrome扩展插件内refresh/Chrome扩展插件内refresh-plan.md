@@ -83,3 +83,7 @@
 ```text
 fea/chrome-ext-session-refresh-tri
 ```
+
+## 相关：划词浮标 / 连接与回归测试
+
+与「Refresh」平行迭代的划词、连接、Options 等问题归纳及 **Playwright 扩展 E2E** 见：`docs/tech/chrome-extension-e2e-and-regression.md`（本目录 `Chrome扩展插件内refresh-context.md` 中亦已挂链）。

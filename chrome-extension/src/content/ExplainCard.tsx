@@ -71,7 +71,8 @@ export default function ExplainCard({
     setSaveError(null);
     setIsSaving(true);
     try {
-      const auth = await ensureFreshAuth(await loadCrowAuth(), false);
+      const preHint = await loadCrowAuth();
+      const auth = await ensureFreshAuth(preHint, { force: true });
       if (!auth?.accessToken) {
         setSaveError('expired');
         return;
