@@ -1,4 +1,9 @@
 import { useEffect, useState } from 'react';
+import {
+  extensionContextLikelyOk,
+  ignoreIfContextInvalidated,
+  isExtensionContextInvalidatedError,
+} from '../lib/extension-context';
 import FloatingButton from './FloatingButton';
 import ExplainCard from './ExplainCard';
 
@@ -19,20 +24,32 @@ export default function App() {
   const [explaining, setExplaining] = useState<Selection | null>(null);
 
   useEffect(() => {
-    chrome.storage.sync.get(['apiBaseUrl', 'accessToken']).then((result) => {
-      setConfig({
-        apiBaseUrl: (result.apiBaseUrl as string) || '',
-        accessToken: (result.accessToken as string) || '',
+    if (!extensionContextLikelyOk()) return;
+
+    chrome.storage.sync
+      .get(['apiBaseUrl', 'accessToken'])
+      .then((result) => {
+        setConfig({
+          apiBaseUrl: (result.apiBaseUrl as string) || '',
+          accessToken: (result.accessToken as string) || '',
+        });
+      })
+      .catch((err) => {
+        if (!isExtensionContextInvalidatedError(err)) console.warn('[Crow ext] storage.get failed', err);
       });
-    });
-    chrome.storage.onChanged.addListener((changes) => {
+
+    function onStorageChanged(changes: Record<string, chrome.storage.StorageChange>) {
       if (changes.apiBaseUrl || changes.accessToken) {
         setConfig((prev) => ({
           apiBaseUrl: (changes.apiBaseUrl?.newValue as string) ?? prev.apiBaseUrl,
           accessToken: (changes.accessToken?.newValue as string) ?? prev.accessToken,
         }));
       }
-    });
+    }
+    chrome.storage.onChanged.addListener(onStorageChanged);
+    return () => {
+      ignoreIfContextInvalidated(() => chrome.storage.onChanged.removeListener(onStorageChanged));
+    };
   }, []);
 
   useEffect(() => {
@@ -88,7 +105,9 @@ export default function App() {
       sel.removeAllRanges();
     }
     chrome.runtime.onMessage.addListener(onMessage);
-    return () => chrome.runtime.onMessage.removeListener(onMessage);
+    return () => {
+      ignoreIfContextInvalidated(() => chrome.runtime.onMessage.removeListener(onMessage));
+    };
   }, []);
 
   function triggerExplain() {

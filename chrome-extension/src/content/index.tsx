@@ -1,5 +1,9 @@
 import { createRoot } from 'react-dom/client';
 import { samePageOrigin } from '../../../lib/utils/same-page-origin';
+import {
+  extensionContextLikelyOk,
+  isExtensionContextInvalidatedError,
+} from '../lib/extension-context';
 import App from './App';
 import { STYLES } from './styles';
 
@@ -14,10 +18,18 @@ window.addEventListener('message', (e: MessageEvent) => {
   if (!accessToken || !apiBaseUrl) return;
   if (!samePageOrigin(apiBaseUrl, e.origin)) return;
 
-  chrome.storage.sync.set({ accessToken, apiBaseUrl }, () => {
-    chrome.storage.sync.remove('adminSecret');
-    window.postMessage({ type: 'CROW_CONNECT_EXT_OK' }, '*');
-  });
+  void (async () => {
+    try {
+      if (!extensionContextLikelyOk()) return;
+      await chrome.storage.sync.set({ accessToken, apiBaseUrl });
+      await chrome.storage.sync.remove('adminSecret');
+      window.postMessage({ type: 'CROW_CONNECT_EXT_OK' }, '*');
+    } catch (err) {
+      if (!isExtensionContextInvalidatedError(err)) {
+        console.warn('[Crow ext] connect bridge storage failed', err);
+      }
+    }
+  })();
 });
 
 function mount() {
