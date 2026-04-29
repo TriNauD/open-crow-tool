@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { loadCrowAuth } from '../lib/crow-session';
 
 export default function Options() {
   const [apiBaseUrl, setApiBaseUrl] = useState('');
@@ -10,18 +11,19 @@ export default function Options() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    chrome.storage.sync.get(['apiBaseUrl', 'accessToken', 'adminSecret']).then((result) => {
-      const url = (result.apiBaseUrl as string) || '';
-      const token = (result.accessToken as string) || '';
+    void (async () => {
+      const auth = await loadCrowAuth();
+      const sync = await chrome.storage.sync.get(['adminSecret']);
+      const url = auth?.apiBaseUrl || '';
+      const token = auth?.accessToken || '';
       setApiBaseUrl(url);
       setAccessToken(token);
       setManualUrl(url);
       setManualToken(token);
-      // 旧版只存了 adminSecret，提示需要在网站重新连接
-      if (!token && result.adminSecret) {
+      if (!token && sync.adminSecret) {
         setError('检测到旧版配置，请在网站登录后点「连接插件」重新授权。');
       }
-    });
+    })();
   }, []);
 
   const isConnected = !!(apiBaseUrl && accessToken);
@@ -32,8 +34,15 @@ export default function Options() {
     const url = manualUrl.trim().replace(/\/$/, '');
     if (!url) { setError('请填写 API 地址'); return; }
     if (!manualToken.trim()) { setError('请填写访问令牌'); return; }
-    await chrome.storage.sync.set({ apiBaseUrl: url, accessToken: manualToken.trim() });
-    await chrome.storage.sync.remove('adminSecret');
+    await chrome.storage.local.set({
+      apiBaseUrl: url,
+      accessToken: manualToken.trim(),
+      refreshToken: '',
+      supabaseUrl: '',
+      supabaseAnonKey: '',
+      expiresAt: null,
+    });
+    await chrome.storage.sync.remove(['accessToken', 'apiBaseUrl', 'adminSecret']);
     setApiBaseUrl(url);
     setAccessToken(manualToken.trim());
     setError('');
@@ -69,7 +78,7 @@ export default function Options() {
         <div style={styles.primaryAction}>
           <p style={styles.desc}>
             {isConnected
-              ? '登录凭证有效期约 1 小时。失效后在网站重新点「连接插件」即可。'
+              ? '在网站点「连接插件」后，插件会自动续期登录凭证；若长期未用或已在网站退出，请重新连接。'
               : '请先在网站登录，然后点「连接插件」按钮，插件会自动获取你的登录状态。'}
           </p>
           <button onClick={openSite} style={styles.btnPrimary}>

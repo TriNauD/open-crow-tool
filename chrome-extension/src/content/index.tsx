@@ -4,6 +4,7 @@ import {
   extensionContextLikelyOk,
   isExtensionContextInvalidatedError,
 } from '../lib/extension-context';
+import { persistCrowAuth, type CrowAuth } from '../lib/crow-session';
 import App from './App';
 import { STYLES } from './styles';
 
@@ -11,18 +12,34 @@ import { STYLES } from './styles';
 // 因此放在 mount() 之外，不受 crowNative 标志影响。
 window.addEventListener('message', (e: MessageEvent) => {
   // 不用 e.source === window 检查：MV3 isolated world 中两者是不同 Proxy，比较结果不可靠
-  const data = e.data as { type?: string; accessToken?: string; apiBaseUrl?: string };
+  const data = e.data as {
+    type?: string;
+    accessToken?: string;
+    refreshToken?: string;
+    apiBaseUrl?: string;
+    supabaseUrl?: string;
+    supabaseAnonKey?: string;
+    expiresAt?: number;
+  };
   if (data?.type !== 'CROW_CONNECT_EXT') return;
 
   const { accessToken, apiBaseUrl } = data;
   if (!accessToken || !apiBaseUrl) return;
   if (!samePageOrigin(apiBaseUrl, e.origin)) return;
 
+  const auth: CrowAuth = {
+    accessToken,
+    apiBaseUrl,
+    refreshToken: (data.refreshToken as string) || '',
+    supabaseUrl: (data.supabaseUrl as string) || '',
+    supabaseAnonKey: (data.supabaseAnonKey as string) || '',
+    expiresAt: typeof data.expiresAt === 'number' ? data.expiresAt : undefined,
+  };
+
   void (async () => {
     try {
       if (!extensionContextLikelyOk()) return;
-      await chrome.storage.sync.set({ accessToken, apiBaseUrl });
-      await chrome.storage.sync.remove('adminSecret');
+      await persistCrowAuth(auth);
       window.postMessage({ type: 'CROW_CONNECT_EXT_OK' }, '*');
     } catch (err) {
       if (!isExtensionContextInvalidatedError(err)) {

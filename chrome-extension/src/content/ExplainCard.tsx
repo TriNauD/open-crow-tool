@@ -1,20 +1,25 @@
 import { useEffect, useRef, useState } from 'react';
+import type { CrowAuth } from '../lib/crow-session';
+import { ensureFreshAuth, loadCrowAuth } from '../lib/crow-session';
 import { useStreamExplain } from './useStreamExplain';
-
-interface Config {
-  apiBaseUrl: string;
-  accessToken: string;
-}
 
 interface Props {
   text: string;
   anchorX: number;
   anchorY: number;
-  config: Config;
+  config: CrowAuth;
+  onSessionUpdate?: (next: CrowAuth) => void;
   onClose: () => void;
 }
 
-export default function ExplainCard({ text, anchorX, anchorY, config, onClose }: Props) {
+export default function ExplainCard({
+  text,
+  anchorX,
+  anchorY,
+  config,
+  onSessionUpdate,
+  onClose,
+}: Props) {
   const [savedId, setSavedId] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<'generic' | 'expired' | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -58,16 +63,21 @@ export default function ExplainCard({ text, anchorX, anchorY, config, onClose }:
   }, [onClose]);
 
   async function handleSave() {
-    if (!config.accessToken) {
+    const auth = await ensureFreshAuth(await loadCrowAuth(), false);
+    if (!auth?.accessToken) {
       setSaveError('expired');
       return;
     }
-    try {
-      const res = await fetch(`${config.apiBaseUrl}/api/notes`, {
+    onSessionUpdate?.(auth);
+
+    const baseUrl = (auth.apiBaseUrl || config.apiBaseUrl).replace(/\/+$/, '');
+
+    const postNote = (token: string) =>
+      fetch(`${baseUrl}/api/notes`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${config.accessToken}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           inputText: text,
@@ -75,15 +85,24 @@ export default function ExplainCard({ text, anchorX, anchorY, config, onClose }:
           source: 'chrome_extension',
         }),
       });
-      if (res.ok) {
-        const data = await res.json();
-        setSavedId(data.data?.id ?? 'saved');
-      } else if (res.status === 401 || res.status === 403) {
+
+    let res = await postNote(auth.accessToken);
+    if (res.status === 401 || res.status === 403) {
+      const after = await ensureFreshAuth(auth, { force: true });
+      if (!after?.accessToken) {
         setSaveError('expired');
-      } else {
-        setSaveError('generic');
+        return;
       }
-    } catch {
+      onSessionUpdate?.(after);
+      res = await postNote(after.accessToken);
+    }
+
+    if (res.ok) {
+      const data = await res.json();
+      setSavedId(data.data?.id ?? 'saved');
+    } else if (res.status === 401 || res.status === 403) {
+      setSaveError('expired');
+    } else {
       setSaveError('generic');
     }
   }
@@ -128,14 +147,14 @@ export default function ExplainCard({ text, anchorX, anchorY, config, onClose }:
             </button>
           ) : saveError === 'expired' ? (
             <span className="crow-error" style={{ fontSize: 12 }}>
-              ⚠️ 登录已过期，请
+              ⚠️ 登录或连接已过期，请
               <a
                 href={config.apiBaseUrl}
                 target="_blank"
                 rel="noreferrer"
                 style={{ color: '#fb923c', marginLeft: 2 }}
               >
-                回网站点「连接插件」
+                回网站登录并点「连接插件」
               </a>
             </span>
           ) : saveError === 'generic' ? (

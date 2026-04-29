@@ -1,13 +1,12 @@
 import { createRoot } from 'react-dom/client';
 import { useEffect, useState } from 'react';
+import { isCrowConfigured } from '../lib/crow-session';
 
 function Popup() {
   const [configured, setConfigured] = useState<boolean | null>(null);
 
   useEffect(() => {
-    chrome.storage.sync.get(['apiBaseUrl', 'accessToken']).then((result) => {
-      setConfigured(!!(result.apiBaseUrl && result.accessToken));
-    });
+    void isCrowConfigured().then(setConfigured);
   }, []);
 
   function openOptions() {

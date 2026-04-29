@@ -4,13 +4,19 @@ import {
   ignoreIfContextInvalidated,
   isExtensionContextInvalidatedError,
 } from '../lib/extension-context';
+import type { CrowAuth } from '../lib/crow-session';
+import { loadCrowAuth } from '../lib/crow-session';
 import FloatingButton from './FloatingButton';
 import ExplainCard from './ExplainCard';
 
-interface Config {
-  apiBaseUrl: string;
-  accessToken: string;
-}
+const EMPTY_AUTH: CrowAuth = {
+  apiBaseUrl: '',
+  accessToken: '',
+  refreshToken: '',
+  supabaseUrl: '',
+  supabaseAnonKey: '',
+  expiresAt: undefined,
+};
 
 interface Selection {
   text: string;
@@ -19,32 +25,31 @@ interface Selection {
 }
 
 export default function App() {
-  const [config, setConfig] = useState<Config>({ apiBaseUrl: '', accessToken: '' });
+  const [config, setConfig] = useState<CrowAuth>(EMPTY_AUTH);
   const [selection, setSelection] = useState<Selection | null>(null);
   const [explaining, setExplaining] = useState<Selection | null>(null);
 
   useEffect(() => {
     if (!extensionContextLikelyOk()) return;
 
-    chrome.storage.sync
-      .get(['apiBaseUrl', 'accessToken'])
-      .then((result) => {
-        setConfig({
-          apiBaseUrl: (result.apiBaseUrl as string) || '',
-          accessToken: (result.accessToken as string) || '',
+    function reload() {
+      void loadCrowAuth()
+        .then((a) => {
+          if (a) setConfig(a);
+          else setConfig(EMPTY_AUTH);
+        })
+        .catch((err) => {
+          if (!isExtensionContextInvalidatedError(err)) console.warn('[Crow ext] loadCrowAuth failed', err);
         });
-      })
-      .catch((err) => {
-        if (!isExtensionContextInvalidatedError(err)) console.warn('[Crow ext] storage.get failed', err);
-      });
+    }
 
-    function onStorageChanged(changes: Record<string, chrome.storage.StorageChange>) {
-      if (changes.apiBaseUrl || changes.accessToken) {
-        setConfig((prev) => ({
-          apiBaseUrl: (changes.apiBaseUrl?.newValue as string) ?? prev.apiBaseUrl,
-          accessToken: (changes.accessToken?.newValue as string) ?? prev.accessToken,
-        }));
-      }
+    reload();
+
+    function onStorageChanged(
+      _changes: Record<string, chrome.storage.StorageChange>,
+      area: chrome.storage.AreaName
+    ) {
+      if (area === 'local' || area === 'sync') reload();
     }
     chrome.storage.onChanged.addListener(onStorageChanged);
     return () => {
@@ -130,6 +135,7 @@ export default function App() {
           anchorX={explaining.x}
           anchorY={explaining.y}
           config={config}
+          onSessionUpdate={(next) => setConfig(next)}
           onClose={() => setExplaining(null)}
         />
       )}

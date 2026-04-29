@@ -67,6 +67,8 @@ export function useAuthSession() {
     session,
     user,
     accessToken: session?.access_token ?? null,
+    refreshToken: session?.refresh_token ?? null,
+    expiresAt: session?.expires_at ?? null,
     isLoading,
     signOut,
   };

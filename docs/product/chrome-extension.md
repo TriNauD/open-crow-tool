@@ -23,7 +23,7 @@
 - 划词存笔记时请求带 `Authorization: Bearer <jwt>`，与网站笔记本 API 一致；CORS 预检需允许 `Authorization`（由 Web 端 `cors` 工具配置保证）。
 
 **进行中需求（与文档同步）：**
-- **插件内 session refresh**：扩展仅缓存 access JWT 时，约 1 小时后需回站重连；立项后将在扩展内用 refresh 流换新 token，降低散发使用成本。需求、方案与任务：`dev/active/Chrome扩展插件内refresh/`（合并入 `dev` 后状态见该目录是否迁至 `dev/done/`）。
+- **插件内 session refresh（开发中，`fea/chrome-ext-session-refresh-tri`）**：网站「连接插件」下发 `refresh_token` 与公开 Supabase URL/anon key；扩展写入 `chrome.storage.local`，在存笔记前与 401 时用 Supabase 刷新 access token。需求目录：`dev/active/Chrome扩展插件内refresh/`。
 
 **不做（本阶段仍不考虑）：**
 - 插件内独立登录 / 完整账户系统（可列 Phase 6+）

@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { useAuthSession } from '@/hooks/useAuthSession';
 
 export function AuthNav() {
-  const { user, isLoading, signOut, accessToken } = useAuthSession();
+  const { user, isLoading, signOut, accessToken, refreshToken, expiresAt } = useAuthSession();
   const [extConnected, setExtConnected] = useState(false);
 
   function connectExtension() {
@@ -16,7 +16,15 @@ export function AuthNav() {
     setTimeout(() => setExtConnected(false), 4000);
 
     window.postMessage(
-      { type: 'CROW_CONNECT_EXT', accessToken, apiBaseUrl: window.location.origin },
+      {
+        type: 'CROW_CONNECT_EXT',
+        accessToken,
+        refreshToken: refreshToken ?? '',
+        apiBaseUrl: window.location.origin,
+        supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
+        supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '',
+        expiresAt: expiresAt ?? undefined,
+      },
       '*'
     );
   }
