@@ -164,6 +164,11 @@ export async function ensureFreshAuth(
       Boolean(current.refreshToken) && Boolean(current.supabaseUrl) && Boolean(current.supabaseAnonKey);
 
     if (!canRefresh) {
+      const n = Math.floor(Date.now() / 1000);
+      const expKnown = effectiveAccessExpSec(current);
+      if (expKnown > 0 && expKnown <= n) {
+        return null;
+      }
       return current;
     }
 

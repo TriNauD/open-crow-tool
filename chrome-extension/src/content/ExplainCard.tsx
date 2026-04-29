@@ -22,6 +22,7 @@ export default function ExplainCard({
 }: Props) {
   const [savedId, setSavedId] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<'generic' | 'expired' | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
   const { text: explanation, isLoading, error, isDone, explain } = useStreamExplain(
     config.apiBaseUrl
@@ -41,6 +42,10 @@ export default function ExplainCard({
   top = Math.max(margin, Math.min(top, vh - cardH - margin));
 
   const notebookUrl = `${config.apiBaseUrl.replace(/\/+$/, '')}/notebook`;
+
+  /** 流式完成可保存，或保存中/已有错误时也要看到底部栏（避免 saveError 被 `&& explanation` 吃掉） */
+  const hasExplainReady = Boolean(explanation?.length) && isDone && !error;
+  const showSaveFooter = hasExplainReady || Boolean(saveError) || isSaving;
 
   useEffect(() => {
     explain(text);
@@ -63,6 +68,8 @@ export default function ExplainCard({
   }, [onClose]);
 
   async function handleSave() {
+    setSaveError(null);
+    setIsSaving(true);
     try {
       const auth = await ensureFreshAuth(await loadCrowAuth(), false);
       if (!auth?.accessToken) {
@@ -108,6 +115,8 @@ export default function ExplainCard({
       }
     } catch {
       setSaveError('generic');
+    } finally {
+      setIsSaving(false);
     }
   }
 
@@ -143,7 +152,7 @@ export default function ExplainCard({
         )}
       </div>
 
-      {(isDone || saveError) && explanation && (
+      {showSaveFooter && (
         <div className="crow-card-footer">
           {savedId ? (
             <button className="crow-save-btn saved" disabled>
@@ -166,8 +175,13 @@ export default function ExplainCard({
               保存失败，请稍后重试
             </span>
           ) : (
-            <button className="crow-save-btn" onClick={handleSave}>
-              存入笔记本
+            <button
+              className="crow-save-btn"
+              onClick={handleSave}
+              disabled={isSaving}
+              type="button"
+            >
+              {isSaving ? '保存中…' : '存入笔记本'}
             </button>
           )}
           <span className="crow-sep">·</span>
