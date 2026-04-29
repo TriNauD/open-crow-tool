@@ -35,8 +35,8 @@
 
 ## 文档
 
-- [ ] `docs/product/chrome-extension.md` 或 `auth.md`：一句说明「连接时同步 refresh，散发使用可减少重连」
-- [ ] `docs/tech/environments-and-deployment.md`：多环境连接、换 Preview 需重连（若尚未写清）
+- [x] `docs/product/chrome-extension.md` 或 `auth.md`：一句说明「连接时同步 refresh，散发使用可减少重连」
+- [x] `docs/tech/environments-and-deployment.md`：多环境连接、换 Preview 需重连（若尚未写清）
 
 ## QA / 发布
 

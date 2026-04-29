@@ -22,6 +22,9 @@
 - 用户在 **Web 端登录** 后，导航栏点 **「连接插件」**；网站通过 `postMessage` 将 `accessToken` 与自洽的 `apiBaseUrl` 写入扩展的 `chrome.storage.sync`（content script 在 `index.tsx` **模块顶层**监听，Crow 自站点不挂载浮层 App 时也能收到）。
 - 划词存笔记时请求带 `Authorization: Bearer <jwt>`，与网站笔记本 API 一致；CORS 预检需允许 `Authorization`（由 Web 端 `cors` 工具配置保证）。
 
+**进行中需求（与文档同步）：**
+- **插件内 session refresh**：扩展仅缓存 access JWT 时，约 1 小时后需回站重连；立项后将在扩展内用 refresh 流换新 token，降低散发使用成本。需求、方案与任务：`dev/active/Chrome扩展插件内refresh/`（合并入 `dev` 后状态见该目录是否迁至 `dev/done/`）。
+
 **不做（本阶段仍不考虑）：**
 - 插件内独立登录 / 完整账户系统（可列 Phase 6+）
 - 离线缓存解释结果

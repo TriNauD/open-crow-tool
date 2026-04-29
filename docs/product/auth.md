@@ -22,3 +22,4 @@
 - 网站「连接插件」写入 `accessToken` 与 `apiBaseUrl`；Options 页展示连接状态，手动粘贴仅作备用
 - 存笔记等需用户隔离的请求带 `Authorization: Bearer <jwt>`
 - 历史 `ADMIN_SECRET` / `x-admin-secret` 与扩展侧 `adminSecret` 键在成功连接或保存新配置时清理，避免误用
+- **进行中**：插件内 session refresh（与 Web `autoRefreshToken` 对齐、减少散发使用下的重连）— 见 `dev/active/Chrome扩展插件内refresh/`；产品概述见 `docs/product/chrome-extension.md`
