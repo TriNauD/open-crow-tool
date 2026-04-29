@@ -33,6 +33,12 @@ dev/active/需求名称/
 └── 需求名称-tasks.md     # 分步任务清单（逐步打勾）
 ```
 
+**立项默认可发现性（与 `dev/active` 同一批或紧随其后的仅文档 commit）：**
+
+- 更新 **`docs/product/README.md`** 与 **`docs/tech/README.md`**：增加或维护 **「进行中」** 小节（表格或列表），每条含**一行摘要** + 相对链接至 `dev/active/需求名称/`（可从仓库根路径写，如 `../../dev/active/…`）。
+- 若需求主要落在一两条分卷（如仅扩展、仅认证），**同步**在对应 **`docs/product/*.md` / `docs/tech/*.md` 分卷** 加一句「进行中」并链到同一 `dev/active` 目录（可与上条合并进同一 commit）。
+- **结项**（阶段 5）：将「进行中」对应行删除或改为指向 `dev/done/…`，并更新分卷定稿表述。
+
 同时从 `dev` 切出功能分支，参照 `git-branching.mdc`。
 
 ## 阶段 4：开发与 QA 验收

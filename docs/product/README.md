@@ -11,4 +11,12 @@
 | 认证与身份 | [auth.md](./auth.md) | 多用户、游客、扩展与网站对齐 |
 | 非功能与范围 | [nfr-and-out-of-scope.md](./nfr-and-out-of-scope.md) | 成本、可扩展、明确不做 |
 
+## 进行中（`dev/active`）
+
+| 需求 | 目录 | 摘要 |
+|------|------|------|
+| Chrome 扩展插件内 session refresh | [Chrome扩展插件内refresh](../../dev/active/Chrome扩展插件内refresh/) | 扩展内 Supabase refresh，减少散发使用下的过期重连 |
+
+**立项默认**：新需求在本表增一行（同一批 commit 含 `dev/active/…`）；结项迁至 `dev/done/` 后删除或改写本行。详见仓库根目录 `.cursor/rules/dev-workflow.mdc` 阶段 3。
+
 **单需求**的定稿细节仍以 `dev/done/需求名/`（及 `dev/active/…` 进行中）下的 context / plan / qa 为准；本目录是**持续维护的模块总述**，大改时在对应分卷中增补并可在总 `PRD.md` 的变更记录中带一句。
