@@ -89,7 +89,9 @@ export default function App() {
   const [selection, setSelection] = useState<Selection | null>(null);
   const [explaining, setExplaining] = useState<Selection | null>(null);
   const configRef = useRef(config);
-  configRef.current = config;
+  useEffect(() => {
+    configRef.current = config;
+  }, [config]);
 
   useEffect(() => {
     fabDebug({
