@@ -45,6 +45,43 @@ function effectiveAccessExpSec(auth: CrowAuth): number {
   return jwtExp || stored || 0;
 }
 
+/** GoTrue REST fallback when `auth.refreshSession` fails in the content script context */
+async function exchangeRefreshToken(
+  supabaseUrl: string,
+  supabaseAnonKey: string,
+  refreshToken: string
+): Promise<{ access_token: string; refresh_token: string; expires_at: number } | null> {
+  const base = supabaseUrl.replace(/\/+$/, '');
+  const res = await fetch(`${base}/auth/v1/token?grant_type=refresh_token`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: supabaseAnonKey,
+      Authorization: `Bearer ${supabaseAnonKey}`,
+    },
+    body: JSON.stringify({ refresh_token: refreshToken }),
+  });
+  if (!res.ok) return null;
+  const json = (await res.json()) as {
+    access_token?: string;
+    refresh_token?: string;
+    expires_at?: number;
+    expires_in?: number;
+  };
+  if (!json.access_token) return null;
+  const newRefresh = json.refresh_token || refreshToken;
+  const n = Math.floor(Date.now() / 1000);
+  const expires_at =
+    typeof json.expires_at === 'number'
+      ? json.expires_at
+      : n + (typeof json.expires_in === 'number' ? json.expires_in : 3600);
+  return {
+    access_token: json.access_token,
+    refresh_token: newRefresh,
+    expires_at,
+  };
+}
+
 function withRefreshLock<T>(fn: () => Promise<T>): Promise<T> {
   const next = refreshTail.then(fn, fn);
   refreshTail = next.then(
@@ -136,27 +173,58 @@ export async function ensureFreshAuth(
       return current;
     }
 
-    const client = createClient(current.supabaseUrl, current.supabaseAnonKey, {
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false,
-        detectSessionInUrl: false,
-      },
-    });
+    let access_token: string | undefined;
+    let refresh_token: string | undefined;
+    let expires_at: number | undefined;
 
-    const { data, error } = await client.auth.refreshSession({
-      refresh_token: current.refreshToken,
-    });
+    try {
+      const client = createClient(current.supabaseUrl, current.supabaseAnonKey, {
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
+          detectSessionInUrl: false,
+        },
+      });
 
-    if (error || !data.session) {
+      const { data, error } = await client.auth.refreshSession({
+        refresh_token: current.refreshToken,
+      });
+
+      if (!error && data.session) {
+        access_token = data.session.access_token;
+        refresh_token = data.session.refresh_token || current.refreshToken;
+        expires_at = data.session.expires_at ?? undefined;
+      }
+    } catch {
+      /* fall through to REST */
+    }
+
+    if (!access_token || !refresh_token) {
+      const rest = await exchangeRefreshToken(
+        current.supabaseUrl,
+        current.supabaseAnonKey,
+        current.refreshToken
+      );
+      if (rest) {
+        access_token = rest.access_token;
+        refresh_token = rest.refresh_token;
+        expires_at = rest.expires_at;
+      }
+    }
+
+    if (!access_token || !refresh_token) {
+      const expKnown = effectiveAccessExpSec(current);
+      if (opts?.force || (expKnown > 0 && expKnown <= now)) {
+        return null;
+      }
       return current;
     }
 
     const next: CrowAuth = {
       ...current,
-      accessToken: data.session.access_token,
-      refreshToken: data.session.refresh_token,
-      expiresAt: data.session.expires_at ?? undefined,
+      accessToken: access_token,
+      refreshToken: refresh_token,
+      expiresAt: expires_at,
     };
     await persistCrowAuth(next);
     return next;

@@ -63,46 +63,50 @@ export default function ExplainCard({
   }, [onClose]);
 
   async function handleSave() {
-    const auth = await ensureFreshAuth(await loadCrowAuth(), false);
-    if (!auth?.accessToken) {
-      setSaveError('expired');
-      return;
-    }
-    onSessionUpdate?.(auth);
-
-    const baseUrl = (auth.apiBaseUrl || config.apiBaseUrl).replace(/\/+$/, '');
-
-    const postNote = (token: string) =>
-      fetch(`${baseUrl}/api/notes`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          inputText: text,
-          explanation,
-          source: 'chrome_extension',
-        }),
-      });
-
-    let res = await postNote(auth.accessToken);
-    if (res.status === 401 || res.status === 403) {
-      const after = await ensureFreshAuth(auth, { force: true });
-      if (!after?.accessToken) {
+    try {
+      const auth = await ensureFreshAuth(await loadCrowAuth(), false);
+      if (!auth?.accessToken) {
         setSaveError('expired');
         return;
       }
-      onSessionUpdate?.(after);
-      res = await postNote(after.accessToken);
-    }
+      onSessionUpdate?.(auth);
 
-    if (res.ok) {
-      const data = await res.json();
-      setSavedId(data.data?.id ?? 'saved');
-    } else if (res.status === 401 || res.status === 403) {
-      setSaveError('expired');
-    } else {
+      const baseUrl = (auth.apiBaseUrl || config.apiBaseUrl).replace(/\/+$/, '');
+
+      const postNote = (token: string) =>
+        fetch(`${baseUrl}/api/notes`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            inputText: text,
+            explanation,
+            source: 'chrome_extension',
+          }),
+        });
+
+      let res = await postNote(auth.accessToken);
+      if (res.status === 401 || res.status === 403) {
+        const after = await ensureFreshAuth(await loadCrowAuth(), { force: true });
+        if (!after?.accessToken) {
+          setSaveError('expired');
+          return;
+        }
+        onSessionUpdate?.(after);
+        res = await postNote(after.accessToken);
+      }
+
+      if (res.ok) {
+        const data = await res.json();
+        setSavedId(data.data?.id ?? 'saved');
+      } else if (res.status === 401 || res.status === 403) {
+        setSaveError('expired');
+      } else {
+        setSaveError('generic');
+      }
+    } catch {
       setSaveError('generic');
     }
   }
