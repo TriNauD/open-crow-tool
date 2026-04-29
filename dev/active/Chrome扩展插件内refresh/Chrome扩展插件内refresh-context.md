@@ -1,7 +1,7 @@
 # Chrome 扩展插件内 Refresh — Context
 
 > 立项日期：2026-04-28  
-> 状态：**已立项，待开发分支切出后更新分支名**
+> 分支：`fea/chrome-ext-session-refresh-tri`（向 `dev` 提 PR）
 
 ## 背景
 

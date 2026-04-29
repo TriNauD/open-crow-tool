@@ -1,11 +1,12 @@
 # Chrome 扩展插件内 Refresh — Tasks
 
-> 更新：进行中请改状态，避免多人重复开工。
+> 更新：进行中请改状态，避免多人重复开工。  
+> **当前分支**：`fea/chrome-ext-session-refresh-tri`（立项文档 + 分支规则说明；向 `dev` 提 PR 合并）
 
 ## 开发准备
 
-- [ ] 从最新 `dev` 切分支：`fea/chrome-ext-session-refresh-<owner>`（名称可与 plan 保持一致）
-- [ ] 在本文件顶部 **回填实际分支名**
+- [x] 从最新 `dev` 切分支：`fea/chrome-ext-session-refresh-tri`
+- [x] 在本文件顶部 **回填实际分支名**
 
 ## Web
 

@@ -78,9 +78,8 @@
 
 - **立项**：扩展侧实现 **Supabase 标准 refresh**，Web 连接时下发 **refresh_token + 公开 Supabase URL/anon key**；敏感项存 **`chrome.storage.local`**；失败降级为现有「回站连接」。
 
-## 分支（待开出后回填）
+## 分支
 
 ```text
-fea/chrome-ext-session-refresh-<owner>
-# 切出前执行: git checkout dev && git pull && git checkout -b fea/...
+fea/chrome-ext-session-refresh-tri
 ```
