@@ -1,4 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  CROW_AUTH_LOCAL_KEYS,
+  ensureFreshAuth,
+  loadCrowAuth,
+} from '../lib/crow-session';
+
+const DEFAULT_SITE_ORIGIN = 'https://dev.crowknows.tech';
 
 export default function Options() {
   const [apiBaseUrl, setApiBaseUrl] = useState('');
@@ -8,23 +15,112 @@ export default function Options() {
   const [manualUrl, setManualUrl] = useState('');
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [refreshHint, setRefreshHint] = useState('');
+  /** 忽略本轮 local 授权键变更（手动保存 / 设置内刷新），避免误显示「网站已同步」 */
+  const skipAuthStorageEventsRef = useRef(false);
 
-  useEffect(() => {
-    chrome.storage.sync.get(['apiBaseUrl', 'accessToken', 'adminSecret']).then((result) => {
-      const url = (result.apiBaseUrl as string) || '';
-      const token = (result.accessToken as string) || '';
+  const applyAuthStateFromStorage = useCallback(
+    async (opts: { showWebSyncHint: boolean }) => {
+      const auth = await loadCrowAuth();
+      const sync = await chrome.storage.sync.get(['adminSecret']);
+      const url = auth?.apiBaseUrl || '';
+      const token = auth?.accessToken || '';
       setApiBaseUrl(url);
       setAccessToken(token);
       setManualUrl(url);
       setManualToken(token);
-      // 旧版只存了 adminSecret，提示需要在网站重新连接
-      if (!token && result.adminSecret) {
+      if (!token && sync.adminSecret) {
         setError('检测到旧版配置，请在网站登录后点「连接插件」重新授权。');
+      } else {
+        setError('');
       }
-    });
-  }, []);
+      if (opts.showWebSyncHint && token) {
+        setRefreshHint('已通过网站同步连接状态。');
+        setTimeout(() => setRefreshHint(''), 2800);
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    const id = window.setTimeout(() => {
+      void applyAuthStateFromStorage({ showWebSyncHint: false });
+    }, 0);
+    return () => window.clearTimeout(id);
+  }, [applyAuthStateFromStorage]);
+
+  useEffect(() => {
+    function onBecameVisible() {
+      if (document.visibilityState !== 'visible') return;
+      void applyAuthStateFromStorage({ showWebSyncHint: false });
+    }
+    /** 设置页在后台时网站若已完成「连接插件」，切回时补拉 storage（避免错过 onChanged 或未刷新页面导致 UI 陈旧）。 */
+    document.addEventListener('visibilitychange', onBecameVisible);
+    window.addEventListener('focus', onBecameVisible);
+    return () => {
+      document.removeEventListener('visibilitychange', onBecameVisible);
+      window.removeEventListener('focus', onBecameVisible);
+    };
+  }, [applyAuthStateFromStorage]);
+
+  useEffect(() => {
+    function onStorageChanged(
+      changes: Record<string, chrome.storage.StorageChange>,
+      areaName: chrome.storage.AreaName
+    ) {
+      if (areaName !== 'local') return;
+      const hit = CROW_AUTH_LOCAL_KEYS.some((k) => changes[k] !== undefined);
+      if (!hit || skipAuthStorageEventsRef.current) return;
+      void applyAuthStateFromStorage({ showWebSyncHint: true });
+    }
+    chrome.storage.onChanged.addListener(onStorageChanged);
+    return () => chrome.storage.onChanged.removeListener(onStorageChanged);
+  }, [applyAuthStateFromStorage]);
 
   const isConnected = !!(apiBaseUrl && accessToken);
+
+  async function refreshConnectionStatus() {
+    skipAuthStorageEventsRef.current = true;
+    setIsRefreshing(true);
+    setRefreshHint('');
+    try {
+      const before = await loadCrowAuth();
+      const after = await ensureFreshAuth(before, { force: true });
+      const sync = await chrome.storage.sync.get(['adminSecret']);
+      const fromDisk = after ?? (await loadCrowAuth());
+
+      if (fromDisk?.accessToken) {
+        setApiBaseUrl(fromDisk.apiBaseUrl);
+        setAccessToken(fromDisk.accessToken);
+        setManualUrl(fromDisk.apiBaseUrl);
+        setManualToken(fromDisk.accessToken);
+      } else {
+        setApiBaseUrl('');
+        setAccessToken('');
+      }
+
+      if (after) {
+        setRefreshHint('连接状态已更新（如已续期会话）。');
+        setTimeout(() => setRefreshHint(''), 2800);
+      } else if (before) {
+        setRefreshHint('未能续期会话，请在网站打开并点「连接插件」重新授权。');
+      } else {
+        setRefreshHint('当前无已保存的登录状态。');
+      }
+
+      if (!fromDisk?.accessToken && sync.adminSecret) {
+        setError('检测到旧版配置，请在网站登录后点「连接插件」重新授权。');
+      } else if (!fromDisk?.accessToken) {
+        setError('');
+      }
+    } finally {
+      setIsRefreshing(false);
+      queueMicrotask(() => {
+        skipAuthStorageEventsRef.current = false;
+      });
+    }
+  }
 
   async function handleManualSave(e: React.FormEvent) {
     e.preventDefault();
@@ -32,17 +128,31 @@ export default function Options() {
     const url = manualUrl.trim().replace(/\/$/, '');
     if (!url) { setError('请填写 API 地址'); return; }
     if (!manualToken.trim()) { setError('请填写访问令牌'); return; }
-    await chrome.storage.sync.set({ apiBaseUrl: url, accessToken: manualToken.trim() });
-    await chrome.storage.sync.remove('adminSecret');
-    setApiBaseUrl(url);
-    setAccessToken(manualToken.trim());
-    setError('');
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
+    skipAuthStorageEventsRef.current = true;
+    try {
+      await chrome.storage.local.set({
+        apiBaseUrl: url,
+        accessToken: manualToken.trim(),
+        refreshToken: '',
+        supabaseUrl: '',
+        supabaseAnonKey: '',
+        expiresAt: null,
+      });
+      await chrome.storage.sync.remove(['accessToken', 'apiBaseUrl', 'adminSecret']);
+      setApiBaseUrl(url);
+      setAccessToken(manualToken.trim());
+      setError('');
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } finally {
+      queueMicrotask(() => {
+        skipAuthStorageEventsRef.current = false;
+      });
+    }
   }
 
   function openSite() {
-    chrome.tabs.create({ url: apiBaseUrl || 'https://open-crow-tool.vercel.app' });
+    chrome.tabs.create({ url: apiBaseUrl || DEFAULT_SITE_ORIGIN });
   }
 
   return (
@@ -56,20 +166,43 @@ export default function Options() {
         <div style={styles.statusBox}>
           <div style={styles.statusRow}>
             <span style={isConnected ? styles.dotGreen : styles.dotRed} />
-            <span style={styles.statusText}>
+            <span style={styles.statusTextWrap}>
               {isConnected ? '插件已连接到你的账号' : '插件尚未连接'}
             </span>
+            <button
+              type="button"
+              onClick={() => void refreshConnectionStatus()}
+              disabled={isRefreshing}
+              style={isRefreshing ? styles.btnRefreshDisabled : styles.btnRefresh}
+            >
+              {isRefreshing ? '刷新中…' : '刷新状态'}
+            </button>
           </div>
           {isConnected && (
             <p style={styles.statusHint}>{apiBaseUrl}</p>
           )}
+          {refreshHint ? (
+            <p
+              style={{
+                ...styles.refreshHint,
+                color: refreshHint.startsWith('连接状态已更新') ||
+                  refreshHint.startsWith('已通过网站')
+                  ? '#22c55e'
+                  : refreshHint.startsWith('未能续期')
+                    ? '#fbbf24'
+                    : '#71717a',
+              }}
+            >
+              {refreshHint}
+            </p>
+          ) : null}
         </div>
 
         {/* 主操作：去网站连接 */}
         <div style={styles.primaryAction}>
           <p style={styles.desc}>
             {isConnected
-              ? '登录凭证有效期约 1 小时。失效后在网站重新点「连接插件」即可。'
+              ? '在网站点「连接插件」后，插件会自动续期登录凭证；若长期未用或已在网站退出，请重新连接。'
               : '请先在网站登录，然后点「连接插件」按钮，插件会自动获取你的登录状态。'}
           </p>
           <button onClick={openSite} style={styles.btnPrimary}>
@@ -97,7 +230,7 @@ export default function Options() {
                 type="url"
                 value={manualUrl}
                 onChange={(e) => setManualUrl(e.target.value)}
-                placeholder="https://open-crow-tool.vercel.app"
+                placeholder="https://dev.crowknows.tech"
                 spellCheck={false}
               />
             </div>
@@ -164,6 +297,46 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     gap: 8,
+    flexWrap: 'wrap',
+  },
+  statusTextWrap: {
+    flex: '1 1 120px',
+    minWidth: 0,
+    fontSize: 14,
+    fontWeight: 600,
+    color: '#f4f4f5',
+  },
+  btnRefresh: {
+    background: '#27272a',
+    color: '#d4d4d8',
+    border: '1px solid #3f3f46',
+    borderRadius: 8,
+    padding: '6px 12px',
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: 'pointer',
+    flexShrink: 0,
+    marginLeft: 'auto',
+  },
+  btnRefreshDisabled: {
+    background: '#27272a',
+    color: '#71717a',
+    border: '1px solid #3f3f46',
+    borderRadius: 8,
+    padding: '6px 12px',
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: 'default',
+    flexShrink: 0,
+    marginLeft: 'auto',
+    opacity: 0.85,
+  },
+  refreshHint: {
+    fontSize: 12,
+    marginTop: 8,
+    marginLeft: 16,
+    lineHeight: 1.5,
+    marginBottom: 0,
   },
   dotGreen: {
     width: 8, height: 8, borderRadius: '50%',
@@ -174,11 +347,6 @@ const styles: Record<string, React.CSSProperties> = {
     width: 8, height: 8, borderRadius: '50%',
     background: '#f87171',
     flexShrink: 0,
-  },
-  statusText: {
-    fontSize: 14,
-    fontWeight: 600,
-    color: '#f4f4f5',
   },
   statusHint: {
     fontSize: 12,

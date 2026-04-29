@@ -1,6 +1,7 @@
 # 这是啥？— 产品需求文档 (PRD)
 
-> 版本：v1.5 | 作者：PM | 最后更新：2026-04-28  
+> 版本：v1.6 | 作者：PM | 最后更新：2026-04-28  
+> **v1.6**：**C-3 Chrome 扩展内登录** 已立项（扩展内主路径登录 + 保留网站「连接插件」）；总览与 [`docs/product/chrome-extension.md`](./product/chrome-extension.md)；主目录 [`dev/active/Chrome扩展内登录/`](../dev/active/Chrome扩展内登录/)。  
 > **v1.5**：产品口径**按域拆卷**到 [`docs/product/`](./product/README.md)，本文件为**总览与导航**，避免单文件无限膨胀。  
 > **2026-04-28**：BRAINSTORM **阶段 A 已结项**（其余阶段 B～D 仍排期）；总索引 [`dev/active/BRAINSTORM需求池/README.md`](../dev/active/BRAINSTORM需求池/README.md)，归档 [`dev/done/BRAINSTORM阶段A/`](../dev/done/BRAINSTORM阶段A/)。
 
@@ -29,6 +30,8 @@
 | 非功能与 out of scope | [`docs/product/nfr-and-out-of-scope.md`](./product/nfr-and-out-of-scope.md) |
 
 **新需求/结项**时：在对应分卷中更新结论；若动到跨模块原则，在总述本节或相关分卷首段补一句**变更说明**与日期。需求级别的细节与测试结论仍以 `dev/done/需求名/` 为准。
+
+**进行中的需求轨道（摘要）**：**C-3** — Chrome 扩展内 **Options 非技术流登录**（默认推荐），网站 **「连接插件」** 保留为快捷同步，**手动 Token** 降级至高级区；详见 [`dev/active/Chrome扩展内登录/Chrome扩展内登录-plan.md`](../dev/active/Chrome扩展内登录/Chrome扩展内登录-plan.md)。
 
 ---
 

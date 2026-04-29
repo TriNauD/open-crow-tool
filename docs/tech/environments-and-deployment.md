@@ -59,14 +59,16 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...（仅 JWT 字符串）
 
 - **测试库与生产库**：推荐 **两个 Supabase Project**（不同 `*.supabase.co` ref）；Staging **需执行与生产一致的 DDL**：见 `docs/tech/database.md` 与 `db/migrations/*.sql`（按日期顺序）。  
 - **Auth → URL Configuration**：Site URL、Redirect URLs 与当前环境域名一致；生产不要用 `localhost` 作为唯一 Site URL。  
-- **注册邮件 `redirect_to`**：应用侧已传 `emailRedirectTo`（见 `lib/auth/email-confirm-redirect.ts`）；控制台仍应配置正确白名单。
+- **注册邮件 `redirect_to`**：应用侧已传 `emailRedirectTo`（见 `lib/auth/email-confirm-redirect.ts`）；控制台仍应配置正确白名单。  
+- **JWT 时长（联调 token 刷新）**：Supabase 控制台勿把 access JWT 设得过短（官方不建议短于约 **90 秒**，易与客户端刷新边距冲突）；扩展侧已按 JWT 内 `exp` 与存储的 `expires_at` **取较早** 判断是否刷新。
 
 ---
 
 ## 5. Chrome 扩展
 
 - **`apiBaseUrl` + `accessToken`** 来自网站「连接插件」；须与当前测的环境一致。  
-- Options 里「打开网站」的 fallback 若指向旧域名，以 **已连接成功** 时显示的 `apiBaseUrl` 为准。  
+- **换环境**：从 Vercel Preview 换到生产域名（或相反）时，须在 **对应环境的网站** 上 **重新点「连接插件」**，扩展里的 `apiBaseUrl`/token 才会与目标一致。
+- Options 里「打开网站」的 fallback 默认 **`https://dev.crowknows.tech`**（团队 Preview）；若与当前环境不符可改扩展源码常量或仍以 **已连接成功** 时显示的 `apiBaseUrl` 为准。  
 - **CORS**：`/api/explain`、`/api/notes` 已带 `OPTIONS` 与跨域头；若仍失败，先排除 **401（部署保护）** 与 **环境变量错误**。
 
 ---
@@ -82,4 +84,6 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...（仅 JWT 字符串）
 
 | 日期 | 说明 |
 |------|------|
+| 2026-04-30 | Supabase：JWT 勿短于约 90s（易出刷新问题）；扩展 refresh 以 JWT exp 与 expires_at 较早者为准。 |
+| 2026-04-29 | Chrome 扩展：换 Preview/生产域名需在该环境网站重新「连接插件」。 |
 | 2026-04-28 | 首版：Vercel 分环境、Deployment Protection、Supabase 双项目、扩展联调、混合内容、Env 勿合并为一项。 |

@@ -4,8 +4,7 @@
  *
  * 与 GitHub Actions 的差异（有意识保留）：
  * - CI 在 Next build 之后还会 playwright install + npm run test:e2e；本脚本默认不跑 E2E（慢、需浏览器）。
- *   提 PR 前若要完全对齐 CI：先 npm run build，再 npx playwright install --with-deps chromium，再 npm run test:e2e
- *   （或设 VERIFY_E2E=1 走下方可选步骤）。
+ * - CI 在 Playwright 之前会先构建 Chrome 扩展；VERIFY_E2E=1 时本脚本也在 E2E 前执行 ext 的 npm ci + build。
  */
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -47,6 +46,10 @@ run('npm', ['run', 'lint'], { cwd: root, env: { ...process.env } });
 run('npm', ['run', 'test'], { cwd: root, env: { ...process.env } });
 run('npm', ['run', 'build'], { cwd: root, env: { ...ciBuildEnv } });
 
+const extRoot = join(root, 'chrome-extension');
+run('npm', ['ci'], { cwd: extRoot, env: { ...process.env } });
+run('npm', ['run', 'build'], { cwd: extRoot, env: { ...process.env } });
+
 if (process.env.VERIFY_E2E === '1') {
   run('npx', ['playwright', 'install', '--with-deps', 'chromium'], { cwd: root });
   run('npm', ['run', 'test:e2e'], {
@@ -54,7 +57,3 @@ if (process.env.VERIFY_E2E === '1') {
     env: { ...process.env, PORT: process.env.PORT ?? '3107' },
   });
 }
-
-const extRoot = join(root, 'chrome-extension');
-run('npm', ['ci'], { cwd: extRoot, env: { ...process.env } });
-run('npm', ['run', 'build'], { cwd: extRoot, env: { ...process.env } });

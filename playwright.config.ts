@@ -12,6 +12,7 @@ import { defineConfig, devices } from '@playwright/test';
  *   PLAYWRIGHT_SKIP_WEBSERVER=1 PLAYWRIGHT_BASE_URL=http://127.0.0.1:3000 npm run test:e2e
  *
  * CI: `Production build (Next.js)` precedes Playwright step; `.next/` is reused.
+ * 含扩展用例（`e2e/extension-crow-bridge.spec.ts`）时须先有 `chrome-extension/dist`（CI 已在 E2E 前构建扩展）。
  */
 
 const port =

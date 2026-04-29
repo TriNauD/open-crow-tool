@@ -1,22 +1,28 @@
 import { useEffect, useRef, useState } from 'react';
+import type { CrowAuth } from '../lib/crow-session';
+import { ensureFreshAuth, loadCrowAuth } from '../lib/crow-session';
 import { useStreamExplain } from './useStreamExplain';
-
-interface Config {
-  apiBaseUrl: string;
-  accessToken: string;
-}
 
 interface Props {
   text: string;
   anchorX: number;
   anchorY: number;
-  config: Config;
+  config: CrowAuth;
+  onSessionUpdate?: (next: CrowAuth) => void;
   onClose: () => void;
 }
 
-export default function ExplainCard({ text, anchorX, anchorY, config, onClose }: Props) {
+export default function ExplainCard({
+  text,
+  anchorX,
+  anchorY,
+  config,
+  onSessionUpdate,
+  onClose,
+}: Props) {
   const [savedId, setSavedId] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<'generic' | 'expired' | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
   const { text: explanation, isLoading, error, isDone, explain } = useStreamExplain(
     config.apiBaseUrl
@@ -36,6 +42,10 @@ export default function ExplainCard({ text, anchorX, anchorY, config, onClose }:
   top = Math.max(margin, Math.min(top, vh - cardH - margin));
 
   const notebookUrl = `${config.apiBaseUrl.replace(/\/+$/, '')}/notebook`;
+
+  /** 流式完成可保存，或保存中/已有错误时也要看到底部栏（避免 saveError 被 `&& explanation` 吃掉） */
+  const hasExplainReady = Boolean(explanation?.length) && isDone && !error;
+  const showSaveFooter = hasExplainReady || Boolean(saveError) || isSaving;
 
   useEffect(() => {
     explain(text);
@@ -58,23 +68,44 @@ export default function ExplainCard({ text, anchorX, anchorY, config, onClose }:
   }, [onClose]);
 
   async function handleSave() {
-    if (!config.accessToken) {
-      setSaveError('expired');
-      return;
-    }
+    setSaveError(null);
+    setIsSaving(true);
     try {
-      const res = await fetch(`${config.apiBaseUrl}/api/notes`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${config.accessToken}`,
-        },
-        body: JSON.stringify({
-          inputText: text,
-          explanation,
-          source: 'chrome_extension',
-        }),
-      });
+      const preHint = await loadCrowAuth();
+      const auth = await ensureFreshAuth(preHint, { force: true });
+      if (!auth?.accessToken) {
+        setSaveError('expired');
+        return;
+      }
+      onSessionUpdate?.(auth);
+
+      const baseUrl = (auth.apiBaseUrl || config.apiBaseUrl).replace(/\/+$/, '');
+
+      const postNote = (token: string) =>
+        fetch(`${baseUrl}/api/notes`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            inputText: text,
+            explanation,
+            source: 'chrome_extension',
+          }),
+        });
+
+      let res = await postNote(auth.accessToken);
+      if (res.status === 401 || res.status === 403) {
+        const after = await ensureFreshAuth(await loadCrowAuth(), { force: true });
+        if (!after?.accessToken) {
+          setSaveError('expired');
+          return;
+        }
+        onSessionUpdate?.(after);
+        res = await postNote(after.accessToken);
+      }
+
       if (res.ok) {
         const data = await res.json();
         setSavedId(data.data?.id ?? 'saved');
@@ -85,6 +116,8 @@ export default function ExplainCard({ text, anchorX, anchorY, config, onClose }:
       }
     } catch {
       setSaveError('generic');
+    } finally {
+      setIsSaving(false);
     }
   }
 
@@ -120,7 +153,7 @@ export default function ExplainCard({ text, anchorX, anchorY, config, onClose }:
         )}
       </div>
 
-      {(isDone || saveError) && explanation && (
+      {showSaveFooter && (
         <div className="crow-card-footer">
           {savedId ? (
             <button className="crow-save-btn saved" disabled>
@@ -128,14 +161,14 @@ export default function ExplainCard({ text, anchorX, anchorY, config, onClose }:
             </button>
           ) : saveError === 'expired' ? (
             <span className="crow-error" style={{ fontSize: 12 }}>
-              ⚠️ 登录已过期，请
+              ⚠️ 登录或连接已过期，请
               <a
                 href={config.apiBaseUrl}
                 target="_blank"
                 rel="noreferrer"
                 style={{ color: '#fb923c', marginLeft: 2 }}
               >
-                回网站点「连接插件」
+                回网站登录并点「连接插件」
               </a>
             </span>
           ) : saveError === 'generic' ? (
@@ -143,8 +176,13 @@ export default function ExplainCard({ text, anchorX, anchorY, config, onClose }:
               保存失败，请稍后重试
             </span>
           ) : (
-            <button className="crow-save-btn" onClick={handleSave}>
-              存入笔记本
+            <button
+              className="crow-save-btn"
+              onClick={handleSave}
+              disabled={isSaving}
+              type="button"
+            >
+              {isSaving ? '保存中…' : '存入笔记本'}
             </button>
           )}
           <span className="crow-sep">·</span>

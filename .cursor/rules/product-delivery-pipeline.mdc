@@ -11,7 +11,7 @@ alwaysApply: true
 
 | 步 | 内容 | 门控（未满足不得进入下一步） |
 |---|------|-----------------------------|
-| 1 | 用户提需求；PM + TL 论可行性，输出结论给用户 | 用户**明确同意**后再更新 `docs/PRD.md`（总览）、`docs/PLAN.md`（总览），并在对应 **`docs/product/*`** / **`docs/tech/*`** 分卷中写清模块级变更；同时建 `dev/active/需求名称/*`（阶段 1 仍禁写业务代码，见 `dev-workflow`） |
+| 1 | 用户提需求；PM + TL 论可行性，输出结论给用户 | 用户**明确同意**后再更新 `docs/PRD.md`（总览）、`docs/PLAN.md`（总览），并在对应 **`docs/product/*`** / **`docs/tech/*`** 分卷中写清模块级变更；**同时**建 `dev/active/需求名称/*`，并在 **`docs/product/README.md` / `docs/tech/README.md`** 的 **「进行中」** 小节加上链接（见 `dev-workflow` 阶段 3）（阶段 1 仍禁写业务代码，见 `dev-workflow`） |
 | 2 | 用户确认方案后，**commit 文档**（总览+分卷 + 可选 context/plan/tasks 初稿） | 至少一次 **仅文档** 的 `git commit` |
 | 3 | 生成 `需求名称-qa.md`（**自动化** + **手动**），并含**可执行手测流程**（最小路径 + 全量可选）；commit 文档 | 文档可单独 commit；**不得**在未经用户手测前宣称「可上线」 |
 | 4 | TL/QA 跑完**自动化**后交用户；用户**照手测文档**验收 | 用户**明确**通过/不通过；不通过回第 5 步 |
@@ -23,3 +23,4 @@ alwaysApply: true
 - 步骤 1 结束前：**不写**产品代码、**不改** `package.json` 业务行为（与 `dev-workflow` 阶段 1 一致）。
 - 手测流程须**逐步可复现**（环境、账号、点哪里、预期结果、失败时看哪里），与「最小路径 + 全量可选项」同级结构。
 - 与 `team-roles`：讨论用 `[PM]`/`[TL]`/`[QA]` 前缀；决策写 `[Decision]`。
+- **Preview、多轮 PR 与代开 PR**：步骤 3～4 与「合并 `dev` → 用户在 Preview 手测 → 修 bug 再验」的闭环，以 **`dev-workflow.mdc` 中「与 AI 协作的交付节奏」** 为准；代提 PR 的闸门与 `gh` 说明见 **`pr-and-commit.mdc`**。

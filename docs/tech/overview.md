@@ -5,7 +5,7 @@
 │                          用户入口                              │
 │   Web (Next.js)                 Chrome Extension (Vite)       │
 │   登录态 Bearer JWT；「连接插件」   存笔记：Bearer（与 Web 一致）   │
-│   postMessage → storage.sync      （`accessToken` + `apiBaseUrl`）│
+│   postMessage → chrome.storage.local   （CrowAuth；网站桥接或扩展内登录）│
 └──────────┬─────────────────────────────┬──────────────────────┘
            │                             │
            ▼                             ▼
