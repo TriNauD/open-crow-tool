@@ -103,5 +103,5 @@ DIGEST_LANGUAGE_FILTER=   # 可选，如 "TypeScript,Python"，空则不过滤
 - `DIGEST_OPS_NOTIFY_EMAILS` — 逗号分隔，留空则不发送
 - `DIGEST_OPS_NOTIFY_ONLY_ON_FAILURE` — 设为 `true` 时仅在存在发信失败时发「完成」汇总
 
-立项与回溯说明：`dev/active/weekly-digest-ops-email/`。
+立项与回溯说明：`dev/active/周报Cron运维通知邮件/`。
 
