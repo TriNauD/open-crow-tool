@@ -96,3 +96,12 @@ DIGEST_TO_EMAIL=你的邮箱
 DIGEST_LANGUAGE_FILTER=   # 可选，如 "TypeScript,Python"，空则不过滤
 ```
 
+### Cron 运维通知邮件（可选）
+
+每周任务跑完后向运维邮箱发一封汇总（成功/失败人数、失败列表、AI 是否降级等）；抓取失败或 Trending 为空时发「中止」类通知。详见根目录 `.env.local.example`：
+
+- `DIGEST_OPS_NOTIFY_EMAILS` — 逗号分隔，留空则不发送
+- `DIGEST_OPS_NOTIFY_ONLY_ON_FAILURE` — 设为 `true` 时仅在存在发信失败时发「完成」汇总
+
+立项与回溯说明：`dev/active/weekly-digest-ops-email/`。
+

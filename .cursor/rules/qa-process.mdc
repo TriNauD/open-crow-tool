@@ -5,10 +5,11 @@ alwaysApply: true
 
 # QA 流程
 
-触发时机：TL 完成开发后，QA 介入并创建：
-`dev/active/需求名称/需求名称-qa.md`
+触发时机：
+- **新功能**：TL 完成开发后，QA 介入并创建 `dev/active/需求名称/需求名称-qa.md`。
+- **Bug 修复**：可无独立 `qa.md`；须在 PR 描述或 **`dev/logs/*-log.md` BF-n** 中写清复现、验证方式（见 **`dev-workflow.mdc`「Bug 修复流程」**）。
 
-QA 文档应包含：
+QA 文档（新功能）应包含：
 - 影响域标注（涉及模块 + 风险等级）
 - 功能测试（新功能）
 - 回归测试（受影响模块）

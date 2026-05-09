@@ -5,6 +5,8 @@ alwaysApply: true
 
 # 发布流程（dev → main）
 
+> **Bugfix 与 Hotfix**：日常在 **Preview / dev 上**修的缺陷，用 **`bugfix/*`（从 `dev`）→ PR → `dev`**，并在 `dev/logs` 记 **BF-n**（见 **`dev-workflow.mdc`**「Bug 修复流程」）。**已影响线上生产**、须立刻打补丁时，用 **`hotfix/*`（从 `main`）**，见下文 **Hotfix 流程**。
+
 1. 确认 `dev` 上 Vercel Preview 验收通过。
 2. 确认：核心链路测试通过、环境变量齐全、无遗留阻塞 issue。
 3. 若有数据库变更，PR 描述里写明兼容性和回滚步骤。

@@ -15,11 +15,13 @@ alwaysApply: true
 | 2 | 用户确认方案后，**commit 文档**（总览+分卷 + 可选 context/plan/tasks 初稿） | 至少一次 **仅文档** 的 `git commit` |
 | 3 | 生成 `需求名称-qa.md`（**自动化** + **手动**），并**同时**具备 **`需求名称-dev-preview-acceptance.md`**（或 `qa.md` 内同等**最小路径**独立章；**仅** URL 占位 + 短前置 + **3～6 步** + 一行结论，见 `dev-workflow` 与 `product-delivery-pipeline` 技能）；commit 文档 | 文档可单独 commit；**不得**在未经用户手测前宣称「可上线」 |
 | 4 | TL/QA 跑完**自动化**后交用户；用户**照 `qa.md` + `dev-preview-acceptance`**（填好 URL 后）在 Preview 验收 | 用户**明确**通过/不通过；不通过回第 5 步；**合并入 `dev` 后**须完成 acceptance 中 **URL 与部署相关占位**的替换（见 `dev-workflow`「与 AI 协作」§3） |
-| 5 | 有 bug 时：TL/QA 修代码，在 `dev/logs/需求名称-log.md` 以 **BF-n** 记录根因与修复 | 每个 BF 至少：现象、根因、涉及文件、验证方式 |
+| 5 | 有 bug 时：TL/QA 在 **`bugfix/*`（或 `hotfix/*`）分支**修代码；合并后在 `dev/logs/…-log.md` 以 **BF-n** 记录（独立缺陷见 **`dev-workflow.mdc`「Bug 修复流程」**） | 每个 BF 至少：现象、根因、涉及文件、验证方式 |
 | 6 | 用户整体验收通过后**结项**：迁 `dev/done/`、补 log、更新总览/分卷与 qa/acceptance 结论、**收尾 commit** | 与 `dev-workflow` 阶段 5 一致；**文档/规则/skill/结项 `.md` 等代码无关项** **允许**在 **`dev` 上直推**，见 **`git-branching.mdc`**；上 **`main`** 仍须 PR |
 
 ## AI 须遵守
 
+- **沟通语言**：除用户另行要求外，对用户的说明与门控解释**默认使用简体中文**（与 `team-roles.mdc` 一致）。
+- **先文档后代码与分支**：**严禁**跳过步 1～2 及未立项就写**新功能**业务代码；**严禁**在 **`dev`** 上直接开发新功能（须 `fea/*` PR 合入）。**缺陷**走 **`dev-workflow.mdc`「Bug 修复流程」**（`bugfix/*` 或生产 `hotfix/*`）并在 `dev/logs` **BF 存档**。细则见 **`dev-workflow.mdc`**（铁律、门控、Bug 修复）与 **`git-branching.mdc`**。业务代码与依赖改动的**阶段边界**还以 **`dev-workflow.mdc`「AI 须遵守的门控」** 为准（含「口头帮我做不算阶段 2 通过」与**回溯立项**）。
 - 步骤 1 结束前：**不写**产品代码、**不改** `package.json` 业务行为（与 `dev-workflow` 阶段 1 一致）。
 - 手测流程须**逐步可复现**（环境、账号、点哪里、预期结果、失败时看哪里），与「最小路径 + 全量可选项」同级结构。
 - 与 `team-roles`：讨论用 `[PM]`/`[TL]`/`[QA]` 前缀；决策写 `[Decision]`。
