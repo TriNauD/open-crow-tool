@@ -119,6 +119,139 @@ function buildEmailHtml(repos: ReviewedRepo[], date: Date, unsubscribeUrl?: stri
 </html>`;
 }
 
+// ─── Weekly digest ops notification (Cron 运维汇报，可选) ─────────────────────
+
+export interface DigestOpsCompletePayload {
+  ranAtIso: string;
+  /** true 表示本轮对所有收件人的 Resend/API 调用均成功（或本轮本就没有收件人） */
+  allSubscriberSendsOk: boolean;
+  subscriberSendEnabled: boolean;
+  activeSubscribers: number;
+  recipientCount: number;
+  sendOk: number;
+  sendFail: number;
+  failedEmails: string[];
+  aiUsed: boolean;
+  fetchedTrendingCount?: number;
+  tierDistribution?: Record<string, number>;
+  fetchError?: string;
+  aiError?: string;
+  fallback?: boolean;
+}
+
+export interface DigestOpsAbortedPayload {
+  ranAtIso: string;
+  stage: string;
+  message: string;
+  extra?: Record<string, unknown>;
+}
+
+function parseOpsNotifyEmails(): string[] {
+  const raw = process.env.DIGEST_OPS_NOTIFY_EMAILS ?? '';
+  return raw
+    .split(',')
+    .map((e) => e.trim())
+    .filter(Boolean);
+}
+
+function opsNotifyOnlyOnFailure(): boolean {
+  return process.env.DIGEST_OPS_NOTIFY_ONLY_ON_FAILURE === 'true';
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function buildDigestOpsCompleteHtml(p: DigestOpsCompletePayload): string {
+  const statusLabel = p.allSubscriberSendsOk ? '全部成功' : '存在失败';
+  const statusColor = p.allSubscriberSendsOk ? '#0a0' : '#c00';
+  const failedList =
+    p.failedEmails.length === 0
+      ? '无'
+      : p.failedEmails.map((e) => `<li>${escapeHtml(e)}</li>`).join('');
+
+  const tierRows =
+    p.tierDistribution && Object.keys(p.tierDistribution).length > 0
+      ? Object.entries(p.tierDistribution)
+          .map(([k, v]) => `<tr><td>${escapeHtml(k)}</td><td>${v}</td></tr>`)
+          .join('')
+      : '';
+
+  return `<!DOCTYPE html>
+<html lang="zh"><head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:16px;font-family:system-ui,sans-serif;font-size:14px;color:#222;">
+  <p style="margin:0 0 8px 0;font-weight:700;color:${statusColor};">Crow 周报 Cron｜${statusLabel}</p>
+  <p style="margin:0 0 12px 0;color:#666;font-size:12px;">执行时间（UTC）：${escapeHtml(p.ranAtIso)}</p>
+  <table style="border-collapse:collapse;font-size:13px;">
+    <tr><td style="padding:4px 12px 4px 0;color:#666;">全量群发开关</td><td>${p.subscriberSendEnabled ? 'SEND_TO_SUBSCRIBERS' : '仅测试名单'}</td></tr>
+    <tr><td style="padding:4px 12px 4px 0;color:#666;">库内 active 人数</td><td>${p.activeSubscribers}</td></tr>
+    <tr><td style="padding:4px 12px 4px 0;color:#666;">本轮实际收件人数</td><td>${p.recipientCount}</td></tr>
+    <tr><td style="padding:4px 12px 4px 0;color:#666;">发送成功 / 失败</td><td><strong>${p.sendOk}</strong> / <strong style="color:${p.sendFail ? '#c00' : '#0a0'}">${p.sendFail}</strong></td></tr>
+    <tr><td style="padding:4px 12px 4px 0;color:#666;">AI 评审</td><td>${p.aiUsed ? '已用 AI' : '降级 fallback'}${p.fallback ? '（本轮曾解析失败或异常）' : ''}</td></tr>
+    <tr><td style="padding:4px 12px 4px 0;color:#666;">Trending 条数</td><td>${p.fetchedTrendingCount ?? '—'}</td></tr>
+  </table>
+  ${p.aiError ? `<p style="margin:12px 0 4px 0;font-weight:600;">AI 异常（已尽力继续）</p><pre style="background:#f5f5f5;padding:8px;overflow:auto;font-size:12px;">${escapeHtml(p.aiError)}</pre>` : ''}
+  ${p.fetchError ? `<p style="margin:12px 0 4px 0;font-weight:600;">抓取异常</p><pre style="background:#f5f5f5;padding:8px;overflow:auto;font-size:12px;">${escapeHtml(p.fetchError)}</pre>` : ''}
+  <p style="margin:12px 0 4px 0;font-weight:600;">失败收件人</p>
+  <ul style="margin:0;">${failedList}</ul>
+  ${tierRows ? `<p style="margin:12px 0 4px 0;font-weight:600;">档位分布</p><table style="border-collapse:collapse;font-size:12px;">${tierRows}</table>` : ''}
+  <p style="margin:16px 0 0 0;font-size:11px;color:#999;">由 DIGEST_OPS_NOTIFY_EMAILS 触发；仅运维可见。若不想每周收到成功信：环境变量 DIGEST_OPS_NOTIFY_ONLY_ON_FAILURE=true</p>
+</body></html>`;
+}
+
+function buildDigestOpsAbortedHtml(p: DigestOpsAbortedPayload): string {
+  const extra = p.extra && Object.keys(p.extra).length > 0
+    ? `<pre style="background:#f5f5f5;padding:8px;font-size:12px;overflow:auto;">${escapeHtml(JSON.stringify(p.extra, null, 2))}</pre>`
+    : '';
+  return `<!DOCTYPE html>
+<html lang="zh"><head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:16px;font-family:system-ui,sans-serif;font-size:14px;color:#222;">
+  <p style="margin:0 0 8px 0;font-weight:700;color:#c00;">Crow 周报 Cron｜已中止</p>
+  <p style="margin:0 0 8px 0;color:#666;font-size:12px;">${escapeHtml(p.ranAtIso)} · ${escapeHtml(p.stage)}</p>
+  <p style="margin:0 0 12px 0;">${escapeHtml(p.message)}</p>
+  ${extra}
+</body></html>`;
+}
+
+/** Cron 运维邮件：配置了 DIGEST_OPS_NOTIFY_EMAILS 时发送；自身抛错由调用方 catch。 */
+export async function sendDigestOpsReportComplete(p: DigestOpsCompletePayload): Promise<void> {
+  const recipients = parseOpsNotifyEmails();
+  if (recipients.length === 0) return;
+  if (opsNotifyOnlyOnFailure() && p.allSubscriberSendsOk) return;
+
+  const subject = p.allSubscriberSendsOk
+    ? `[Crow 周报 Cron] 成功 ${p.sendOk}/${p.recipientCount} 收件人`
+    : `[Crow 周报 Cron] 失败 ${p.sendFail} 封 · 成功 ${p.sendOk}/${p.recipientCount}`;
+
+  const html = buildDigestOpsCompleteHtml(p);
+  for (let i = 0; i < recipients.length; i++) {
+    const to = recipients[i];
+    await sendMail(to, subject, html);
+    if (i < recipients.length - 1) {
+      await new Promise((r) => setTimeout(r, 600));
+    }
+  }
+}
+
+export async function sendDigestOpsReportAborted(p: DigestOpsAbortedPayload): Promise<void> {
+  const recipients = parseOpsNotifyEmails();
+  if (recipients.length === 0) return;
+  // 中止 always notify（不设 only-on-failure）
+  const subject = `[Crow 周报 Cron] 中止：${p.stage}`;
+  const html = buildDigestOpsAbortedHtml(p);
+  for (let i = 0; i < recipients.length; i++) {
+    const to = recipients[i];
+    await sendMail(to, subject, html);
+    if (i < recipients.length - 1) {
+      await new Promise((r) => setTimeout(r, 600));
+    }
+  }
+}
+
 export async function sendWeeklyDigest(
   repos: ReviewedRepo[],
   to: string,
