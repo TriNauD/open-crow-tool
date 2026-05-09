@@ -161,6 +161,8 @@ export async function GET(req: NextRequest) {
       console.error(`[weekly-digest] Failed to send to ${sub.email}:`, err);
       sendResults.push({ email: sub.email, ok: false });
     }
+    // Resend rate limit is 2 req/s; wait 600ms between sends to stay within bounds
+    await new Promise((r) => setTimeout(r, 600));
   }
 
   log.subscriberSendEnabled = subscriberSendEnabled;
