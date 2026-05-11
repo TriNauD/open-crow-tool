@@ -1,5 +1,6 @@
 import type { CrowAuth } from '../lib/crow-session';
 import { CROW_AUTH_BROADCAST_EVENT } from '../lib/crow-auth-event';
+import { CROW_EXTENSION_ENABLED_KEY } from '../lib/crow-session';
 import { performSupabaseRefreshExchange } from '../lib/supabase-refresh-exchange';
 
 async function deliverAuthToTab(tabId: number, auth: CrowAuth | undefined): Promise<void> {
@@ -37,6 +38,9 @@ async function broadcastAuthUpdatedToAllTabs(auth?: CrowAuth): Promise<void> {
 
 chrome.commands.onCommand.addListener(async (command) => {
   if (command !== 'explain-selection') return;
+
+  const raw = await chrome.storage.local.get([CROW_EXTENSION_ENABLED_KEY]);
+  if (raw[CROW_EXTENSION_ENABLED_KEY] === false) return;
 
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab?.id) return;
