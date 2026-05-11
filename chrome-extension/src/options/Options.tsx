@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   CROW_AUTH_LOCAL_KEYS,
+  CROW_EXTENSION_ENABLED_KEY,
   ensureFreshAuth,
+  isExplainEnabled,
   loadCrowAuth,
+  setExplainEnabled,
 } from '../lib/crow-session';
 
 const DEFAULT_SITE_ORIGIN = 'https://dev.crowknows.tech';
@@ -17,6 +20,7 @@ export default function Options() {
   const [error, setError] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshHint, setRefreshHint] = useState('');
+  const [explainOn, setExplainOn] = useState(true);
   /** 忽略本轮 local 授权键变更（手动保存 / 设置内刷新），避免误显示「网站已同步」 */
   const skipAuthStorageEventsRef = useRef(false);
 
@@ -47,6 +51,7 @@ export default function Options() {
     const id = window.setTimeout(() => {
       void applyAuthStateFromStorage({ showWebSyncHint: false });
     }, 0);
+    void isExplainEnabled().then(setExplainOn);
     return () => window.clearTimeout(id);
   }, [applyAuthStateFromStorage]);
 
@@ -70,6 +75,9 @@ export default function Options() {
       areaName: chrome.storage.AreaName
     ) {
       if (areaName !== 'local') return;
+      if (changes[CROW_EXTENSION_ENABLED_KEY] !== undefined) {
+        setExplainOn(changes[CROW_EXTENSION_ENABLED_KEY].newValue !== false);
+      }
       const hit = CROW_AUTH_LOCAL_KEYS.some((k) => changes[k] !== undefined);
       if (!hit || skipAuthStorageEventsRef.current) return;
       void applyAuthStateFromStorage({ showWebSyncHint: true });
@@ -196,6 +204,48 @@ export default function Options() {
               {refreshHint}
             </p>
           ) : null}
+        </div>
+
+        {/* 暂停划词开关 */}
+        <div style={styles.toggleRow}>
+          <div>
+            <span style={styles.toggleLabel}>划词解释</span>
+            <span style={styles.toggleHint}>
+              {explainOn ? '选词时显示解释按钮' : '已暂停，选词不触发解释'}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              const next = !explainOn;
+              setExplainOn(next);
+              void setExplainEnabled(next);
+            }}
+            style={{
+              background: explainOn ? '#22c55e' : '#3f3f46',
+              border: 'none',
+              borderRadius: 12,
+              width: 44,
+              height: 24,
+              position: 'relative',
+              cursor: 'pointer',
+              transition: 'background 0.2s',
+              flexShrink: 0,
+            }}
+          >
+            <span
+              style={{
+                position: 'absolute',
+                top: 2,
+                left: explainOn ? 22 : 2,
+                width: 20,
+                height: 20,
+                borderRadius: '50%',
+                background: '#fff',
+                transition: 'left 0.2s',
+              }}
+            />
+          </button>
         </div>
 
         {/* 主操作：去网站连接 */}
@@ -444,5 +494,25 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 600,
     cursor: 'default',
     marginTop: 4,
+  },
+  toggleRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '12px 0',
+    borderTop: '1px solid #27272a',
+    marginTop: 20,
+  },
+  toggleLabel: {
+    fontSize: 14,
+    fontWeight: 600,
+    color: '#f4f4f5',
+    display: 'block',
+  },
+  toggleHint: {
+    fontSize: 12,
+    color: '#71717a',
+    display: 'block',
+    marginTop: 2,
   },
 };

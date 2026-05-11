@@ -1,23 +1,32 @@
 import { createRoot } from 'react-dom/client';
 import { useEffect, useState } from 'react';
-import { CROW_AUTH_LOCAL_KEYS, isCrowConfigured } from '../lib/crow-session';
+import {
+  CROW_AUTH_LOCAL_KEYS,
+  CROW_EXTENSION_ENABLED_KEY,
+  isCrowConfigured,
+  isExplainEnabled,
+  setExplainEnabled,
+} from '../lib/crow-session';
 
 function Popup() {
   const [configured, setConfigured] = useState<boolean | null>(null);
+  const [explainOn, setExplainOn] = useState(true);
 
   useEffect(() => {
-    function reload() {
-      void isCrowConfigured().then(setConfigured);
-    }
-    reload();
+    void isCrowConfigured().then(setConfigured);
+    void isExplainEnabled().then(setExplainOn);
+
     function onStorageChanged(
       changes: Record<string, chrome.storage.StorageChange>,
       areaName: chrome.storage.AreaName
     ) {
       if (areaName !== 'local') return;
-      const hit = CROW_AUTH_LOCAL_KEYS.some((k) => changes[k] !== undefined);
-      if (!hit) return;
-      reload();
+      if (CROW_AUTH_LOCAL_KEYS.some((k) => changes[k] !== undefined)) {
+        void isCrowConfigured().then(setConfigured);
+      }
+      if (changes[CROW_EXTENSION_ENABLED_KEY] !== undefined) {
+        setExplainOn(changes[CROW_EXTENSION_ENABLED_KEY].newValue !== false);
+      }
     }
     chrome.storage.onChanged.addListener(onStorageChanged);
     return () => chrome.storage.onChanged.removeListener(onStorageChanged);
@@ -25,6 +34,12 @@ function Popup() {
 
   function openOptions() {
     chrome.runtime.openOptionsPage();
+  }
+
+  function toggleExplain() {
+    const next = !explainOn;
+    setExplainOn(next);
+    void setExplainEnabled(next);
   }
 
   const s: React.CSSProperties = {
@@ -52,6 +67,48 @@ function Popup() {
           ✓ 已配置，在任意页面选词即可使用
         </p>
       )}
+
+      {/* 暂停划词开关 */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: 12,
+          padding: '8px 0',
+          borderTop: '1px solid #27272a',
+          borderBottom: '1px solid #27272a',
+        }}
+      >
+        <span style={{ fontSize: 12, color: '#d4d4d8' }}>划词解释</span>
+        <button
+          onClick={toggleExplain}
+          style={{
+            background: explainOn ? '#22c55e' : '#3f3f46',
+            border: 'none',
+            borderRadius: 12,
+            width: 44,
+            height: 24,
+            position: 'relative',
+            cursor: 'pointer',
+            transition: 'background 0.2s',
+          }}
+        >
+          <span
+            style={{
+              position: 'absolute',
+              top: 2,
+              left: explainOn ? 22 : 2,
+              width: 20,
+              height: 20,
+              borderRadius: '50%',
+              background: '#fff',
+              transition: 'left 0.2s',
+            }}
+          />
+        </button>
+      </div>
+
       <p style={{ color: '#71717a', fontSize: 12, marginBottom: 12 }}>
         选中文字后点击橙色按钮，或按{' '}
         <strong style={{ color: '#d4d4d8' }}>

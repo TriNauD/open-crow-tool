@@ -5,7 +5,7 @@ import {
   extensionContextLikelyOk,
   isExtensionContextInvalidatedError,
 } from '../lib/extension-context';
-import { persistCrowAuth, type CrowAuth } from '../lib/crow-session';
+import { CROW_EXTENSION_ENABLED_KEY, persistCrowAuth, type CrowAuth } from '../lib/crow-session';
 import App from './App';
 import { fabDebug } from './debug-fab-log';
 import { STYLES } from './styles';
@@ -90,8 +90,35 @@ function mount() {
   });
 }
 
+function unmount() {
+  const host = document.getElementById('crow-ext-host');
+  if (host) host.remove();
+}
+
+async function mountIfEnabled() {
+  if (!extensionContextLikelyOk()) return;
+  const raw = await chrome.storage.local.get([CROW_EXTENSION_ENABLED_KEY]);
+  if (raw[CROW_EXTENSION_ENABLED_KEY] !== false) mount();
+}
+
+// Gate initial mount on the pause toggle
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', mount);
+  document.addEventListener('DOMContentLoaded', () => void mountIfEnabled());
 } else {
-  mount();
+  void mountIfEnabled();
+}
+
+// Dynamic toggle: listen for storage changes to mount/unmount without page refresh
+if (extensionContextLikelyOk()) {
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== 'local') return;
+    const change = changes[CROW_EXTENSION_ENABLED_KEY];
+    if (!change) return;
+    const enabled = change.newValue !== false;
+    if (enabled) {
+      mountIfEnabled();
+    } else {
+      unmount();
+    }
+  });
 }
