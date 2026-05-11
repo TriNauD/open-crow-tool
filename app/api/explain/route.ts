@@ -2,14 +2,7 @@ import type { Stream } from 'openai/streaming';
 import type { ChatCompletionChunk } from 'openai/resources/chat/completions';
 import OpenAI from 'openai';
 import { corsHeaders, handleOptions } from '@/lib/utils/cors';
-import {
-  getModelForProvider,
-  getNvidiaModel,
-  getNvidiaOpenAI,
-  getOpenAIForProvider,
-  getPrimaryProvider,
-  isNvidiaFallbackEnabled,
-} from '@/lib/ai/providers';
+import { getProviderChain } from '@/lib/ai/providers';
 import { SYSTEM_PROMPT, buildExplainPrompt } from '@/lib/ai/prompts';
 
 async function createChatStream(
@@ -29,12 +22,6 @@ async function createChatStream(
   });
 }
 
-function shouldTryNvidiaFallback(): boolean {
-  if (getPrimaryProvider() === 'nvidia') return false;
-  if (!process.env.NVIDIA_API_KEY?.trim()) return false;
-  return isNvidiaFallbackEnabled();
-}
-
 export function OPTIONS() {
   return handleOptions();
 }
@@ -48,25 +35,23 @@ export async function POST(req: Request) {
     }
 
     const userPrompt = buildExplainPrompt(text.trim(), context?.trim());
-    const primary = getPrimaryProvider();
+    const chain = getProviderChain();
 
-    let stream: Stream<ChatCompletionChunk>;
-    try {
-      stream = await createChatStream(
-        getOpenAIForProvider(primary),
-        getModelForProvider(primary),
-        userPrompt
-      );
-    } catch (primaryErr) {
-      if (!shouldTryNvidiaFallback()) {
-        throw primaryErr;
+    let stream: Stream<ChatCompletionChunk> | undefined;
+    let lastErr: unknown;
+
+    for (const { name, client, model } of chain) {
+      try {
+        stream = await createChatStream(client, model, userPrompt);
+        console.log(`[explain] using provider="${name}", model="${model}"`);
+        break;
+      } catch (err) {
+        lastErr = err;
+        console.warn(`[explain] provider "${name}" failed, trying next...`);
       }
-      stream = await createChatStream(
-        getNvidiaOpenAI(),
-        getNvidiaModel(),
-        userPrompt
-      );
     }
+
+    if (!stream) throw lastErr ?? new Error('All AI providers failed');
 
     const encoder = new TextEncoder();
     const readable = new ReadableStream({
