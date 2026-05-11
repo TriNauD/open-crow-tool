@@ -55,6 +55,13 @@ git checkout -b hotfix/问题简称-<owner>
 git checkout dev && git merge hotfix/问题简称-<owner>
 ```
 
+# 分支清理（PR 合并后）
+
+- **本地清理**：合并后立即 `git checkout dev && git pull`，然后 `git branch -d <已合并分支>`。
+- **远程清理**：`git push origin --delete <已合并分支>`。
+- **GitHub 设置**：在仓库 Settings → General → Pull Requests 中开启 **"Automatically delete head branches"**，merge 后远程分支自动清除。
+- **AI 收到用户说"merge 了"时**：应自动执行上述本地 + 远程清理，无需用户额外指示。
+
 # 禁止事项
 
 - **新功能与业务行为变更**：**禁止**检出 **`dev` 后在 `dev` 上直接改业务代码并 push**。新功能用 **`fea/需求简称-<owner>`**；**缺陷修复（非生产救火）** 用 **`bugfix/问题简称-<owner>`**；**生产紧急** 用 **`hotfix/…`（从 `main`）**。均须 **`push` + PR**；`fea`/`bugfix` **→ `dev`**，`hotfix` 另须 **`→ main`** 并 backport，见 **`release-and-hotfix.mdc`**。详见 **`dev-workflow.mdc`**「铁律」与「Bug 修复流程」。
