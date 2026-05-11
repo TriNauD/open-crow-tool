@@ -8,11 +8,7 @@ import {
   type Tier,
 } from '@/lib/email';
 import { getActiveSubscribers } from '@/lib/db/subscribers';
-import {
-  getPrimaryProvider,
-  getOpenAIForProvider,
-  getModelForProvider,
-} from '@/lib/ai/providers';
+import { getProviderChain } from '@/lib/ai/providers';
 
 // Vercel hobby: 60s max, pro: 300s
 export const maxDuration = 60;
@@ -128,32 +124,42 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'No trending repos found', log }, { status: 500 });
   }
 
-  // 2. AI batch review
-  let reviewed: ReviewedRepo[];
+  // 2. AI batch review (with provider chain fallback)
+  let reviewed: ReviewedRepo[] | undefined;
   let aiUsed = true;
-  try {
-    const provider = getPrimaryProvider();
-    const client = getOpenAIForProvider(provider);
-    const model = getModelForProvider(provider);
+  const chain = getProviderChain();
+  let lastErr: unknown;
 
-    const completion = await client.chat.completions.create({
-      model,
-      messages: [{ role: 'user', content: buildReviewPrompt(trending) }],
-      temperature: 0.3,
-    });
+  for (const { name, client, model } of chain) {
+    try {
+      const completion = await client.chat.completions.create({
+        model,
+        messages: [{ role: 'user', content: buildReviewPrompt(trending) }],
+        temperature: 0.3,
+      });
 
-    const raw = completion.choices[0]?.message?.content ?? '';
-    reviewed = parseReviewedRepos(raw);
-    log.aiReviewed = reviewed.length;
+      const raw = completion.choices[0]?.message?.content ?? '';
+      reviewed = parseReviewedRepos(raw);
+      console.log(`[weekly-digest] using provider="${name}", model="${model}"`);
+      log.aiProvider = name;
+      log.aiReviewed = reviewed.length;
 
-    const tierCount: Record<string, number> = {};
-    for (const r of reviewed) tierCount[r.tier] = (tierCount[r.tier] ?? 0) + 1;
-    log.tierDistribution = tierCount;
-  } catch (err) {
-    console.error('[weekly-digest] AI review failed, using fallback:', err);
+      const tierCount: Record<string, number> = {};
+      for (const r of reviewed) tierCount[r.tier] = (tierCount[r.tier] ?? 0) + 1;
+      log.tierDistribution = tierCount;
+
+      break;
+    } catch (err) {
+      lastErr = err;
+      console.warn(`[weekly-digest] provider "${name}" failed, trying next...`);
+    }
+  }
+
+  if (!reviewed) {
+    console.error('[weekly-digest] all AI providers failed, using fallback:', lastErr);
     reviewed = fallbackRepos(trending);
     aiUsed = false;
-    log.aiError = String(err);
+    log.aiError = String(lastErr);
     log.fallback = true;
   }
 

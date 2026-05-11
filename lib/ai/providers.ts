@@ -1,14 +1,31 @@
 import OpenAI from 'openai';
 
 const PROVIDER_DEFAULTS: Record<string, { baseURL: string; model: string }> = {
-  openai:      { baseURL: 'https://api.openai.com/v1',           model: 'gpt-4o' },
-  siliconflow: { baseURL: 'https://api.siliconflow.cn/v1',       model: 'deepseek-ai/DeepSeek-V3' },
-  /** NVIDIA build / NIM hosted chat (OpenAI-compatible) */
-  nvidia:      { baseURL: 'https://integrate.api.nvidia.com/v1', model: 'meta/llama-3.3-70b-instruct' },
+  openai:      { baseURL: 'https://api.openai.com/v1',              model: 'gpt-4o' },
+  siliconflow: { baseURL: 'https://api.siliconflow.cn/v1',          model: 'deepseek-ai/DeepSeek-V4-Flash' },
+  nvidia:      { baseURL: 'https://integrate.api.nvidia.com/v1',    model: 'meta/llama-3.3-70b-instruct' },
 };
 
+const FALLBACK_ORDER = ['siliconflow', 'nvidia'] as const;
+
 export function getPrimaryProvider(): string {
-  return (process.env.AI_PROVIDER ?? 'openai').toLowerCase();
+  return (process.env.AI_PROVIDER ?? 'siliconflow').toLowerCase();
+}
+
+function resolveApiKey(provider: string): string | undefined {
+  const p = provider.toLowerCase();
+  const isPrimary = p === getPrimaryProvider();
+
+  const envMap: Record<string, string | undefined> = {
+    openai:      process.env.OPENAI_API_KEY,
+    siliconflow: process.env.SILICONFLOW_API_KEY,
+    nvidia:      process.env.NVIDIA_API_KEY,
+  };
+
+  if (isPrimary) {
+    return process.env.AI_API_KEY ?? process.env.OPENAI_API_KEY;
+  }
+  return envMap[p];
 }
 
 export function getOpenAIForProvider(provider: string): OpenAI {
@@ -20,15 +37,7 @@ export function getOpenAIForProvider(provider: string): OpenAI {
       ? process.env.AI_BASE_URL ?? defaults.baseURL
       : defaults.baseURL;
 
-  let apiKey: string | undefined;
-
-  if (p === 'nvidia') {
-    apiKey = process.env.NVIDIA_API_KEY ?? process.env.AI_API_KEY;
-  } else if (p === 'siliconflow') {
-    apiKey = process.env.AI_API_KEY ?? process.env.OPENAI_API_KEY;
-  } else {
-    apiKey = process.env.AI_API_KEY ?? process.env.OPENAI_API_KEY;
-  }
+  const apiKey = resolveApiKey(p) ?? '';
 
   return new OpenAI({ apiKey, baseURL });
 }
@@ -37,28 +46,36 @@ export function getModelForProvider(provider: string): string {
   const p = provider.toLowerCase();
   const defaults = PROVIDER_DEFAULTS[p] ?? PROVIDER_DEFAULTS.openai;
 
-  if (p === 'nvidia') {
-    return process.env.NVIDIA_MODEL ?? defaults.model;
+  if (p === getPrimaryProvider()) {
+    return process.env.AI_MODEL ?? process.env.OPENAI_MODEL ?? defaults.model;
   }
 
-  return (
-    process.env.AI_MODEL ?? process.env.OPENAI_MODEL ?? defaults.model
-  );
+  if (p === 'nvidia') return process.env.NVIDIA_MODEL ?? defaults.model;
+
+  return defaults.model;
 }
 
-export function isNvidiaFallbackEnabled(): boolean {
-  const v = (process.env.AI_ENABLE_NVIDIA_FALLBACK ?? '').toLowerCase();
-  return v === '1' || v === 'true' || v === 'yes';
-}
+/**
+ * Build ordered provider chain: [primary, ...fallbacks].
+ * Only includes providers that have an API key configured.
+ */
+export function getProviderChain(): { name: string; client: OpenAI; model: string }[] {
+  const primary = getPrimaryProvider();
+  const ordered = [primary, ...FALLBACK_ORDER.filter((p) => p !== primary)];
 
-export function getNvidiaOpenAI(): OpenAI {
-  const defaults = PROVIDER_DEFAULTS.nvidia;
-  return new OpenAI({
-    apiKey: process.env.NVIDIA_API_KEY,
-    baseURL: process.env.NVIDIA_BASE_URL ?? defaults.baseURL,
-  });
-}
+  const chain: { name: string; client: OpenAI; model: string }[] = [];
 
-export function getNvidiaModel(): string {
-  return process.env.NVIDIA_MODEL ?? PROVIDER_DEFAULTS.nvidia.model;
+  for (const name of ordered) {
+    const apiKey = resolveApiKey(name);
+    if (!apiKey) continue;
+
+    const defaults = PROVIDER_DEFAULTS[name] ?? PROVIDER_DEFAULTS.openai;
+    const isPrimary = name === primary;
+    const baseURL = isPrimary ? process.env.AI_BASE_URL ?? defaults.baseURL : defaults.baseURL;
+    const model = getModelForProvider(name);
+
+    chain.push({ name, client: new OpenAI({ apiKey, baseURL }), model });
+  }
+
+  return chain;
 }
