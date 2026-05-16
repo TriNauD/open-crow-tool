@@ -80,6 +80,12 @@ interface CrowAuth {
 
 网站 `AuthNav` 可发 `postMessage({ type: 'CROW_CONNECT_EXT', … })`；**C-3** 扩展内登录成功后将写入同一 `CrowAuth` 形态（与网站桥接互斥于「最后一次写入为准」）。`lib/utils/cors.ts` 的 `Access-Control-Allow-Headers` 须含 `Authorization`（跨域 `POST /api/notes` 预检）。扩展内在请求前使用 `ensureFreshAuth` 刷新 access token。立项文档：[`dev/active/Chrome扩展内登录/`](../../dev/active/Chrome扩展内登录/)。
 
+### 暂停划词与运行时节流（2026-05 起）
+
+- **`crow_extension_enabled`**（`chrome.storage.local`，缺省 `true`）：关时 content 不挂载划词 `App`、background 不转发解释快捷键；网站 `CROW_CONNECT_EXT` 桥接始终在模块顶层注册。
+- **扩展重载 / 卸载**：content 侧心跳（含 `storage.local.get` 空读）在 context 失效后 `unmount` 摘除 DOM，避免僵尸浮层。
+- **已打开标签页**：`background` 在 `onInstalled`（含开发模式重载）时按 manifest 中的 content script 路径对普通网页 `executeScript`，保证旧页无需刷新即可与开关状态一致；content 侧 `data-crow-cs-init` 防双次声明式 + 主动注入叠加持平。
+
 ### 划词浮标 / 连接回归与自动化 E2E
 
 已知问题表、修复要点与 Playwright 扩展用例见：**[`chrome-extension-e2e-and-regression.md`](./chrome-extension-e2e-and-regression.md)**。
