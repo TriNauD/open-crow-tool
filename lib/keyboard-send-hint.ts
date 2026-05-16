@@ -1,5 +1,5 @@
 /**
- * 首页「发送」快捷键角标文案。手机浏览器不展示（无统一物理键盘预期）。
+ * 首页输入框旁「发送 / 换行」快捷键角标文案。手机浏览器不展示（无统一物理键盘预期）。
  * 仅应在客户端 `useEffect` 内调用。
  */
 
@@ -16,14 +16,15 @@ export function isAppleStyleShortcutHintForUa(ua: string, platform: string): boo
   return /Mac|iPad/i.test(platform) || /Mac OS/i.test(ua);
 }
 
-export type KeyboardSendHintLabel = '' | '⌘↵ 发送' | 'Ctrl+Enter 发送';
+/** 桌面端角标；移动端仍返回 '' */
+export type KeyboardSendHintLabel = '' | '↵ 发送 · ⌥↵ 换行' | 'Enter 发送 · Alt+Enter 换行';
 
 export function getKeyboardSendShortcutHintLabel(): KeyboardSendHintLabel {
   if (typeof navigator === 'undefined') return '';
   const ua = navigator.userAgent;
   if (shouldOmitKeyboardSendHintForUa(ua)) return '';
   if (isAppleStyleShortcutHintForUa(ua, navigator.platform)) {
-    return '⌘↵ 发送';
+    return '↵ 发送 · ⌥↵ 换行';
   }
-  return 'Ctrl+Enter 发送';
+  return 'Enter 发送 · Alt+Enter 换行';
 }

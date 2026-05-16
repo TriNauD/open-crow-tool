@@ -1,6 +1,7 @@
 # 这是啥？— 产品需求文档 (PRD)
 
-> 版本：v1.7 | 作者：PM | 最后更新：2026-05-16  
+> 版本：v1.8 | 作者：PM | 最后更新：2026-05-16  
+> **v1.8**：**Web 首页 Enter 发送 / Alt+Enter 换行** 立项 — 主输入框交互与角标文案；分卷 [`docs/product/web-explainer.md`](./product/web-explainer.md)；[`dev/active/Web首页Enter发送Alt换行/`](../dev/active/Web首页Enter发送Alt换行/)。  
 > **v1.7**：**Chrome 扩展暂停划词开关** 结项（Popup/Options 开关、未连接可看解释、保存引导连接、重载后旧页与开关同步）；归档 [`dev/done/Chrome扩展暂停划词开关/`](../dev/done/Chrome扩展暂停划词开关/)、日志 [`dev/logs/Chrome扩展暂停划词开关-log.md`](../dev/logs/Chrome扩展暂停划词开关-log.md)；分卷 [`docs/product/chrome-extension.md`](./product/chrome-extension.md)。  
 > **v1.6**：**C-3 Chrome 扩展内登录** 已立项（扩展内主路径登录 + 保留网站「连接插件」）；总览与 [`docs/product/chrome-extension.md`](./product/chrome-extension.md)；主目录 [`dev/active/Chrome扩展内登录/`](../dev/active/Chrome扩展内登录/)。  
 > **v1.5**：产品口径**按域拆卷**到 [`docs/product/`](./product/README.md)，本文件为**总览与导航**，避免单文件无限膨胀。  
@@ -32,7 +33,7 @@
 
 **新需求/结项**时：在对应分卷中更新结论；若动到跨模块原则，在总述本节或相关分卷首段补一句**变更说明**与日期。需求级别的细节与测试结论仍以 `dev/done/需求名/` 为准。
 
-**进行中的需求轨道（摘要）**：**C-3** — Chrome 扩展内 **Options 非技术流登录**（默认推荐），网站 **「连接插件」** 保留为快捷同步，**手动 Token** 降级至高级区；详见 [`dev/active/Chrome扩展内登录/Chrome扩展内登录-plan.md`](../dev/active/Chrome扩展内登录/Chrome扩展内登录-plan.md)。
+**进行中的需求轨道（摘要）**：**Web 首页 Enter 发送** — 见 [`dev/active/Web首页Enter发送Alt换行/`](../dev/active/Web首页Enter发送Alt换行/)。**C-3** — Chrome 扩展内 **Options 非技术流登录**（默认推荐），网站 **「连接插件」** 保留为快捷同步，**手动 Token** 降级至高级区；详见 [`dev/active/Chrome扩展内登录/Chrome扩展内登录-plan.md`](../dev/active/Chrome扩展内登录/Chrome扩展内登录-plan.md)。
 
 ---
 
