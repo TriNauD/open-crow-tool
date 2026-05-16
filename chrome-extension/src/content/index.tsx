@@ -128,3 +128,15 @@ if (extensionContextLikelyOk()) {
     }
   });
 }
+
+// 心跳检测：定期确认 extension context 仍有效。
+// 当扩展重载或更新后，旧 content script 的 context 会失效，
+// 此时主动调用 unmount() 移除旧 UI，避免在旧页面留下「僵尸悬浮窗」。
+if (extensionContextLikelyOk()) {
+  const heartbeatId = setInterval(() => {
+    if (!extensionContextLikelyOk()) {
+      clearInterval(heartbeatId);
+      unmount();
+    }
+  }, 500);
+}
