@@ -1,6 +1,7 @@
 # 这是啥？— 技术架构与执行计划 (PLAN)
 
-> 版本：v1.7 | 作者：TL | 最后更新：2026-05-16  
+> 版本：v1.8 | 作者：TL | 最后更新：2026-05-16  
+> **v1.8**：**Web 首页 Enter 发送 / Alt+Enter 换行** — `app/page.tsx`、`lib/keyboard-send-hint.ts`、A1 E2E/Vitest；[`dev/active/Web首页Enter发送Alt换行/`](../dev/active/Web首页Enter发送Alt换行/)。  
 > **v1.7**：**Chrome 扩展暂停划词开关** 结项 — `crow_extension_enabled`、`onInstalled` 向已打开标签补注 content script、僵尸 UI 心跳清理；详见 [`dev/done/Chrome扩展暂停划词开关/`](../dev/done/Chrome扩展暂停划词开关/)、[`docs/tech/phase-2-chrome-extension.md`](./tech/phase-2-chrome-extension.md)。  
 > **v1.6**：**C-3 Chrome 扩展内登录** 立项 — `CrowAuth` / `persistCrowAuth` 契约不变，网站 `CROW_CONNECT_EXT` 保留；详见 [`dev/active/Chrome扩展内登录/`](../dev/active/Chrome扩展内登录/)、[`docs/tech/phase-2-chrome-extension.md`](./tech/phase-2-chrome-extension.md)。  
 > **v1.5**：技术长文**按章拆卷**到 [`docs/tech/`](./tech/README.md)，本文件为**总览与导航**。  
@@ -22,7 +23,7 @@
 
 **新需求/结项**时：在涉及的分卷中更新实现细节与文件清单；与产品不一致处先对 `docs/product/` 或 PM 确认。回滚、风控以 `dev/logs/…`、`docs/notebook-multi-user-rollout.md` 等专文为准时，从对应分卷链出即可。
 
-**进行中的需求轨道（摘要）**：**C-3** — 扩展 Options **独立登录流**（方案 A/B 见 plan），与网站连接并存、存储契约不变；目录 [`dev/active/Chrome扩展内登录/`](../dev/active/Chrome扩展内登录/)。
+**进行中的需求轨道（摘要）**：**Web 首页 Enter 发送 / Alt+Enter 换行** — [`dev/active/Web首页Enter发送Alt换行/`](../dev/active/Web首页Enter发送Alt换行/)。**C-3** — 扩展 Options **独立登录流**（方案 A/B 见 plan），与网站连接并存、存储契约不变；目录 [`dev/active/Chrome扩展内登录/`](../dev/active/Chrome扩展内登录/)。
 
 ---
 

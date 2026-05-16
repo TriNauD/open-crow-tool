@@ -1,7 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   shouldOmitKeyboardSendHintForUa,
   isAppleStyleShortcutHintForUa,
+  getKeyboardSendShortcutHintLabel,
 } from '@/lib/keyboard-send-hint';
 
 describe('shouldOmitKeyboardSendHintForUa', () => {
@@ -49,5 +50,43 @@ describe('isAppleStyleShortcutHintForUa', () => {
     const ua =
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0';
     expect(isAppleStyleShortcutHintForUa(ua, 'Win32')).toBe(false);
+  });
+});
+
+describe('getKeyboardSendShortcutHintLabel', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const macUa =
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari';
+  const winUa =
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0';
+
+  it('Mac 桌面 → ↵ / ⌥↵ 文案', () => {
+    vi.stubGlobal('navigator', {
+      userAgent: macUa,
+      platform: 'MacIntel',
+    });
+    expect(getKeyboardSendShortcutHintLabel()).toBe('↵ 发送 · ⌥↵ 换行');
+  });
+
+  it('Windows 桌面 → Enter / Alt+Enter 文案', () => {
+    vi.stubGlobal('navigator', {
+      userAgent: winUa,
+      platform: 'Win32',
+    });
+    expect(getKeyboardSendShortcutHintLabel()).toBe(
+      'Enter 发送 · Alt+Enter 换行',
+    );
+  });
+
+  it('iPhone → 不展示', () => {
+    vi.stubGlobal('navigator', {
+      userAgent:
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15',
+      platform: 'iPhone',
+    });
+    expect(getKeyboardSendShortcutHintLabel()).toBe('');
   });
 });

@@ -15,6 +15,7 @@
 
 | 需求 | 目录 | 摘要 |
 |------|------|------|
+| Web 首页 Enter 发送 / Alt+Enter 换行 | [Web首页Enter发送Alt换行](../../dev/active/Web首页Enter发送Alt换行/) | 首页主输入：Enter 发送，Alt+Enter（及 Shift+Enter）换行；角标与 Vitest/E2E 对齐 |
 | Chrome 扩展插件内 session refresh | [Chrome扩展插件内refresh](../../dev/active/Chrome扩展插件内refresh/) | 扩展内 Supabase refresh，减少散发使用下的过期重连 |
 | 周报 Cron 运维通知邮件 | [周报Cron运维通知邮件](../../dev/active/周报Cron运维通知邮件/) | 运营/开发收件箱收每周发送结果摘要 |
 

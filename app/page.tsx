@@ -45,9 +45,11 @@ export default function HomePage() {
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-      submitQuery(input);
-    }
+    if (e.key !== 'Enter') return;
+    if (e.nativeEvent.isComposing) return;
+    if (e.altKey || e.shiftKey) return;
+    e.preventDefault();
+    submitQuery(input);
   }
 
   function handleNotebookSave() {

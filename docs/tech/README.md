@@ -19,6 +19,7 @@
 
 | 需求 | 目录 | 摘要 |
 |------|------|------|
+| Web 首页 Enter 发送 / Alt+Enter 换行 | [Web首页Enter发送Alt换行](../../dev/active/Web首页Enter发送Alt换行/) | `app/page.tsx` 键盘行为；`lib/keyboard-send-hint.ts` 桌面提示文案 |
 | Chrome 扩展插件内 session refresh | [Chrome扩展插件内refresh](../../dev/active/Chrome扩展插件内refresh/) | 扩展内 Supabase refresh；涉及 `phase-2-chrome-extension` 与鉴权 |
 | 周报 Cron 运维通知邮件 | [周报Cron运维通知邮件](../../dev/active/周报Cron运维通知邮件/) | Cron 汇总/失败告警邮件；`DIGEST_OPS_NOTIFY_EMAILS` |
 
