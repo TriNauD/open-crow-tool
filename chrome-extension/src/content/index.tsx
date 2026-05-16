@@ -129,14 +129,34 @@ if (extensionContextLikelyOk()) {
   });
 }
 
-// 心跳检测：定期确认 extension context 仍有效。
-// 当扩展重载或更新后，旧 content script 的 context 会失效，
-// 此时主动调用 unmount() 移除旧 UI，避免在旧页面留下「僵尸悬浮窗」。
+// 心跳检测：定期确认 extension context 仍有效，主动清除「僵尸悬浮窗」。
+//
+// 两层检测：
+//   1. extensionContextLikelyOk()（同步）：检查 chrome.runtime.id，
+//      扩展「重载/更新」时此值变为 undefined → 立即卸载。
+//   2. chrome.storage.local.get 空查询（异步）：发起真实 API 调用，
+//      扩展「被移除/卸载」后 chrome.runtime.id 仍可能保留旧值，
+//      但异步 API 会在回调里设置 lastError → 触发卸载。
+//      两次检测共用同一个 setInterval，避免双计时器。
 if (extensionContextLikelyOk()) {
   const heartbeatId = setInterval(() => {
+    // 快速同步检测（重载/更新场景）
     if (!extensionContextLikelyOk()) {
       clearInterval(heartbeatId);
       unmount();
+      return;
     }
-  }, 500);
+    // 异步 API 检测（移除/卸载场景）
+    try {
+      chrome.storage.local.get([], () => {
+        if (chrome.runtime.lastError) {
+          clearInterval(heartbeatId);
+          unmount();
+        }
+      });
+    } catch {
+      clearInterval(heartbeatId);
+      unmount();
+    }
+  }, 1000);
 }
