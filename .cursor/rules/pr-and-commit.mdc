@@ -22,7 +22,7 @@ alwaysApply: true
 
 - **默认不主动开 PR**：未得到用户示意前，**不要**自行 `gh pr create`。**用户一旦明确要求**——包括口头说「提 PR / 开 PR / 合并进 dev / dev 合 main / 直接提不要我只复制」等——即视为授权；AI **应**在终端完成 **push（若尚未推送）+ `gh pr create`**，并把 **`gh pr view --web` 或命令输出里的 PR 链接**发回用户。
 - **默认 target 分支**（除非用户另行指定）：
-  - 当前功能分支（`fea/*`、`hotfix/*` 等）→ **`dev`**
+  - 当前功能分支（`fea/*`、`bugfix/*`、`hotfix/*` 等）→ **`dev`**
   - **`dev` → `main`（生产）**：仅在用户明确要求发布 / 合并到 `main` 时操作；仍须遵守 `release-and-hotfix.mdc` 与双人 review。
 - **代提时默认动作顺序**（本地已安装且已登录 `gh` 为前提）：
   1. 完成「代提前检查」与 **`npm run lint`**（见下）。

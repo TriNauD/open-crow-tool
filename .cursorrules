@@ -12,8 +12,8 @@
 未读完以上五个文件前，不得输出方案、写代码或做任何改动。
 
 ## 按需读取（涉及相关场景时才读）
-- `.cursor/rules/git-branching.mdc` — 涉及分支操作时
-- `.cursor/rules/release-and-hotfix.mdc` — 涉及发布或 hotfix 时
+- `.cursor/rules/git-branching.mdc` — 涉及分支操作（含 **`fea` / `bugfix` / `hotfix`**）时
+- `.cursor/rules/release-and-hotfix.mdc` — 涉及发布、**`hotfix`** 或 **Bug 与 Hotfix 区分**时
 - `.cursor/rules/dependency-and-lockfile.mdc` — 涉及依赖变更时
 - `.cursor/rules/cross-platform.mdc` — 涉及跨平台兼容性时
 - `.cursor/rules/env-and-secrets.mdc` — 涉及环境变量或密钥时
@@ -23,6 +23,9 @@
 - `docs/product/README.md` / `docs/tech/README.md` — 产品/技术**分卷**索引（`docs/PRD.md` / `docs/PLAN.md` 为总览）
 
 ## 用户与 AI 协作偏好（triage）
+- **语言**：对用户的说明、方案与总结**默认使用简体中文**；用户明确要求英文时再改用英文。
+- **需求分流**：用户提到功能/想法/**Bug** 时，须按 **`dev-workflow.mdc`「入口分流」** 处理：**Bug** → **`bugfix/*`（或生产 `hotfix/*`）+ `dev/logs` BF**；其它仍：**收件箱** / **立项**。未说清时 **先问一句**。详见 **`brainstorm-pool-intake.mdc`**。
+- **需求门控**：新功能须五阶段与管道；**严禁**在 **`dev`** 直改业务代码（须 **`fea/*` 或 `bugfix/*`（或 `hotfix/*`）** → PR）。**仅**规则 / Cursor 技能 / `docs/**` / `dev/**/*.md` 等非代码资产可按 **`git-branching.mdc`** 破例直推 **`dev`**（`.gitignore` 的个人目录除外）。
 - **收尾**：每段任务做完后，用简短**总结**（做了什么、若要接着做下一步是什么）收束，避免戛然而止。
 - **讲技术**：用户追问技术概念、流程、工具对比时，优先用**通俗易懂的大白话**（必要时再点一下专业名词即可），少默认上密集行话。
 - **提 PR**：用户一旦说「提 PR / 开 PR / 合进 dev·main」等，AI **应**用 `gh` **直接创建** PR 并回复链接；**不要**仅以「可复制 Markdown」代替（无 `gh` 时再给 compare URL），见 `pr-and-commit.mdc`。

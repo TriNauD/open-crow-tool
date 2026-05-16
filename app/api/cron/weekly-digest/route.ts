@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { fetchTrending, type TrendingRepo } from '@/lib/github-trending';
-import { sendWeeklyDigest, type ReviewedRepo, type Tier } from '@/lib/email';
-import { getActiveSubscribers } from '@/lib/db/subscribers';
 import {
-  getPrimaryProvider,
-  getOpenAIForProvider,
-  getModelForProvider,
-} from '@/lib/ai/providers';
+  sendWeeklyDigest,
+  sendDigestOpsReportComplete,
+  sendDigestOpsReportAborted,
+  type ReviewedRepo,
+  type Tier,
+} from '@/lib/email';
+import { getActiveSubscribers } from '@/lib/db/subscribers';
+import { getProviderChain } from '@/lib/ai/providers';
 
 // Vercel hobby: 60s max, pro: 300s
 export const maxDuration = 60;
@@ -95,39 +97,69 @@ export async function GET(req: NextRequest) {
     log.fetched = trending.length;
   } catch (err) {
     log.fetchError = String(err);
+    try {
+      await sendDigestOpsReportAborted({
+        ranAtIso: new Date().toISOString(),
+        stage: 'fetch-trending',
+        message: '抓取 GitHub Trending 失败，未进入 AI 与发信。',
+        extra: { log },
+      });
+    } catch (notifyErr) {
+      console.error('[weekly-digest] ops notify failed:', notifyErr);
+    }
     return NextResponse.json({ error: 'Failed to fetch trending', log }, { status: 500 });
   }
 
   if (trending.length === 0) {
+    try {
+      await sendDigestOpsReportAborted({
+        ranAtIso: new Date().toISOString(),
+        stage: 'fetch-trending',
+        message: 'Trending 列表为空，未发送任何订阅邮件。',
+        extra: { log },
+      });
+    } catch (notifyErr) {
+      console.error('[weekly-digest] ops notify failed:', notifyErr);
+    }
     return NextResponse.json({ error: 'No trending repos found', log }, { status: 500 });
   }
 
-  // 2. AI batch review
-  let reviewed: ReviewedRepo[];
+  // 2. AI batch review (with provider chain fallback)
+  let reviewed: ReviewedRepo[] | undefined;
   let aiUsed = true;
-  try {
-    const provider = getPrimaryProvider();
-    const client = getOpenAIForProvider(provider);
-    const model = getModelForProvider(provider);
+  const chain = getProviderChain();
+  let lastErr: unknown;
 
-    const completion = await client.chat.completions.create({
-      model,
-      messages: [{ role: 'user', content: buildReviewPrompt(trending) }],
-      temperature: 0.3,
-    });
+  for (const { name, client, model } of chain) {
+    try {
+      const completion = await client.chat.completions.create({
+        model,
+        messages: [{ role: 'user', content: buildReviewPrompt(trending) }],
+        temperature: 0.3,
+      });
 
-    const raw = completion.choices[0]?.message?.content ?? '';
-    reviewed = parseReviewedRepos(raw);
-    log.aiReviewed = reviewed.length;
+      const raw = completion.choices[0]?.message?.content ?? '';
+      reviewed = parseReviewedRepos(raw);
+      console.log(`[weekly-digest] using provider="${name}", model="${model}"`);
+      log.aiProvider = name;
+      log.aiReviewed = reviewed.length;
 
-    const tierCount: Record<string, number> = {};
-    for (const r of reviewed) tierCount[r.tier] = (tierCount[r.tier] ?? 0) + 1;
-    log.tierDistribution = tierCount;
-  } catch (err) {
-    console.error('[weekly-digest] AI review failed, using fallback:', err);
+      const tierCount: Record<string, number> = {};
+      for (const r of reviewed) tierCount[r.tier] = (tierCount[r.tier] ?? 0) + 1;
+      log.tierDistribution = tierCount;
+
+      break;
+    } catch (err) {
+      lastErr = err;
+      console.warn(`[weekly-digest] provider "${name}" failed, trying next...`);
+    }
+  }
+
+  if (!reviewed) {
+    console.error('[weekly-digest] all AI providers failed, using fallback:', lastErr);
     reviewed = fallbackRepos(trending);
     aiUsed = false;
-    log.aiError = String(err);
+    log.aiError = String(lastErr);
     log.fallback = true;
   }
 
@@ -169,7 +201,32 @@ export async function GET(req: NextRequest) {
   log.activeSubscribers = allActive.length;
   log.recipientCount = recipients.length;
   log.sendResults = sendResults;
+  const sendFail = sendResults.filter((r) => !r.ok).length;
+  const sendOk = sendResults.filter((r) => r.ok).length;
   log.emailSent = sendResults.length > 0 && sendResults.every((r) => r.ok);
+
+  const allSubscriberSendsOk = sendFail === 0;
+
+  try {
+    await sendDigestOpsReportComplete({
+      ranAtIso: new Date().toISOString(),
+      allSubscriberSendsOk,
+      subscriberSendEnabled,
+      activeSubscribers: allActive.length,
+      recipientCount: recipients.length,
+      sendOk,
+      sendFail,
+      failedEmails: sendResults.filter((r) => !r.ok).map((r) => r.email),
+      aiUsed,
+      fetchedTrendingCount: typeof log.fetched === 'number' ? log.fetched : undefined,
+      tierDistribution: log.tierDistribution as Record<string, number> | undefined,
+      aiError: typeof log.aiError === 'string' ? log.aiError : undefined,
+      fetchError: typeof log.fetchError === 'string' ? log.fetchError : undefined,
+      fallback: log.fallback === true,
+    });
+  } catch (notifyErr) {
+    console.error('[weekly-digest] ops notify failed:', notifyErr);
+  }
 
   return NextResponse.json({ ok: true, aiUsed, log });
 }

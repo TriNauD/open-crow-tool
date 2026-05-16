@@ -10,32 +10,39 @@ alwaysApply: true
 | `main` | 生产分支，面向真实用户 | 生产环境（自动）|
 | `dev` | 预览集成分支，功能在这里汇合测试 | Preview 环境（自动）|
 | `fea/xxx-<owner>` | 个人功能开发 | 不部署 |
-| `hotfix/xxx-<owner>` | 紧急线上修复 | 不部署 |
+| `bugfix/xxx-<owner>` | 缺陷修复（从 `dev` 切出，合回 `dev`） | 不部署 |
+| `hotfix/xxx-<owner>` | **生产环境**紧急修复（从 `main` 切出） | 不部署 |
 
 只有 `main` 和 `dev` 触发 Vercel 构建，其余分支全部跳过。
 
 # 日常开发流程
 
 ```
-dev  →  fea/xxx-tri (开发)  →  PR to dev  →  Vercel Preview 验收  →  PR dev→main  →  生产
+dev  →  fea/xxx 或 bugfix/xxx (开发)  →  PR to dev  →  Vercel Preview 验收  →  PR dev→main  →  生产
 ```
 
 ```bash
-# 每次开发前，从最新 dev 切出功能分支
+# 新功能：从最新 dev 切出功能分支
 git checkout dev && git pull
 git checkout -b fea/需求简称-<owner>
 
+# 缺陷修复（非生产救火）：从最新 dev 切出 bugfix 分支
+git checkout dev && git pull
+git checkout -b bugfix/问题简称-<owner>
+
 # 开发完成，推送并向 dev 提 PR
-git push -u origin fea/需求简称-<owner>
+git push -u origin fea/需求简称-<owner>    # 或 bugfix/问题简称-<owner>
 ```
 
 # 上线流程
 
-1. `fea/*` PR 合并到 `dev`，Vercel 自动部署 Preview。
+1. `fea/*` 或 `bugfix/*` 的 PR 合并到 `dev`，Vercel 自动部署 Preview。
 2. 在 Preview URL 上完成验收测试。
 3. 验收通过，从 `dev` 向 `main` 提 PR，合并后自动部署生产。
 
-# Hotfix 流程
+# Hotfix 流程（仅生产紧急）
+
+> **与 `bugfix/*` 区别**：`bugfix/*` 从 **`dev`** 切，走 Preview，**PR → `dev`**。`hotfix/*` 从 **`main`** 切，**PR → `main`** 触发生产部署，再 **backport `dev`**。详见 **`dev-workflow.mdc`**「Bug 修复流程」。
 
 ```bash
 # 从 main 切出 hotfix 分支
@@ -48,15 +55,23 @@ git checkout -b hotfix/问题简称-<owner>
 git checkout dev && git merge hotfix/问题简称-<owner>
 ```
 
+# 分支清理（PR 合并后）
+
+- **本地清理**：合并后立即 `git checkout dev && git pull`，然后 `git branch -d <已合并分支>`。
+- **远程清理**：`git push origin --delete <已合并分支>`。
+- **GitHub 设置**：在仓库 Settings → General → Pull Requests 中开启 **"Automatically delete head branches"**，merge 后远程分支自动清除。
+- **AI 收到用户说"merge 了"时**：应自动执行上述本地 + 远程清理，无需用户额外指示。
+
 # 禁止事项
 
+- **新功能与业务行为变更**：**禁止**检出 **`dev` 后在 `dev` 上直接改业务代码并 push**。新功能用 **`fea/需求简称-<owner>`**；**缺陷修复（非生产救火）** 用 **`bugfix/问题简称-<owner>`**；**生产紧急** 用 **`hotfix/…`（从 `main`）**。均须 **`push` + PR**；`fea`/`bugfix` **→ `dev`**，`hotfix` 另须 **`→ main`** 并 backport，见 **`release-and-hotfix.mdc`**。详见 **`dev-workflow.mdc`**「铁律」与「Bug 修复流程」。
 - **默认**：禁止直接 push 到 `main` 或 **`dev`**（凡触及**业务代码、构建、依赖、CI 行为**的改动仍须 **分支 → PR → merge**）。
 - **破例（仅 `dev`，非 `main`）**：单次 commit **仅**包含下列「**代码无关**」路径、且**不混入**业务源码 / `package.json`·锁文件 / `.github/workflows` / 其它影响构建或运行时的配置时，**允许**在 `dev` 上直接 **commit + push**，**无需** `fea/*` PR：
-  1. **文档**：`docs/**`；`dev/**` 下需求与流程用的 **`.md`**（含 `dev/active`、`dev/done`、`dev/logs` 及目录迁移时的 `git mv`）。
+  1. **文档**：`docs/**`（含团队可见的说明、笔记类内容，如 `docs/notes/`）；`dev/**` 下需求与流程用的 **`.md`**（含 `dev/active`、`dev/done`、`dev/logs` 及目录迁移时的 `git mv`）。**不适用于**已被 `.gitignore` 排除的个人目录（如根目录 `notes/`，仅本地留存）。
   2. **仓库规则与 Cursor 技能**：`.cursor/rules/**`、`.cursor/skills/**`、`.cursorrules`；根目录 **`AGENTS.md` / `CLAUDE.md`**（若存在）。
   3. **结项收尾**（常与上两项重叠）：例如 **`需求名称-qa.md`**、**`需求名称-dev-preview-acceptance.md`**、**`dev/logs/*-log.md`**、**`tasks.md`** 勾选、**`docs/PRD.md` / `docs/PLAN.md`** 与分卷·README「进行中」等。
-  **仍须走 PR 进 `dev` 的示例**：`app/`、`components/`、`lib/`、`hooks/`、`chrome-extension/src/`、`e2e/` 下测试源码、`__tests__/`、业务相关的 `.ts` / `.tsx` / `.js` / `.jsx`，以及 `package.json`、`tsconfig*`、`next.config.*`、`middleware.*`、`db/migrations/**` 等。
+  **仍须走 PR 进 `dev` 的示例**：`app/`、`components/`、`lib/`、`hooks/`、`chrome-extension/src/`、`e2e/` 下测试源码、`__tests__/`、业务相关的 `.ts` / `.tsx` / `.js` / `.jsx`，以及 `package.json`、`tsconfig*`、`next.config.*`、`middleware.*`、`db/migrations/**` 等（含 **`fea/*` 与 `bugfix/*`** 上的业务改动）。
   **`main` 不适用直推**（上生产仍须 PR + review，见 `release-and-hotfix.mdc`）。
 - 禁止从 `main` 直接切功能分支（应从 `dev` 切）。
 - AI **不得**在用户未示意的情况下自行 `gh pr create`；用户一旦**明确要求**提 PR（含「直接提、不要只给可复制正文」），**应**代为创建并返回链接，见 `pr-and-commit.mdc`。
-- **AI 在 `dev` / `main` 上 commit**：**不得**在 `main` 上直 commit。**`dev` 上**仅当用户要求且当次改动**全部**属于上文「代码无关 / `dev` 直推破例」、并已核对 `git diff` 无禁用路径时，可 **commit + push `origin/dev`**；其它情况须 `fea/…-<owner>`（或 `hotfix/…`）→ PR。
+- **AI 在 `dev` / `main` 上 commit**：**不得**在 `main` 上直 commit。**`dev` 上**仅当用户要求且当次改动**全部**属于上文「代码无关 / `dev` 直推破例」、并已核对 `git diff` 无禁用路径时，可 **commit + push `origin/dev`**；其它情况须 **`fea/…` / `bugfix/…` / `hotfix/…`（仅生产路径）** → PR。

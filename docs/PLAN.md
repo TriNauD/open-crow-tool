@@ -1,6 +1,7 @@
 # 这是啥？— 技术架构与执行计划 (PLAN)
 
-> 版本：v1.6 | 作者：TL | 最后更新：2026-04-28  
+> 版本：v1.7 | 作者：TL | 最后更新：2026-05-16  
+> **v1.7**：**Chrome 扩展暂停划词开关** 结项 — `crow_extension_enabled`、`onInstalled` 向已打开标签补注 content script、僵尸 UI 心跳清理；详见 [`dev/done/Chrome扩展暂停划词开关/`](../dev/done/Chrome扩展暂停划词开关/)、[`docs/tech/phase-2-chrome-extension.md`](./tech/phase-2-chrome-extension.md)。  
 > **v1.6**：**C-3 Chrome 扩展内登录** 立项 — `CrowAuth` / `persistCrowAuth` 契约不变，网站 `CROW_CONNECT_EXT` 保留；详见 [`dev/active/Chrome扩展内登录/`](../dev/active/Chrome扩展内登录/)、[`docs/tech/phase-2-chrome-extension.md`](./tech/phase-2-chrome-extension.md)。  
 > **v1.5**：技术长文**按章拆卷**到 [`docs/tech/`](./tech/README.md)，本文件为**总览与导航**。  
 > **2026-04-28**：BRAINSTORM **阶段 A** 已结项（Vitest、Playwright E2E、扩展 build 见 CI）；归档 `dev/done/BRAINSTORM阶段A/`。需求池与未启动条目见 [`dev/active/BRAINSTORM需求池/README.md`](../dev/active/BRAINSTORM需求池/README.md)。

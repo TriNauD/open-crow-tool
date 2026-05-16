@@ -1,6 +1,9 @@
 import type { SupabaseRefreshResult } from './supabase-refresh-exchange';
 import { performSupabaseRefreshExchange } from './supabase-refresh-exchange';
 
+/** Storage key for the global pause-explain toggle (boolean, missing = true = enabled). */
+export const CROW_EXTENSION_ENABLED_KEY = 'crow_extension_enabled';
+
 /** Keys persisted in chrome.storage.local for site-driven connect (see content bridge). */
 export const CROW_AUTH_LOCAL_KEYS = [
   'accessToken',
@@ -276,4 +279,15 @@ export async function ensureFreshAuth(
 export async function isCrowConfigured(): Promise<boolean> {
   const a = await loadCrowAuth();
   return Boolean(a?.apiBaseUrl && a?.accessToken);
+}
+
+/** Returns true when the extension's explain feature is enabled (default = true). */
+export async function isExplainEnabled(): Promise<boolean> {
+  const raw = await chrome.storage.local.get([CROW_EXTENSION_ENABLED_KEY]);
+  return raw[CROW_EXTENSION_ENABLED_KEY] !== false;
+}
+
+/** Toggle the explain feature on/off. */
+export async function setExplainEnabled(enabled: boolean): Promise<void> {
+  await chrome.storage.local.set({ [CROW_EXTENSION_ENABLED_KEY]: enabled });
 }

@@ -1,6 +1,7 @@
 # 这是啥？— 产品需求文档 (PRD)
 
-> 版本：v1.6 | 作者：PM | 最后更新：2026-04-28  
+> 版本：v1.7 | 作者：PM | 最后更新：2026-05-16  
+> **v1.7**：**Chrome 扩展暂停划词开关** 结项（Popup/Options 开关、未连接可看解释、保存引导连接、重载后旧页与开关同步）；归档 [`dev/done/Chrome扩展暂停划词开关/`](../dev/done/Chrome扩展暂停划词开关/)、日志 [`dev/logs/Chrome扩展暂停划词开关-log.md`](../dev/logs/Chrome扩展暂停划词开关-log.md)；分卷 [`docs/product/chrome-extension.md`](./product/chrome-extension.md)。  
 > **v1.6**：**C-3 Chrome 扩展内登录** 已立项（扩展内主路径登录 + 保留网站「连接插件」）；总览与 [`docs/product/chrome-extension.md`](./product/chrome-extension.md)；主目录 [`dev/active/Chrome扩展内登录/`](../dev/active/Chrome扩展内登录/)。  
 > **v1.5**：产品口径**按域拆卷**到 [`docs/product/`](./product/README.md)，本文件为**总览与导航**，避免单文件无限膨胀。  
 > **2026-04-28**：BRAINSTORM **阶段 A 已结项**（其余阶段 B～D 仍排期）；总索引 [`dev/active/BRAINSTORM需求池/README.md`](../dev/active/BRAINSTORM需求池/README.md)，归档 [`dev/done/BRAINSTORM阶段A/`](../dev/done/BRAINSTORM阶段A/)。

@@ -16,7 +16,7 @@
 | 需求 | 目录 | 摘要 |
 |------|------|------|
 | Chrome 扩展插件内 session refresh | [Chrome扩展插件内refresh](../../dev/active/Chrome扩展插件内refresh/) | 扩展内 Supabase refresh，减少散发使用下的过期重连 |
-| Chrome 扩展暂停划词开关 | [Chrome扩展暂停划词开关](../../dev/active/Chrome扩展暂停划词开关/) | Popup/Options 一键暂停划词；**排期在 refresh 合并之后** |
+| 周报 Cron 运维通知邮件 | [周报Cron运维通知邮件](../../dev/active/周报Cron运维通知邮件/) | 运营/开发收件箱收每周发送结果摘要 |
 
 **立项默认**：新需求在本表增一行（同一批 commit 含 `dev/active/…`）；结项迁至 `dev/done/` 后删除或改写本行。详见仓库根目录 `.cursor/rules/dev-workflow.mdc` 阶段 3。
 
