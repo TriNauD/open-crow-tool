@@ -43,7 +43,7 @@ CI 顺序：**Next build → 扩展 build → `npm run test:e2e`**（见 `.githu
 | ID | 用例 | 对应关注点 |
 |----|------|------------|
 | E2E-EXT-01 | 已写入会话 + 顶层划词 → Shadow 内 `.crow-btn` 可见 | 已连接 + 浮标 |
-| E2E-EXT-02 | 清空 storage + 划词 → 有 `#crow-ext-host` 且无 `.crow-btn` | 未连接无浮标 |
+| E2E-EXT-02 | 清空 storage + 划词 → 有 `#crow-ext-host` 且 Shadow 内 `.crow-btn` **可见** | 未连接仍可解释（公开 `/api/explain`），浮标仍出现 |
 | E2E-EXT-03 | 先划词再 `seedCrowAuth` → 浮标仍出现 | **`pickSelectionAfterAuth`（dom ?? prev）** |
 | E2E-EXT-04 | iframe 内划词 → 子 frame 内 `#crow-ext-host` + 浮标 | **同源 iframe + all_frames** |
 | E2E-EXT-05 | 打开 Options →「插件已连接到你的账号」 | Options UI |

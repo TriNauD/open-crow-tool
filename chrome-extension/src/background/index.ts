@@ -3,21 +3,60 @@ import { CROW_AUTH_BROADCAST_EVENT } from '../lib/crow-auth-event';
 import { CROW_EXTENSION_ENABLED_KEY } from '../lib/crow-session';
 import { performSupabaseRefreshExchange } from '../lib/supabase-refresh-exchange';
 
+/**
+ * 扩展安装或重载时，将 content script 主动注入到已开着的旧标签页。
+ *
+ * Chrome MV3 在扩展「首次安装」时会自动向所有已打开标签页注入声明式 content script，
+ * 但在开发模式「重新加载」时并不保证重新注入，导致旧标签页需要手动刷新。
+ * 通过 onInstalled 主动注入可解决这一问题。
+ *
+ * 注意：Chrome 自动注入与此处注入可能同时发生（首次安装时），
+ * content script 内部已用 window 标志位防止重复初始化。
+ */
+chrome.runtime.onInstalled.addListener(async () => {
+  const manifest = chrome.runtime.getManifest();
+  // 从构建后的 manifest 动态取 content script 文件路径（crxjs 构建含 hash，不可硬编码）
+  const contentScriptFiles = manifest.content_scripts?.flatMap((cs) => cs.js ?? []) ?? [];
+  if (!contentScriptFiles.length) return;
+
+  let tabs: chrome.tabs.Tab[] = [];
+  try {
+    tabs = await chrome.tabs.query({});
+  } catch {
+    return;
+  }
+
+  for (const tab of tabs) {
+    if (!tab.id || !tab.url) continue;
+    // 跳过扩展自身页面及受限协议（file:// 需额外权限，一并跳过）
+    if (/^(chrome|chrome-extension|edge|about|data|file):/.test(tab.url)) continue;
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id, allFrames: true },
+        files: contentScriptFiles,
+      });
+    } catch {
+      /* 页面受限或已卸载，忽略 */
+    }
+  }
+});
+
 async function deliverAuthToTab(tabId: number, auth: CrowAuth | undefined): Promise<void> {
   try {
     await chrome.tabs.sendMessage(tabId, { type: 'CROW_AUTH_UPDATED', auth });
-    return;
   } catch {
     /* receiving end may not exist yet */
   }
-  if (!auth?.accessToken || !auth?.apiBaseUrl) return;
+  /* all_frames 注入下 sendMessage 可能只命中某一子帧，主帧 App 会收不到；须向每一帧投递同一事件 */
   try {
     await chrome.scripting.executeScript({
-      target: { tabId },
-      func: (eventName: string, detail: CrowAuth) => {
-        window.dispatchEvent(new CustomEvent(eventName, { detail }));
+      target: { tabId, allFrames: true },
+      func: (eventName: string, detail: CrowAuth | null) => {
+        window.dispatchEvent(
+          new CustomEvent(eventName, { detail: detail === null ? undefined : detail })
+        );
       },
-      args: [CROW_AUTH_BROADCAST_EVENT, auth],
+      args: [CROW_AUTH_BROADCAST_EVENT, auth ?? null],
     });
   } catch {
     /* e.g. chrome:// or restricted page */
