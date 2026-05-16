@@ -3,8 +3,8 @@
  *
  * 覆盖手工回归常见场景：
  * - 已连接 + 顶层文档划词 → 浮标出现
- * - 未连接 + 划词 → 无浮标（仅有宿主、无 .crow-btn）
- * - 先划词（未连接）再写入 storage → 模拟「连接插件」后仍应出现浮标（merge dom ?? prev）
+ * - 未连接 + 划词 → 仍出现浮标（可点进解释；保存需连接）
+ * - 先划词（未连接）再写入 storage → 模拟「连接插件」后浮标仍应可见（保留选区）
  * - 同源 iframe 内划词 → 浮标出现
  * - Options 页在写入 storage 后展示已连接
  *
@@ -16,7 +16,6 @@ import {
   e2eBaseURL,
   expect,
   expectCrowFabVisible,
-  expectNoCrowFab,
   extensionSeed,
   selectIframeParagraphAndPointerUp,
   selectTopParagraphAndPointerUp,
@@ -41,13 +40,13 @@ test.describe('Crow extension bridge', () => {
     await expectCrowFabVisible(page);
   });
 
-  test('E2E-EXT-02 未连接时划词不出现浮标', async ({ page }) => {
+  test('E2E-EXT-02 未连接时划词仍出现浮标', async ({ page }) => {
     await page.goto('/e2e-extension-host.html');
     await expect(page.locator('#crow-ext-host')).toBeAttached({
       timeout: 20_000,
     });
     await selectTopParagraphAndPointerUp(page);
-    await expectNoCrowFab(page);
+    await expectCrowFabVisible(page);
   });
 
   test('E2E-EXT-03 先划词再写入会话仍应出现浮标', async ({
@@ -59,7 +58,7 @@ test.describe('Crow extension bridge', () => {
       timeout: 20_000,
     });
     await selectTopParagraphAndPointerUp(page);
-    await expectNoCrowFab(page);
+    await expectCrowFabVisible(page);
 
     await extensionSeed.seedCrowAuth(extensionWorker, e2eBaseURL);
     await expectCrowFabVisible(page, 25_000);
