@@ -24,6 +24,18 @@ const EMPTY_AUTH: CrowAuth = {
   expiresAt: undefined,
 };
 
+/** 未连接时的公开 explain 端点 base URL（/api/explain 为公开接口，无需 token） */
+const FALLBACK_API_BASE_URL =
+  (typeof import.meta.env.VITE_PUBLIC_SITE_URL === 'string' && import.meta.env.VITE_PUBLIC_SITE_URL) ||
+  'https://dev.crowknows.tech';
+
+function openCrowOptionsPage(): void {
+  if (!extensionContextLikelyOk()) return;
+  ignoreIfContextInvalidated(() => {
+    chrome.runtime.openOptionsPage();
+  });
+}
+
 interface Selection {
   text: string;
   x: number;
@@ -135,7 +147,6 @@ export default function App() {
           setTimeout(() => setSelection((prev) => pickSelectionAfterAuth(prev, 'reloadAuth 50ms')), 50);
         } else {
           setConfig(EMPTY_AUTH);
-          setSelection(null);
         }
       })
       .catch((err) => {
@@ -190,12 +201,20 @@ export default function App() {
       reloadAuth();
     }
 
+    function onPageShow(e: PageTransitionEvent) {
+      if (!e.persisted) return;
+      if (!extensionContextLikelyOk()) return;
+      reloadAuth();
+    }
+
     document.addEventListener('visibilitychange', onBecameVisible);
     window.addEventListener('focus', onWindowFocus);
+    window.addEventListener('pageshow', onPageShow);
     chrome.storage.onChanged.addListener(onStorageChanged);
     return () => {
       document.removeEventListener('visibilitychange', onBecameVisible);
       window.removeEventListener('focus', onWindowFocus);
+      window.removeEventListener('pageshow', onPageShow);
       ignoreIfContextInvalidated(() => chrome.storage.onChanged.removeListener(onStorageChanged));
     };
   }, [reloadAuth]);
@@ -345,14 +364,23 @@ export default function App() {
     };
   }, [reloadAuth]);
 
+  /** 是否已连接账号（需要 apiBaseUrl 与 accessToken 都有效） */
+  const isAuthenticated = !!(config.apiBaseUrl && config.accessToken);
+
+  /**
+   * 向 ExplainCard 传递的 config：已连接时用真实 config；未连接时用公开 fallback URL
+   * 以便 /api/explain（公开接口）可以正常调用，只有存笔记本时才需要 auth。
+   */
+  const effectiveConfig: CrowAuth = isAuthenticated
+    ? config
+    : { ...EMPTY_AUTH, apiBaseUrl: FALLBACK_API_BASE_URL };
+
   function triggerExplain() {
     if (!selection) return;
     setExplaining(selection);
     setSelection(null);
     window.getSelection()?.removeAllRanges();
   }
-
-  if (!config.apiBaseUrl) return null;
 
   return (
     <>
@@ -364,7 +392,9 @@ export default function App() {
           text={explaining.text}
           anchorX={explaining.x}
           anchorY={explaining.y}
-          config={config}
+          config={effectiveConfig}
+          isAuthenticated={isAuthenticated}
+          onConnectPlugin={openCrowOptionsPage}
           onSessionUpdate={(next) => setConfig(next)}
           onClose={() => setExplaining(null)}
         />

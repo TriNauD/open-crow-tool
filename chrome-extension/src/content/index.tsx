@@ -1,4 +1,4 @@
-import { createRoot } from 'react-dom/client';
+import { createRoot, type Root } from 'react-dom/client';
 import './crow-auth-broadcast';
 import { samePageOrigin } from '../../../lib/utils/same-page-origin';
 import {
@@ -7,8 +7,9 @@ import {
 } from '../lib/extension-context';
 import { CROW_EXTENSION_ENABLED_KEY, persistCrowAuth, type CrowAuth } from '../lib/crow-session';
 import App from './App';
-import { fabDebug } from './debug-fab-log';
 import { STYLES } from './styles';
+
+let reactRoot: Root | null = null;
 
 // 「连接插件」桥接监听——必须在所有页面（含 Crow 自身站点）上运行，
 // 因此放在 mount() 之外，不受 crowNative 标志影响。
@@ -59,9 +60,17 @@ window.addEventListener('message', (e: MessageEvent) => {
 });
 
 function mount() {
-  if (document.getElementById('crow-ext-host')) return;
   // Crow 自身站点：不挂载浮动 UI（避免与原生界面冲突），但 connect 监听已在上方注册
   if (document.documentElement.dataset.crowNative === 'true') return;
+
+  const existing = document.getElementById('crow-ext-host');
+  if (existing) {
+    // reactRoot 不为 null → 当前 context 已挂载，跳过重复挂载
+    if (reactRoot) return;
+    // reactRoot 为 null 但 DOM 节点存在 → 来自上一次 extension context 的孤立节点
+    // （常见于开发时扩展重载，或标签页在扩展更新后被重新注入），清理后重新挂载
+    existing.remove();
+  }
 
   const host = document.createElement('div');
   host.id = 'crow-ext-host';
@@ -78,19 +87,16 @@ function mount() {
   const container = document.createElement('div');
   shadow.appendChild(container);
 
-  createRoot(container).render(<App />);
-  fabDebug({
-    hypothesisId: 'H3',
-    location: 'index.tsx:mount',
-    message: 'createRoot App in shadow',
-    data: {
-      isTop: window === window.top,
-      href: window.location.href.slice(0, 96),
-    },
-  });
+  const root = createRoot(container);
+  root.render(<App />);
+  reactRoot = root;
 }
 
 function unmount() {
+  if (reactRoot) {
+    reactRoot.unmount();
+    reactRoot = null;
+  }
   const host = document.getElementById('crow-ext-host');
   if (host) host.remove();
 }

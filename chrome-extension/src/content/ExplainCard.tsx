@@ -8,6 +8,10 @@ interface Props {
   anchorX: number;
   anchorY: number;
   config: CrowAuth;
+  /** 是否已连接账号；未连接时解释仍可用，但保存功能替换为「连接插件」引导 */
+  isAuthenticated?: boolean;
+  /** 未连接时点击「连接插件」的回调 */
+  onConnectPlugin?: () => void;
   onSessionUpdate?: (next: CrowAuth) => void;
   onClose: () => void;
 }
@@ -17,6 +21,8 @@ export default function ExplainCard({
   anchorX,
   anchorY,
   config,
+  isAuthenticated = true,
+  onConnectPlugin,
   onSessionUpdate,
   onClose,
 }: Props) {
@@ -155,7 +161,16 @@ export default function ExplainCard({
 
       {showSaveFooter && (
         <div className="crow-card-footer">
-          {savedId ? (
+          {!isAuthenticated ? (
+            <button
+              className="crow-save-btn"
+              onClick={onConnectPlugin}
+              type="button"
+              title="点击打开插件设置，连接你的账号"
+            >
+              连接插件后可保存
+            </button>
+          ) : savedId ? (
             <button className="crow-save-btn saved" disabled>
               ✓ 已存入笔记本
             </button>
@@ -185,10 +200,14 @@ export default function ExplainCard({
               {isSaving ? '保存中…' : '存入笔记本'}
             </button>
           )}
-          <span className="crow-sep">·</span>
-          <a className="crow-save-btn" href={notebookUrl} target="_blank" rel="noreferrer">
-            打开笔记本
-          </a>
+          {isAuthenticated && (
+            <>
+              <span className="crow-sep">·</span>
+              <a className="crow-save-btn" href={notebookUrl} target="_blank" rel="noreferrer">
+                打开笔记本
+              </a>
+            </>
+          )}
           <span className="crow-sep">·</span>
           <span className="crow-hint">Esc 关闭</span>
         </div>
