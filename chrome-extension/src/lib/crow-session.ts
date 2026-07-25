@@ -194,6 +194,34 @@ export async function persistCrowAuth(auth: CrowAuth): Promise<void> {
   await chrome.storage.sync.remove(['accessToken', 'apiBaseUrl', 'adminSecret']);
 }
 
+/** 退出登录：清空 local 鉴权键与遗留 sync 字段。 */
+export async function clearCrowAuth(): Promise<void> {
+  await chrome.storage.local.remove([...CROW_AUTH_LOCAL_KEYS]);
+  await chrome.storage.sync.remove(['accessToken', 'apiBaseUrl', 'adminSecret']);
+}
+
+/** 打包时注入的 Crow 站点 origin（扩展内登录后的默认 apiBaseUrl）。 */
+export function getBuildSiteOrigin(): string {
+  const fromEnv =
+    typeof import.meta.env.VITE_PUBLIC_SITE_ORIGIN === 'string'
+      ? import.meta.env.VITE_PUBLIC_SITE_ORIGIN.trim().replace(/\/+$/, '')
+      : '';
+  return fromEnv || 'https://dev.crowknows.tech';
+}
+
+/** 打包时注入的公开 Supabase 配置（扩展内登录必填）。 */
+export function getBuildSupabasePublic(): { url: string; anonKey: string } {
+  const url =
+    typeof import.meta.env.VITE_PUBLIC_SUPABASE_URL === 'string'
+      ? import.meta.env.VITE_PUBLIC_SUPABASE_URL.trim()
+      : '';
+  const anonKey =
+    typeof import.meta.env.VITE_PUBLIC_SUPABASE_ANON_KEY === 'string'
+      ? import.meta.env.VITE_PUBLIC_SUPABASE_ANON_KEY.trim()
+      : '';
+  return { url, anonKey };
+}
+
 /**
  * If access token is near expiry or force=true, call Supabase refresh and persist.
  * Returns latest auth (may be unchanged if refresh not possible or not needed).

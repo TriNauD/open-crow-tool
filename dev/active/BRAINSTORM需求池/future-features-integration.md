@@ -59,7 +59,7 @@ git push origin fea/future-features
 | 3 | C-1 名词解释与消歧 | `fea/term-disambiguation-wesrindo` | ✅ | `dev/active/名词解释与消歧/名词解释与消歧-manual-test.md` |
 | 4 | C-2 截图上传 | `fea/screenshot-upload-wesrindo` | ✅ | `dev/active/截图上传/截图上传-manual-test.md` |
 | 5 | 划词保存重复笔记校验 | `fea/ext-note-duplicate-wesrindo` | ✅ | `dev/active/划词保存重复笔记校验/划词保存重复笔记校验-manual-test.md` |
-| 6 | C-3 Chrome扩展内登录 | — | ⏳ 未开工（工作量大，本轮跳过） | 已有三件套 `dev/active/Chrome扩展内登录/` |
+| 6 | C-3 Chrome扩展内登录 | `fea/chrome-ext-inapp-login-wesrindo` | ✅ | `dev/active/Chrome扩展内登录/Chrome扩展内登录-manual-test.md` |
 | 7 | D-1 链接内容抓取 | `fea/url-fetch-wesrindo` | ✅ | `dev/active/链接内容抓取/链接内容抓取-manual-test.md` |
 | 8 | D-2 飞书等平台 | `fea/feishu-eval-stub-wesrindo` | ✅ stub/No-Go | `dev/active/飞书等平台/飞书等平台-evaluation.md` + `…-manual-test.md` |
 

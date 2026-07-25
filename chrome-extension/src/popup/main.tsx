@@ -59,12 +59,12 @@ function Popup() {
       </p>
       {configured === false && (
         <p style={{ color: '#fb923c', marginBottom: 10, fontSize: 12 }}>
-          ⚠️ 未配置，请先填写设置
+          ⚠️ 尚未登录，请打开设置登录账号
         </p>
       )}
       {configured === true && (
         <p style={{ color: '#4ade80', marginBottom: 10, fontSize: 12 }}>
-          ✓ 已配置，在任意页面选词即可使用
+          ✓ 已登录，在任意页面选词即可使用
         </p>
       )}
 

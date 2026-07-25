@@ -17,9 +17,11 @@
 - **迁移弹窗**：登录后检测到游客笔记，弹窗二次确认，一次性幂等迁移到当前账号
 - **熔断开关**：`NOTEBOOK_MULTI_USER_ENABLED=false` 可快速回滚，API 返回 503
 
-### Chrome 插件（与 Web 多用户方案一致，2026-04-27 ✅）
+### Chrome 插件（与 Web 多用户方案一致，2026-04-27 ✅；C-3 扩展内登录）
 
-- 网站「连接插件」写入 `accessToken` 与 `apiBaseUrl`；Options 页展示连接状态，手动粘贴仅作备用
+- **扩展 Options 主路径**：邮箱 + 密码登录（同一 Supabase 项目），成功后 `persistCrowAuth`（含 refresh）
+- **网站「连接插件」**：写入同一套 `CrowAuth`；与扩展内登录后写覆盖
+- Options「高级」折叠区可手动填 API / 令牌（自托管）
 - 存笔记等需用户隔离的请求带 `Authorization: Bearer <jwt>`
 - 历史 `ADMIN_SECRET` / `x-admin-secret` 与扩展侧 `adminSecret` 键在成功连接或保存新配置时清理，避免误用
-- **进行中**：插件内 session refresh（与 Web `autoRefreshToken` 对齐、减少散发使用下的重连）— 见 `dev/active/Chrome扩展插件内refresh/`；产品概述见 `docs/product/chrome-extension.md`
+- 插件内 session refresh 见 `dev/active/Chrome扩展插件内refresh/`；产品概述见 `docs/product/chrome-extension.md`

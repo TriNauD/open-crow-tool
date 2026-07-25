@@ -17,6 +17,16 @@
 | 手动配置 | **移出主流程**，折叠为「高级 / 开发者 / 自托管」，文案避免要求用户理解 JWT、`sb-*-auth-token`。 |
 | 长效使用 | 与现网一致：依赖 **access + refresh** 与扩展内 `ensureFreshAuth`；refresh 失效时引导 **在扩展内重新登录** 或 **网站连接**（二选一即可达成重授权）。 |
 
+## 实现决策（2026-07-25）
+
+| 决策 | 内容 |
+|------|------|
+| **登录方案** | **方案 A**：Options 内嵌邮箱/密码表单 → GoTrue `POST /auth/v1/token?grant_type=password`（纯 fetch，与 refresh 同风格）→ 映射 `CrowAuth` → `persistCrowAuth`。 |
+| 不选 B 的原因 | MVP 无需 `chrome.identity`、无需 Web 固定回调路由与扩展 ID 白名单；邮箱密码与网站 `/login` 对齐即可。 |
+| Magic link | **本期不做**（扩展页邮箱确认回调 / CSP 风险高）；未验证邮箱给出可读提示，引导在网站完成验证。 |
+| 依赖 | **不**新增 `@supabase/supabase-js` 到扩展包。 |
+| apiBaseUrl | 默认 `VITE_PUBLIC_SITE_ORIGIN`（缺省回落 `https://dev.crowknows.tech`）；高级区可覆盖。 |
+
 ---
 
 ## 约束

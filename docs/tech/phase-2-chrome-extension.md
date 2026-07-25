@@ -78,7 +78,7 @@ interface CrowAuth {
 }
 ```
 
-网站 `AuthNav` 可发 `postMessage({ type: 'CROW_CONNECT_EXT', … })`；**C-3** 扩展内登录成功后将写入同一 `CrowAuth` 形态（与网站桥接互斥于「最后一次写入为准」）。`lib/utils/cors.ts` 的 `Access-Control-Allow-Headers` 须含 `Authorization`（跨域 `POST /api/notes` 预检）。扩展内在请求前使用 `ensureFreshAuth` 刷新 access token。立项文档：[`dev/active/Chrome扩展内登录/`](../../dev/active/Chrome扩展内登录/)。
+网站 `AuthNav` 可发 `postMessage({ type: 'CROW_CONNECT_EXT', … })`；**C-3** Options 内邮箱密码登录（GoTrue password）成功后写入同一 `CrowAuth` 形态（与网站桥接「最后一次写入为准」）。构建注入 `VITE_PUBLIC_SUPABASE_*` 与 `VITE_PUBLIC_SITE_ORIGIN`。`lib/utils/cors.ts` 的 `Access-Control-Allow-Headers` 须含 `Authorization`。扩展内在请求前使用 `ensureFreshAuth` 刷新 access token。立项与手测：[`dev/active/Chrome扩展内登录/`](../../dev/active/Chrome扩展内登录/)。
 
 ### 暂停划词与运行时节流（2026-05 起）
 
