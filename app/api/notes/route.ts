@@ -5,6 +5,7 @@ import { isNotebookMultiUserEnabled } from '@/lib/config/notebook';
 import { logNotebookMetric } from '@/lib/observability/notebook';
 import { corsHeaders, handleOptions } from '@/lib/utils/cors';
 import { getNotes, saveNote, searchNotes } from '@/lib/db/notes';
+import { parseTagsInput } from '@/lib/notes/tags';
 
 export function OPTIONS() {
   return handleOptions();
@@ -50,10 +51,15 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { inputText, explanation, parentId, parentText, source, clientNoteId } = body;
+    const { inputText, explanation, parentId, parentText, source, clientNoteId, tags: rawTags } = body;
 
     if (!inputText || !explanation) {
       return NextResponse.json({ error: 'inputText and explanation are required' }, { status: 400 });
+    }
+
+    const tagsResult = parseTagsInput(rawTags);
+    if (!tagsResult.ok) {
+      return NextResponse.json({ error: tagsResult.error }, { status: 400 });
     }
 
     const note = await saveNote(
@@ -65,6 +71,7 @@ export async function POST(req: NextRequest) {
       parentText,
       source: source === 'chrome_extension' ? 'chrome_extension' : 'web',
       clientNoteId: typeof clientNoteId === 'string' ? clientNoteId : undefined,
+      tags: tagsResult.tags,
     }
     );
 
