@@ -58,7 +58,7 @@ git push origin fea/future-features
 | 2 | B-2 划词上下文 | `fea/selection-context-wesrindo` | ✅ | `dev/active/划词上下文/划词上下文-manual-test.md` |
 | 3 | C-1 名词解释与消歧 | `fea/term-disambiguation-wesrindo` | ✅ | `dev/active/名词解释与消歧/名词解释与消歧-manual-test.md` |
 | 4 | C-2 截图上传 | `fea/screenshot-upload-wesrindo` | ✅ | `dev/active/截图上传/截图上传-manual-test.md` |
-| 5 | 划词保存重复笔记校验 | — | ⏳ | — |
+| 5 | 划词保存重复笔记校验 | `fea/ext-note-duplicate-wesrindo` | ✅ | `dev/active/划词保存重复笔记校验/划词保存重复笔记校验-manual-test.md` |
 | 6 | C-3 Chrome扩展内登录 | — | ⏳ | — |
 | 7 | D-1 链接内容抓取 | — | ⏳ | — |
 | 8 | D-2 飞书等平台 | — | ⏳（可为评估 stub） | — |
