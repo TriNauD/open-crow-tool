@@ -25,8 +25,11 @@
 - 划词存笔记时请求带 `Authorization: Bearer <jwt>`，与网站笔记本 API 一致；CORS 预检需允许 `Authorization`（由 Web 端 `cors` 工具配置保证）。
 
 **进行中需求（与文档同步）：**
-- **C-3 扩展内独立登录（已立项）**：扩展 **Options 主路径** 提供非技术流登录（与网站同一 Supabase 项目）；**保留** 网站「连接插件」快捷同步；**手动粘贴 Token** 仅保留在折叠「高级/开发者」区。计划与任务：[`dev/active/Chrome扩展内登录/`](../dev/active/Chrome扩展内登录/)。
+- **C-3 扩展内独立登录（已立项）**：扩展 **Options 主路径** 提供非技术流登录（与网站同一 Supabase 项目）；**保留** 网站「连接插件」快捷同步；**手动粘贴 Token** 仅保留在折叠「高级/开发者」区。计划与任务：[`dev/active/Chrome扩展内登录/`](../../dev/active/Chrome扩展内登录/)。
 - **插件内 session refresh**：网站「连接插件」下发 `refresh_token` 与公开 Supabase URL/anon key；扩展写入 `chrome.storage.local`，在请求前与 401 时用 Supabase 刷新 access token，减少散发使用下的过期重连。需求目录：`dev/active/Chrome扩展插件内refresh/`（结项后可迁 `dev/done`）。
+- **B-2 划词上下文（已建档待开发）**：选区附带前后文 `surroundingText` — [`dev/active/划词上下文/`](../../dev/active/划词上下文/)。
+- **划词保存重复笔记校验（已建档待开发）**：扩展对齐 Web 去重 — [`dev/active/划词保存重复笔记校验/`](../../dev/active/划词保存重复笔记校验/)。
+- **D-2 飞书等平台（已建档待开发）**：先调研载体 — [`dev/active/飞书等平台/`](../../dev/active/飞书等平台/)。
 - **暂停划词开关（✅ 2026-05-16 结项）**：Popup/Options 共用 `crow_extension_enabled`（缺省开启）；关时卸载划词 UI、快捷键不进入解释；**保留**网站「连接插件」桥接。未连接账号时仍可调用公开 `/api/explain` 查看解释，**存入笔记本**前引导连接。详情与验收：`dev/done/Chrome扩展暂停划词开关/`、`dev/logs/Chrome扩展暂停划词开关-log.md`。
 
 **不做（本阶段仍不考虑）：**
