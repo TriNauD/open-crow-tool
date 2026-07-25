@@ -14,6 +14,7 @@ import {
 import { fabDebug } from './debug-fab-log';
 import FloatingButton from './FloatingButton';
 import ExplainCard from './ExplainCard';
+import { extractSurroundingText } from './surrounding-text';
 
 const EMPTY_AUTH: CrowAuth = {
   apiBaseUrl: '',
@@ -40,6 +41,8 @@ interface Selection {
   text: string;
   x: number;
   y: number;
+  /** 选区前后纯文本；取不到则为 undefined */
+  surroundingText?: string;
 }
 
 /** 从某一 Window 读选区；rect 需相对顶层视口时再叠 iframe 偏移 */
@@ -52,10 +55,12 @@ function selectionFromWindow(w: Window, iframeOffset?: { left: number; top: numb
   const rect = range.getBoundingClientRect();
   const ox = iframeOffset?.left ?? 0;
   const oy = iframeOffset?.top ?? 0;
+  const surrounding = extractSurroundingText(range);
   return {
     text,
     x: ox + rect.left + rect.width / 2,
     y: oy + rect.top,
+    surroundingText: surrounding || undefined,
   };
 }
 
@@ -354,8 +359,14 @@ export default function App() {
       if (!text) return;
       const range = sel.getRangeAt(0);
       const rect = range.getBoundingClientRect();
+      const surrounding = extractSurroundingText(range);
       setSelection(null);
-      setExplaining({ text, x: rect.left + rect.width / 2, y: rect.top });
+      setExplaining({
+        text,
+        x: rect.left + rect.width / 2,
+        y: rect.top,
+        surroundingText: surrounding || undefined,
+      });
       sel.removeAllRanges();
     }
     chrome.runtime.onMessage.addListener(onMessage);
@@ -390,6 +401,7 @@ export default function App() {
       {explaining && (
         <ExplainCard
           text={explaining.text}
+          surroundingText={explaining.surroundingText}
           anchorX={explaining.x}
           anchorY={explaining.y}
           config={effectiveConfig}

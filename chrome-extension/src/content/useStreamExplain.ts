@@ -18,7 +18,10 @@ export function useStreamExplain(apiBaseUrl: string) {
   const abortRef = useRef<AbortController | null>(null);
 
   const explain = useCallback(
-    async (input: string, context?: string) => {
+    async (
+      input: string,
+      options?: { context?: string; surroundingText?: string }
+    ) => {
       abortRef.current?.abort();
       const controller = new AbortController();
       abortRef.current = controller;
@@ -26,10 +29,18 @@ export function useStreamExplain(apiBaseUrl: string) {
       setState({ text: '', isLoading: true, error: null, isDone: false });
 
       try {
+        const body: {
+          text: string;
+          context?: string;
+          surroundingText?: string;
+        } = { text: input };
+        if (options?.context) body.context = options.context;
+        if (options?.surroundingText) body.surroundingText = options.surroundingText;
+
         const res = await fetch(`${apiBaseUrl}/api/explain`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: input, context }),
+          body: JSON.stringify(body),
           signal: controller.signal,
         });
 

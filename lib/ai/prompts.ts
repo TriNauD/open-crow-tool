@@ -18,12 +18,42 @@ export const SYSTEM_PROMPT = `你是一个说话接地气的技术向导，专�
 
 不要用markdown，不要加标题，就是流畅的几句话。`;
 
-export function buildExplainPrompt(input: string, parentContext?: string): string {
-  if (parentContext) {
-    return `我在看一段解释，里面有个词/概念我没搞懂：
+export type ExplainPromptOptions = {
+  /** Web 追问：父段解释 */
+  parentContext?: string;
+  /** 扩展划词：页面选区前后文（与 parentContext 语义不同） */
+  surroundingText?: string;
+};
+
+function surroundingSection(surroundingText?: string): string {
+  const s = surroundingText?.trim();
+  if (!s) return '';
+  return `以下是划词附近的原文片段，仅用于消歧；请以划词为主：\n"${s}"\n\n`;
+}
+
+export function buildExplainPrompt(
+  input: string,
+  parentContextOrOptions?: string | ExplainPromptOptions,
+  maybeSurrounding?: string
+): string {
+  let parentContext: string | undefined;
+  let surroundingText: string | undefined;
+
+  if (typeof parentContextOrOptions === 'object' && parentContextOrOptions !== null) {
+    parentContext = parentContextOrOptions.parentContext;
+    surroundingText = parentContextOrOptions.surroundingText;
+  } else {
+    parentContext = parentContextOrOptions;
+    surroundingText = maybeSurrounding;
+  }
+
+  const surrounding = surroundingSection(surroundingText);
+
+  if (parentContext?.trim()) {
+    return `${surrounding}我在看一段解释，里面有个词/概念我没搞懂：
 
 上下文（我在看的那段解释）：
-"${parentContext}"
+"${parentContext.trim()}"
 
 我想搞懂的具体内容是：
 "${input}"
@@ -31,7 +61,7 @@ export function buildExplainPrompt(input: string, parentContext?: string): strin
 帮我解释一下这个具体的词/概念是啥。`;
   }
 
-  return `帮我解释这个玩意儿是啥：
+  return `${surrounding}帮我解释这个玩意儿是啥：
 
 ${input}`;
 }

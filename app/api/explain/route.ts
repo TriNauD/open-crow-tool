@@ -28,13 +28,23 @@ export function OPTIONS() {
 
 export async function POST(req: Request) {
   try {
-    const { text, context } = await req.json();
+    const { text, context, surroundingText: rawSurrounding } = await req.json();
 
     if (!text || typeof text !== 'string') {
       return new Response('Missing text', { status: 400 });
     }
 
-    const userPrompt = buildExplainPrompt(text.trim(), context?.trim());
+    /** 前后各 120 + 分隔符，留余量防滥用 */
+    const MAX_SURROUNDING = 400;
+    let surroundingText: string | undefined;
+    if (typeof rawSurrounding === 'string' && rawSurrounding.trim()) {
+      surroundingText = rawSurrounding.trim().slice(0, MAX_SURROUNDING);
+    }
+
+    const userPrompt = buildExplainPrompt(text.trim(), {
+      parentContext: typeof context === 'string' ? context.trim() : undefined,
+      surroundingText,
+    });
     const chain = getProviderChain();
 
     let stream: Stream<ChatCompletionChunk> | undefined;
