@@ -35,10 +35,11 @@ BRAINSTORM 阶段 A 已结项；阶段 **B / C / D** 一批功能（笔记分类
 |----|------------------|
 | 集成分支 | `fea/future-features` |
 | 上游 | `origin/fea/future-features`（已 push，与本地一致） |
-| HEAD | `f662f7a` — *Merge branch 'fea/chrome-ext-inapp-login-wesrindo' into fea/future-features* |
+| 功能集成 HEAD | `f662f7a` — *Merge branch 'fea/chrome-ext-inapp-login-wesrindo' into fea/future-features*（本批最后一条功能 merge） |
+| 文档/handoff HEAD | `5ed1822` — *docs: Future Features 接手手册与进度索引对齐*（本文件及索引；以 `git rev-parse` 为准） |
 | merge-base vs `origin/dev` | `f11c58a`（`origin/dev` 即此 commit；future **领先**，无落后） |
-| 相对 `origin/dev` | **24** 个 commit（含 8 次功能 merge + 文档/功能提交）；**约 93 files / +3618 / −251** |
-| 是否已 push | **是**（撰写时 local = remote） |
+| 相对 `origin/dev` | **25+** 个 commit（含 8 次功能 merge + 文档）；功能 diff 约 **93 files / +3618 / −251**（不含后续纯文档） |
+| 是否已 push | **是**（接手时请 `git fetch` 复核） |
 
 ### 已合入的功能分支（merge commit 顺序）
 
