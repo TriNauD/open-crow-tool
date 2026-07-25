@@ -60,7 +60,7 @@ git push origin fea/future-features
 | 4 | C-2 截图上传 | `fea/screenshot-upload-wesrindo` | ✅ | `dev/active/截图上传/截图上传-manual-test.md` |
 | 5 | 划词保存重复笔记校验 | `fea/ext-note-duplicate-wesrindo` | ✅ | `dev/active/划词保存重复笔记校验/划词保存重复笔记校验-manual-test.md` |
 | 6 | C-3 Chrome扩展内登录 | — | ⏳ | — |
-| 7 | D-1 链接内容抓取 | — | ⏳ | — |
+| 7 | D-1 链接内容抓取 | `fea/url-fetch-wesrindo` | ✅ | `dev/active/链接内容抓取/链接内容抓取-manual-test.md` |
 | 8 | D-2 飞书等平台 | — | ⏳（可为评估 stub） | — |
 
 > 更新约定：某条 merge 进 future 后，将对应行改为 ✅ 并填分支名与文档路径。
