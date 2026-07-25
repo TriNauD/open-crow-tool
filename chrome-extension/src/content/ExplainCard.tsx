@@ -5,6 +5,8 @@ import { useStreamExplain } from './useStreamExplain';
 
 interface Props {
   text: string;
+  /** 选区前后文（可选；截取失败时不传） */
+  surroundingText?: string;
   anchorX: number;
   anchorY: number;
   config: CrowAuth;
@@ -18,6 +20,7 @@ interface Props {
 
 export default function ExplainCard({
   text,
+  surroundingText,
   anchorX,
   anchorY,
   config,
@@ -54,8 +57,8 @@ export default function ExplainCard({
   const showSaveFooter = hasExplainReady || Boolean(saveError) || isSaving;
 
   useEffect(() => {
-    explain(text);
-  }, [text, explain]);
+    explain(text, surroundingText ? { surroundingText } : undefined);
+  }, [text, surroundingText, explain]);
 
   useEffect(() => {
     function onMouseDown(e: MouseEvent) {
