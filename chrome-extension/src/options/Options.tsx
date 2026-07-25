@@ -2,26 +2,37 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   CROW_AUTH_LOCAL_KEYS,
   CROW_EXTENSION_ENABLED_KEY,
+  clearCrowAuth,
   ensureFreshAuth,
+  getBuildSiteOrigin,
+  getBuildSupabasePublic,
   isExplainEnabled,
   loadCrowAuth,
+  persistCrowAuth,
   setExplainEnabled,
+  type CrowAuth,
 } from '../lib/crow-session';
-
-const DEFAULT_SITE_ORIGIN = 'https://dev.crowknows.tech';
+import { performSupabasePasswordLogin } from '../lib/supabase-password-login';
 
 export default function Options() {
   const [apiBaseUrl, setApiBaseUrl] = useState('');
   const [accessToken, setAccessToken] = useState('');
   const [showManual, setShowManual] = useState(false);
   const [manualToken, setManualToken] = useState('');
-  const [manualUrl, setManualUrl] = useState('');
+  const [manualUrl, setManualUrl] = useState(() => getBuildSiteOrigin());
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshHint, setRefreshHint] = useState('');
   const [explainOn, setExplainOn] = useState(true);
-  /** 忽略本轮 local 授权键变更（手动保存 / 设置内刷新），避免误显示「网站已同步」 */
+
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [loginError, setLoginError] = useState('');
+  const [logoutLoading, setLogoutLoading] = useState(false);
+
+  /** 忽略本轮 local 授权键变更（登录 / 手动保存 / 设置内刷新），避免误显示「网站已同步」 */
   const skipAuthStorageEventsRef = useRef(false);
 
   const applyAuthStateFromStorage = useCallback(
@@ -32,10 +43,10 @@ export default function Options() {
       const token = auth?.accessToken || '';
       setApiBaseUrl(url);
       setAccessToken(token);
-      setManualUrl(url);
+      setManualUrl(url || getBuildSiteOrigin());
       setManualToken(token);
       if (!token && sync.adminSecret) {
-        setError('检测到旧版配置，请在网站登录后点「连接插件」重新授权。');
+        setError('检测到旧版配置，请在下方登录，或在网站登录后点「连接插件」。');
       } else {
         setError('');
       }
@@ -60,7 +71,6 @@ export default function Options() {
       if (document.visibilityState !== 'visible') return;
       void applyAuthStateFromStorage({ showWebSyncHint: false });
     }
-    /** 设置页在后台时网站若已完成「连接插件」，切回时补拉 storage（避免错过 onChanged 或未刷新页面导致 UI 陈旧）。 */
     document.addEventListener('visibilitychange', onBecameVisible);
     window.addEventListener('focus', onBecameVisible);
     return () => {
@@ -87,6 +97,7 @@ export default function Options() {
   }, [applyAuthStateFromStorage]);
 
   const isConnected = !!(apiBaseUrl && accessToken);
+  const siteOrigin = apiBaseUrl || getBuildSiteOrigin();
 
   async function refreshConnectionStatus() {
     skipAuthStorageEventsRef.current = true;
@@ -112,18 +123,78 @@ export default function Options() {
         setRefreshHint('连接状态已更新（如已续期会话）。');
         setTimeout(() => setRefreshHint(''), 2800);
       } else if (before) {
-        setRefreshHint('未能续期会话，请在网站打开并点「连接插件」重新授权。');
+        setRefreshHint('未能续期会话，请在下方重新登录，或在网站点「连接插件」。');
       } else {
         setRefreshHint('当前无已保存的登录状态。');
       }
 
       if (!fromDisk?.accessToken && sync.adminSecret) {
-        setError('检测到旧版配置，请在网站登录后点「连接插件」重新授权。');
+        setError('检测到旧版配置，请在下方登录，或在网站登录后点「连接插件」。');
       } else if (!fromDisk?.accessToken) {
         setError('');
       }
     } finally {
       setIsRefreshing(false);
+      queueMicrotask(() => {
+        skipAuthStorageEventsRef.current = false;
+      });
+    }
+  }
+
+  async function handleLogin(e: React.FormEvent) {
+    e.preventDefault();
+    if (loginLoading) return;
+    setLoginError('');
+    setError('');
+    setLoginLoading(true);
+    skipAuthStorageEventsRef.current = true;
+    try {
+      const { url, anonKey } = getBuildSupabasePublic();
+      const result = await performSupabasePasswordLogin(url, anonKey, email, password);
+      if (!result.ok) {
+        setLoginError(result.message);
+        return;
+      }
+      const auth: CrowAuth = {
+        apiBaseUrl: getBuildSiteOrigin(),
+        accessToken: result.access_token,
+        refreshToken: result.refresh_token,
+        supabaseUrl: url,
+        supabaseAnonKey: anonKey,
+        expiresAt: result.expires_at,
+      };
+      await persistCrowAuth(auth);
+      setApiBaseUrl(auth.apiBaseUrl);
+      setAccessToken(auth.accessToken);
+      setManualUrl(auth.apiBaseUrl);
+      setManualToken(auth.accessToken);
+      setPassword('');
+      setRefreshHint('登录成功，已连接到你的账号。');
+      setTimeout(() => setRefreshHint(''), 2800);
+    } finally {
+      setLoginLoading(false);
+      queueMicrotask(() => {
+        skipAuthStorageEventsRef.current = false;
+      });
+    }
+  }
+
+  async function handleLogout() {
+    if (logoutLoading) return;
+    setLogoutLoading(true);
+    setLoginError('');
+    setError('');
+    skipAuthStorageEventsRef.current = true;
+    try {
+      await clearCrowAuth();
+      setApiBaseUrl('');
+      setAccessToken('');
+      setManualToken('');
+      setManualUrl(getBuildSiteOrigin());
+      setRefreshHint('已退出登录。');
+      setTimeout(() => setRefreshHint(''), 2800);
+    } finally {
+      setLogoutLoading(false);
       queueMicrotask(() => {
         skipAuthStorageEventsRef.current = false;
       });
@@ -138,15 +209,15 @@ export default function Options() {
     if (!manualToken.trim()) { setError('请填写访问令牌'); return; }
     skipAuthStorageEventsRef.current = true;
     try {
-      await chrome.storage.local.set({
+      const { url: sbUrl, anonKey } = getBuildSupabasePublic();
+      await persistCrowAuth({
         apiBaseUrl: url,
         accessToken: manualToken.trim(),
         refreshToken: '',
-        supabaseUrl: '',
-        supabaseAnonKey: '',
-        expiresAt: null,
+        supabaseUrl: sbUrl,
+        supabaseAnonKey: anonKey,
+        expiresAt: undefined,
       });
-      await chrome.storage.sync.remove(['accessToken', 'apiBaseUrl', 'adminSecret']);
       setApiBaseUrl(url);
       setAccessToken(manualToken.trim());
       setError('');
@@ -160,7 +231,7 @@ export default function Options() {
   }
 
   function openSite() {
-    chrome.tabs.create({ url: apiBaseUrl || DEFAULT_SITE_ORIGIN });
+    chrome.tabs.create({ url: siteOrigin });
   }
 
   return (
@@ -170,12 +241,11 @@ export default function Options() {
           这是啥<span style={{ color: '#f97316' }}>？</span> — 设置
         </h1>
 
-        {/* 连接状态主区域 */}
         <div style={styles.statusBox}>
           <div style={styles.statusRow}>
             <span style={isConnected ? styles.dotGreen : styles.dotRed} />
             <span style={styles.statusTextWrap}>
-              {isConnected ? '插件已连接到你的账号' : '插件尚未连接'}
+              {isConnected ? '插件已连接到你的账号' : '尚未登录'}
             </span>
             <button
               type="button"
@@ -193,12 +263,14 @@ export default function Options() {
             <p
               style={{
                 ...styles.refreshHint,
-                color: refreshHint.startsWith('连接状态已更新') ||
-                  refreshHint.startsWith('已通过网站')
-                  ? '#22c55e'
-                  : refreshHint.startsWith('未能续期')
-                    ? '#fbbf24'
-                    : '#71717a',
+                color:
+                  refreshHint.startsWith('连接状态已更新') ||
+                  refreshHint.startsWith('已通过网站') ||
+                  refreshHint.startsWith('登录成功')
+                    ? '#22c55e'
+                    : refreshHint.startsWith('未能续期')
+                      ? '#fbbf24'
+                      : '#71717a',
               }}
             >
               {refreshHint}
@@ -206,7 +278,6 @@ export default function Options() {
           ) : null}
         </div>
 
-        {/* 暂停划词开关 */}
         <div style={styles.toggleRow}>
           <div>
             <span style={styles.toggleLabel}>划词解释</span>
@@ -248,31 +319,102 @@ export default function Options() {
           </button>
         </div>
 
-        {/* 主操作：去网站连接 */}
+        {/* 主路径：扩展内登录 / 已登录操作 */}
         <div style={styles.primaryAction}>
-          <p style={styles.desc}>
-            {isConnected
-              ? '在网站点「连接插件」后，插件会自动续期登录凭证；若长期未用或已在网站退出，请重新连接。'
-              : '请先在网站登录，然后点「连接插件」按钮，插件会自动获取你的登录状态。'}
-          </p>
-          <button onClick={openSite} style={styles.btnPrimary}>
-            {isConnected ? '打开网站（重新连接）' : '去网站登录并连接'}
-          </button>
+          {isConnected ? (
+            <>
+              <p style={styles.desc}>
+                已登录。长时间不用时插件会自动续期；若提示过期，请重新登录，或在网站点「连接插件」同步。
+                后一次成功写入会覆盖前一次（扩展登录与网站连接共用同一套凭证）。
+              </p>
+              <div style={styles.btnRow}>
+                <button
+                  type="button"
+                  onClick={() => void handleLogout()}
+                  disabled={logoutLoading}
+                  style={styles.btnSecondaryFull}
+                >
+                  {logoutLoading ? '退出中…' : '退出登录'}
+                </button>
+                <button
+                  type="button"
+                  onClick={openSite}
+                  style={{ ...styles.btnGhost, width: 'auto', marginTop: 0, flex: '1 1 120px' }}
+                >
+                  打开网站
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p style={styles.desc}>
+                用与网站相同的邮箱和密码登录，即可划词存笔记。无需复制令牌。
+              </p>
+              <form onSubmit={(e) => void handleLogin(e)}>
+                <div style={styles.field}>
+                  <label style={styles.label} htmlFor="crow-login-email">邮箱</label>
+                  <input
+                    id="crow-login-email"
+                    style={styles.input}
+                    type="email"
+                    autoComplete="username"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="you@example.com"
+                    required
+                  />
+                </div>
+                <div style={styles.field}>
+                  <label style={styles.label} htmlFor="crow-login-password">密码</label>
+                  <input
+                    id="crow-login-password"
+                    style={styles.input}
+                    type="password"
+                    autoComplete="current-password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="密码"
+                    required
+                  />
+                </div>
+                {loginError ? <p style={styles.error}>{loginError}</p> : null}
+                <button
+                  type="submit"
+                  disabled={loginLoading}
+                  style={loginLoading ? styles.btnPrimaryDisabled : styles.btnPrimary}
+                >
+                  {loginLoading ? '登录中…' : '登录'}
+                </button>
+              </form>
+              <p style={{ ...styles.desc, marginTop: 14, marginBottom: 8 }}>
+                还没有账号？
+                <button type="button" onClick={openSite} style={styles.linkBtn}>
+                  去网站注册
+                </button>
+                ，或已在网站登录时用「连接插件」同步到本扩展。
+              </p>
+              <button type="button" onClick={openSite} style={styles.btnGhost}>
+                打开网站（连接插件）
+              </button>
+            </>
+          )}
         </div>
 
-        {/* 分隔线 */}
         <hr style={styles.divider} />
 
-        {/* 备用：手动填写 */}
         <button
+          type="button"
           onClick={() => setShowManual((v) => !v)}
           style={styles.toggleManual}
         >
-          {showManual ? '▲ 收起手动配置' : '▼ 手动填写（自部署 / 开发者）'}
+          {showManual ? '▲ 收起高级选项' : '▼ 高级选项（自托管 / 开发者）'}
         </button>
 
         {showManual && (
-          <form onSubmit={handleManualSave} style={{ marginTop: 16 }}>
+          <form onSubmit={(e) => void handleManualSave(e)} style={{ marginTop: 16 }}>
+            <p style={styles.hint}>
+              一般用户请用上方「登录」。此处仅在自托管或排障时手动填写 API 地址与令牌。
+            </p>
             <div style={styles.field}>
               <label style={styles.label}>API 地址</label>
               <input
@@ -280,7 +422,7 @@ export default function Options() {
                 type="url"
                 value={manualUrl}
                 onChange={(e) => setManualUrl(e.target.value)}
-                placeholder="https://dev.crowknows.tech"
+                placeholder={getBuildSiteOrigin()}
                 spellCheck={false}
               />
             </div>
@@ -291,13 +433,10 @@ export default function Options() {
                 type="password"
                 value={manualToken}
                 onChange={(e) => setManualToken(e.target.value)}
-                placeholder="eyJ…（Supabase access_token）"
+                placeholder="仅开发者使用"
                 spellCheck={false}
                 autoComplete="off"
               />
-              <p style={styles.hint}>
-                F12 → Application → Local Storage → 找 <code style={styles.code}>sb-…-auth-token</code> → 复制 <code style={styles.code}>access_token</code> 字段
-              </p>
             </div>
             {error && <p style={styles.error}>{error}</p>}
             <button type="submit" style={saved ? styles.btnSaved : styles.btnSecondary}>
@@ -424,6 +563,55 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     width: '100%',
   },
+  btnPrimaryDisabled: {
+    background: '#9a3412',
+    color: '#fdba74',
+    border: 'none',
+    borderRadius: 8,
+    padding: '10px 20px',
+    fontSize: 14,
+    fontWeight: 600,
+    cursor: 'default',
+    width: '100%',
+    opacity: 0.9,
+  },
+  btnRow: {
+    display: 'flex',
+    gap: 10,
+    flexWrap: 'wrap',
+  },
+  btnSecondaryFull: {
+    background: '#27272a',
+    color: '#d4d4d8',
+    border: '1px solid #3f3f46',
+    borderRadius: 8,
+    padding: '10px 20px',
+    fontSize: 14,
+    fontWeight: 600,
+    cursor: 'pointer',
+    flex: '1 1 140px',
+  },
+  btnGhost: {
+    background: 'transparent',
+    color: '#a1a1aa',
+    border: '1px solid #3f3f46',
+    borderRadius: 8,
+    padding: '10px 16px',
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: 'pointer',
+    width: '100%',
+    marginTop: 8,
+  },
+  linkBtn: {
+    background: 'none',
+    border: 'none',
+    color: '#fb923c',
+    fontSize: 13,
+    cursor: 'pointer',
+    padding: '0 4px',
+    textDecoration: 'underline',
+  },
   divider: {
     border: 'none',
     borderTop: '1px solid #27272a',
@@ -462,16 +650,14 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 12,
     color: '#52525b',
     marginTop: 5,
+    marginBottom: 12,
     lineHeight: 1.5,
-  },
-  code: {
-    color: '#a1a1aa',
-    fontSize: 11,
   },
   error: {
     fontSize: 13,
     color: '#f87171',
     lineHeight: 1.5,
+    marginBottom: 10,
   },
   btnSecondary: {
     background: '#27272a',
@@ -501,7 +687,8 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'space-between',
     padding: '12px 0',
     borderTop: '1px solid #27272a',
-    marginTop: 20,
+    marginTop: 0,
+    marginBottom: 16,
   },
   toggleLabel: {
     fontSize: 14,

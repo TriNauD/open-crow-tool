@@ -301,9 +301,9 @@ export default function ExplainCard({
               className="crow-save-btn"
               onClick={onConnectPlugin}
               type="button"
-              title="点击打开插件设置，连接你的账号"
+              title="点击打开插件设置，登录或连接你的账号"
             >
-              连接插件后可保存
+              登录后可保存
             </button>
           ) : savedId ? (
             <button className="crow-save-btn saved" disabled>
@@ -311,14 +311,14 @@ export default function ExplainCard({
             </button>
           ) : saveError === 'expired' ? (
             <span className="crow-error" style={{ fontSize: 12 }}>
-              ⚠️ 登录或连接已过期，请
+              ⚠️ 登录或连接已过期，请在扩展设置中重新登录，或
               <a
                 href={config.apiBaseUrl}
                 target="_blank"
                 rel="noreferrer"
                 style={{ color: '#fb923c', marginLeft: 2 }}
               >
-                回网站登录并点「连接插件」
+                回网站点「连接插件」
               </a>
             </span>
           ) : saveError === 'generic' ? (
