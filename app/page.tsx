@@ -30,6 +30,8 @@ export default function HomePage() {
   const [input, setInput] = useState('');
   const [pendingImage, setPendingImage] = useState<CompressedImage | null>(null);
   const [imageError, setImageError] = useState<string | null>(null);
+  const [linkBusy, setLinkBusy] = useState(false);
+  const [linkError, setLinkError] = useState<string | null>(null);
   const [queries, setQueries] = useState<Query[]>([]);
   const [notebookFlash, setNotebookFlash] = useState(false);
   /** null = 未挂载；'' = 手机端等不展示快捷键提示；否则为文案 */
@@ -118,6 +120,53 @@ export default function HomePage() {
 
   const canSend = Boolean(input.trim() || pendingImage);
 
+  function looksLikeHttpUrl(value: string): boolean {
+    try {
+      const u = new URL(value.trim());
+      return u.protocol === 'http:' || u.protocol === 'https:';
+    } catch {
+      return false;
+    }
+  }
+
+  async function fetchLinkAndExplain() {
+    const url = input.trim();
+    if (!looksLikeHttpUrl(url)) return;
+    setLinkError(null);
+    setLinkBusy(true);
+    try {
+      const res = await fetch('/api/fetch-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      });
+      const body = (await res.json()) as {
+        data?: { finalUrl: string; title: string; text: string; truncated: boolean };
+        error?: string;
+        code?: string;
+      };
+      if (!res.ok || !body.data) {
+        setLinkError(body.error ?? `读取失败（${body.code ?? res.status}）`);
+        return;
+      }
+      const { finalUrl, title, text, truncated } = body.data;
+      const composed = `用户链接：${finalUrl}
+标题：${title || '（无标题）'}
+
+正文摘要${truncated ? '（已截断）' : ''}：
+${text}
+
+请用大白话解释这个页面/链接在讲啥。`;
+      submitQuery(composed);
+    } catch {
+      setLinkError('读取链接失败，请稍后重试');
+    } finally {
+      setLinkBusy(false);
+    }
+  }
+
+  const showFetchLink = looksLikeHttpUrl(input) && !pendingImage;
+
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col">
       {/* Nav */}
@@ -194,6 +243,17 @@ export default function HomePage() {
                   if (file) void attachImageFile(file);
                 }}
               />
+              {showFetchLink && (
+                <button
+                  type="button"
+                  onClick={() => void fetchLinkAndExplain()}
+                  disabled={linkBusy}
+                  className="touch-manipulation text-xs text-zinc-500 hover:text-zinc-300 border border-zinc-700 px-2.5 py-1.5 rounded-lg disabled:opacity-40"
+                  title="服务端安全读取链接正文后再解释"
+                >
+                  {linkBusy ? '读取中…' : '读取链接'}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
@@ -224,6 +284,7 @@ export default function HomePage() {
             </div>
           </div>
           {imageError && <p className="mt-2 text-xs text-red-400">{imageError}</p>}
+          {linkError && <p className="mt-2 text-xs text-red-400">{linkError}</p>}
 
           {/* Example pills */}
           {queries.length === 0 && (
