@@ -54,7 +54,7 @@ git push origin fea/future-features
 
 | 顺序 | 条目 | 功能分支 | 合入 future | 手测文档 |
 |------|------|----------|-------------|----------|
-| 1 | B-1 笔记分类 | `fea/笔记分类-wesrindo` / `fea/note-categories-wesrindo` | ⏳ | `dev/active/笔记分类/笔记分类-manual-test.md` |
+| 1 | B-1 笔记分类 | `fea/note-categories-wesrindo` | ✅ | `dev/active/笔记分类/笔记分类-manual-test.md` |
 | 2 | B-2 划词上下文 | — | ⏳ | — |
 | 3 | C-1 名词解释与消歧 | — | ⏳ | — |
 | 4 | C-2 截图上传 | — | ⏳ | — |
