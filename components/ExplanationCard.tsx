@@ -7,6 +7,7 @@ import { createNote, fetchNotes, replaceNote } from '@/lib/api/notes-client';
 import { saveGuestNote, getGuestNotes, removeGuestNote } from '@/lib/guest-notes';
 import { DuplicateNoteModal } from '@/components/DuplicateNoteModal';
 import type { NoteEntry } from '@/lib/db/notes';
+import { normalizeNoteInput } from '@/lib/notes/normalize-input';
 import { cn } from '@/lib/utils/cn';
 
 interface SelectionPopoverState {
@@ -91,8 +92,7 @@ export default function ExplanationCard({
     window.getSelection()?.removeAllRanges();
   }, [popover]);
 
-  // Normalize for duplicate matching: trim + lowercase + collapse whitespace
-  const normalizedInput = noteInputText.trim().toLowerCase().replace(/\s+/g, '');
+  const normalizedInput = normalizeNoteInput(noteInputText);
 
   // Only check for duplicates on top-level notes (depth === 0, no parent context)
   const shouldCheckDuplicate = depth === 0 && !context;
@@ -100,7 +100,7 @@ export default function ExplanationCard({
   function findGuestDuplicate(): NoteEntry | null {
     if (!shouldCheckDuplicate) return null;
     const match = getGuestNotes().find(
-      (n) => n.inputText.trim().toLowerCase().replace(/\s+/g, '') === normalizedInput
+      (n) => normalizeNoteInput(n.inputText) === normalizedInput
     );
     if (!match) return null;
     return {
@@ -121,8 +121,7 @@ export default function ExplanationCard({
     const notes = await fetchNotes(accessToken, noteInputText.trim());
     return (
       notes.find(
-        (n) =>
-          n.inputText.trim().toLowerCase().replace(/\s+/g, '') === normalizedInput && !n.parentText
+        (n) => normalizeNoteInput(n.inputText) === normalizedInput && !n.parentText
       ) ?? null
     );
   }
