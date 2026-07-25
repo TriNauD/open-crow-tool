@@ -32,4 +32,4 @@
 - 用户可选择"都保留"或"覆盖旧的"
 - 追问笔记（有 parentId）跳过检测，允许重复
 - 登录态查云端，游客态查 localStorage
-- **进行中**：扩展保存对齐同一规则 — [`dev/active/划词保存重复笔记校验/`](../../dev/active/划词保存重复笔记校验/)
+- **扩展侧（已合 `fea/future-features`）**：保存对齐同一规则 — [`dev/active/划词保存重复笔记校验/`](../../dev/active/划词保存重复笔记校验/)；本批接手见 [FUTURE-FEATURES-HANDOFF](../../dev/active/BRAINSTORM需求池/FUTURE-FEATURES-HANDOFF.md)

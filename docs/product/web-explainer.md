@@ -20,4 +20,4 @@
 
 **迭代（Web 首页 Enter 发送，进行中）：** **Enter** 发送；**Alt+Enter** 换行（另 **Shift+Enter** 换行）；**⌘/Ctrl+Enter** 仍可发送；桌面角标为 `↵ 发送 · ⌥↵ 换行`（Apple）或 `Enter 发送 · Alt+Enter 换行`（Win/Linux）；手机仍不展示角标。立项：[ `dev/active/Web首页Enter发送Alt换行/`](../../dev/active/Web首页Enter发送Alt换行/)。
 
-**BRAINSTORM：** 名词解释与消歧（future：`DISAMBIGUATION_RULES`）[`名词解释与消歧/`](../../dev/active/名词解释与消歧/)；截图多模态（future：首页粘贴/选图 → `/api/explain` image）[`截图上传/`](../../dev/active/截图上传/)；链接正文抓取 [`链接内容抓取/`](../../dev/active/链接内容抓取/)。
+**BRAINSTORM（已合 `fea/future-features`，暂不合 `dev`）**：名词解释与消歧（`DISAMBIGUATION_RULES`）[`名词解释与消歧/`](../../dev/active/名词解释与消歧/)；截图多模态（首页粘贴/选图 → `/api/explain` image，需 vision 模型）[`截图上传/`](../../dev/active/截图上传/)；链接正文抓取（`POST /api/fetch-url`）[`链接内容抓取/`](../../dev/active/链接内容抓取/)。接手见 [FUTURE-FEATURES-HANDOFF](../../dev/active/BRAINSTORM需求池/FUTURE-FEATURES-HANDOFF.md)。

@@ -1,8 +1,9 @@
 # BRAINSTORM 需求池（总索引）
 
-> **说明**：本池含多阶段（A～D）。**仅阶段 A 已结项**；B/C/D 条目已在 `dev/active/<简称>/` **建档三件套**（状态多为「已建档（待开发）」），与已交付区分。  
-> **路线图与矩阵**（重要度、阶段划分）：[`roadmap.md`](./roadmap.md)  
-> **本批编码集成**：见 [`future-features-integration.md`](./future-features-integration.md)（从 `fea/future-features` 切短分支 → 自动门禁 → 合回 future；**暂不合 `dev`**）。
+> **说明**：本池含多阶段（A～D）。**仅阶段 A 已结项**；B/C/D 本批已在分支 **`fea/future-features`** 编码集成（**暂不合 `dev` / `main`**），待批量手测与验收。  
+> **接手手册（详尽）**：[`FUTURE-FEATURES-HANDOFF.md`](./FUTURE-FEATURES-HANDOFF.md)  
+> **路线图与矩阵**：[`roadmap.md`](./roadmap.md)  
+> **集成约定 / 进度表**：[`future-features-integration.md`](./future-features-integration.md)
 
 ---
 
@@ -55,21 +56,21 @@
 |------|----------|------|------|----------|
 | **A-1** | Web 首页「发送」快捷键提示（按平台；手机不展示） | A | **已结项** | [`dev/done/BRAINSTORM阶段A/阶段A-plan.md`](../../done/BRAINSTORM阶段A/阶段A-plan.md)（A-1 节）、[`阶段A-qa.md`](../../done/BRAINSTORM阶段A/阶段A-qa.md) |
 | **A-2** | 扩展划词卡片「打开笔记本」 | A | **已结项** | 同上 `阶段A-plan`（A-2 节）、`阶段A-qa.md` |
-| **B-1** | 笔记分类（产品 + DB + 列表筛选） | B | **已建档（待开发）** | [`dev/active/笔记分类/`](../笔记分类/)（`plan` / `context` / `tasks`）；背景 [`待办-B-笔记分类.md`](./待办-B-笔记分类.md) |
-| **B-2** | 扩展划词上下文 / 补前后文 | B | **已建档（待开发）** | [`dev/active/划词上下文/`](../划词上下文/)；背景 [`待办-B-划词上下文.md`](./待办-B-划词上下文.md) |
-| **C-1** | 输出优化：名词解释、缩写、多领域消歧 | C | **已建档（待开发）** | [`dev/active/名词解释与消歧/`](../名词解释与消歧/)；背景 [`待办-C-名词解释与消歧.md`](./待办-C-名词解释与消歧.md) |
-| **C-2** | Web 上传截图（多模态） | C | **已建档（待开发）** | [`dev/active/截图上传/`](../截图上传/)；背景 [`待办-C-截图上传.md`](./待办-C-截图上传.md) |
-| **C-*** | 划词保存重复笔记校验（扩展对齐 Web） | C | **已建档（待开发）** | [`dev/active/划词保存重复笔记校验/`](../划词保存重复笔记校验/)；背景 [`待办-C-划词保存重复笔记校验.md`](./待办-C-划词保存重复笔记校验.md) |
-| **C-3** | Chrome 扩展内独立登录（主路径）+ 保留网站连接 + 手动降级高级区 | C | **已立项** | [`dev/active/Chrome扩展内登录/`](../Chrome扩展内登录/)（`plan` / `context` / `tasks`） |
-| **D-1** | AI 真实读取用户粘贴的链接（服务端抓取等） | D | **已建档（待开发）** | [`dev/active/链接内容抓取/`](../链接内容抓取/)；背景 [`待办-D-链接内容抓取.md`](./待办-D-链接内容抓取.md) |
-| **D-2** | 划词接入飞书等平台 | D | **已建档（待开发）** | [`dev/active/飞书等平台/`](../飞书等平台/)；背景 [`待办-D-飞书等平台.md`](./待办-D-飞书等平台.md) |
+| **B-1** | 笔记分类（产品 + DB + 列表筛选） | B | **已合入 `fea/future-features`**（手测待做） | [`dev/active/笔记分类/`](../笔记分类/)；背景 [`待办-B-笔记分类.md`](./待办-B-笔记分类.md)；[handoff](./FUTURE-FEATURES-HANDOFF.md) |
+| **B-2** | 扩展划词上下文 / 补前后文 | B | **已合入 `fea/future-features`**（手测待做） | [`dev/active/划词上下文/`](../划词上下文/)；背景 [`待办-B-划词上下文.md`](./待办-B-划词上下文.md) |
+| **C-1** | 输出优化：名词解释、缩写、多领域消歧 | C | **已合入 `fea/future-features`**（手测待做） | [`dev/active/名词解释与消歧/`](../名词解释与消歧/)；背景 [`待办-C-名词解释与消歧.md`](./待办-C-名词解释与消歧.md) |
+| **C-2** | Web 上传截图（多模态） | C | **已合入 `fea/future-features`**（手测待做） | [`dev/active/截图上传/`](../截图上传/)；背景 [`待办-C-截图上传.md`](./待办-C-截图上传.md) |
+| **C-*** | 划词保存重复笔记校验（扩展对齐 Web） | C | **已合入 `fea/future-features`**（手测待做） | [`dev/active/划词保存重复笔记校验/`](../划词保存重复笔记校验/)；背景 [`待办-C-划词保存重复笔记校验.md`](./待办-C-划词保存重复笔记校验.md) |
+| **C-3** | Chrome 扩展内独立登录（主路径）+ 保留网站连接 + 手动降级高级区 | C | **已合入 `fea/future-features`**（手测待做） | [`dev/active/Chrome扩展内登录/`](../Chrome扩展内登录/) |
+| **D-1** | AI 真实读取用户粘贴的链接（服务端抓取等） | D | **已合入 `fea/future-features`**（手测待做） | [`dev/active/链接内容抓取/`](../链接内容抓取/)；背景 [`待办-D-链接内容抓取.md`](./待办-D-链接内容抓取.md) |
+| **D-2** | 划词接入飞书等平台 | D | **已合入 future（stub / No-Go）** | [`dev/active/飞书等平台/`](../飞书等平台/)（含 [`evaluation`](../飞书等平台/飞书等平台-evaluation.md)）；背景 [`待办-D-飞书等平台.md`](./待办-D-飞书等平台.md) |
 
 ## 阶段交付物（仅 A 已归档）
 
 | 阶段 | 状态 | 目录 / 说明 |
 |------|------|----------------|
 | **A** | 已结项（2026-04-28） | [`dev/done/BRAINSTORM阶段A/`](../../done/BRAINSTORM阶段A/) — `阶段A-plan.md`、`阶段A-qa.md`、`阶段A-tasks.md`、`阶段A-context.md`；结项日志 [`dev/logs/BRAINSTORM阶段A-log.md`](../../logs/BRAINSTORM阶段A-log.md) |
-| **B / C / D** | 文档已建档；本批走 future 集成 | 各条已有 `dev/active/<简称>/` 三件套；编码按 [`future-features-integration.md`](./future-features-integration.md) 从 `fea/future-features` 切功能分支，合回 future 后再择机 PR → `dev` |
+| **B / C / D** | 本批已合 `fea/future-features`；待手测与 PR → `dev` | 约定 [`future-features-integration.md`](./future-features-integration.md)；详尽接手 [`FUTURE-FEATURES-HANDOFF.md`](./FUTURE-FEATURES-HANDOFF.md) |
 
 ## 旧路径说明
 

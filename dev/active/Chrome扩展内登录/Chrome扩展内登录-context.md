@@ -39,8 +39,8 @@
 
 ## 依赖与风险
 
-- **依赖**：Web 端已有登录方式（邮箱密码 / Magic link 等）需与扩展侧 **对齐同一 Supabase 项目**，具体对接方式在 plan 中二选一敲定（见 plan「技术选型待定」）。
-- **风险**：MV3 中 OAuth / 重定向、`chrome.identity` 与自建回调页的组合需单独联调；排期宜含真机 smoke。
+- **依赖**：Web 与扩展对齐**同一 Supabase 项目**；扩展构建注入 `VITE_PUBLIC_SUPABASE_*` + `VITE_PUBLIC_SITE_ORIGIN`（见 `chrome-extension/.env.example`）。登录方案已定稿为 **方案 A**（见上文「实现决策」）。
+- **风险**：邮箱未验证时仅提示去网站点邮件（扩展不做 Magic link 回调）；与网站「连接插件」后写覆盖需手测；合 `dev` 前注意与 [PR #31](https://github.com/TriNauD/open-crow-tool/pull/31)（注册确认密码，仅网站）的 merge 顺序。
 
 ---
 

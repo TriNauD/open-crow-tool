@@ -1,6 +1,7 @@
 # Future Features 集成约定
 
-> 本批 B/C/D 新需求**不直接合 `dev` / `main`**，先汇入集成分支，待用户手测与排期后再合 Preview。
+> 本批 B/C/D 新需求**不直接合 `dev` / `main`**，先汇入集成分支，待用户手测与排期后再合 Preview。  
+> **接手手册（详尽）**：[`FUTURE-FEATURES-HANDOFF.md`](./FUTURE-FEATURES-HANDOFF.md) ← 代码地图、进度、风险、第一天清单
 
 ## 分支
 
@@ -52,15 +53,17 @@ git push origin fea/future-features
 
 ## 本批进度表
 
-| 顺序 | 条目 | 功能分支 | 合入 future | 手测文档 |
-|------|------|----------|-------------|----------|
-| 1 | B-1 笔记分类 | `fea/note-categories-wesrindo` | ✅ | `dev/active/笔记分类/笔记分类-manual-test.md` |
-| 2 | B-2 划词上下文 | `fea/selection-context-wesrindo` | ✅ | `dev/active/划词上下文/划词上下文-manual-test.md` |
-| 3 | C-1 名词解释与消歧 | `fea/term-disambiguation-wesrindo` | ✅ | `dev/active/名词解释与消歧/名词解释与消歧-manual-test.md` |
-| 4 | C-2 截图上传 | `fea/screenshot-upload-wesrindo` | ✅ | `dev/active/截图上传/截图上传-manual-test.md` |
-| 5 | 划词保存重复笔记校验 | `fea/ext-note-duplicate-wesrindo` | ✅ | `dev/active/划词保存重复笔记校验/划词保存重复笔记校验-manual-test.md` |
-| 6 | C-3 Chrome扩展内登录 | `fea/chrome-ext-inapp-login-wesrindo` | ✅ | `dev/active/Chrome扩展内登录/Chrome扩展内登录-manual-test.md` |
-| 7 | D-1 链接内容抓取 | `fea/url-fetch-wesrindo` | ✅ | `dev/active/链接内容抓取/链接内容抓取-manual-test.md` |
-| 8 | D-2 飞书等平台 | `fea/feishu-eval-stub-wesrindo` | ✅ stub/No-Go | `dev/active/飞书等平台/飞书等平台-evaluation.md` + `…-manual-test.md` |
+> 更新于 2026-07-25：B-1～D-2 与 C-3 **均已合入** `fea/future-features`（D-2 为 stub/No-Go）。详尽缺口见 [handoff §3](./FUTURE-FEATURES-HANDOFF.md#3-进度总表)。
 
-> 更新约定：某条 merge 进 future 后，将对应行改为 ✅ 并填分支名与文档路径。
+| 顺序 | 条目 | 功能分支 | 合入 future | 手测文档 | 备注 |
+|------|------|----------|-------------|----------|------|
+| 1 | B-1 笔记分类 | `fea/note-categories-wesrindo` | ✅ | `dev/active/笔记分类/笔记分类-manual-test.md` | `tags[0]` MVP；用户手测待做 |
+| 2 | B-2 划词上下文 | `fea/selection-context-wesrindo` | ✅ | `dev/active/划词上下文/划词上下文-manual-test.md` | `surroundingText` |
+| 3 | C-1 名词解释与消歧 | `fea/term-disambiguation-wesrindo` | ✅ | `dev/active/名词解释与消歧/名词解释与消歧-manual-test.md` | prompt 规则 |
+| 4 | C-2 截图上传 | `fea/screenshot-upload-wesrindo` | ✅ | `dev/active/截图上传/截图上传-manual-test.md` | 需 vision 模型 |
+| 5 | 划词保存重复笔记校验 | `fea/ext-note-duplicate-wesrindo` | ✅ | `dev/active/划词保存重复笔记校验/划词保存重复笔记校验-manual-test.md` | 扩展对齐 Web |
+| 6 | C-3 Chrome扩展内登录 | `fea/chrome-ext-inapp-login-wesrindo` | ✅ | `dev/active/Chrome扩展内登录/Chrome扩展内登录-manual-test.md` | 方案 A password grant |
+| 7 | D-1 链接内容抓取 | `fea/url-fetch-wesrindo` | ✅ | `dev/active/链接内容抓取/链接内容抓取-manual-test.md` | `POST /api/fetch-url` + SSRF |
+| 8 | D-2 飞书等平台 | `fea/feishu-eval-stub-wesrindo` | ✅ stub/No-Go | `dev/active/飞书等平台/飞书等平台-evaluation.md` + `…-manual-test.md` | `POST /api/feishu/events` → 501 |
+
+> 更新约定：某条 merge 进 future 后，将对应行改为 ✅ 并填分支名与文档路径；状态细节同步 [handoff](./FUTURE-FEATURES-HANDOFF.md)。
