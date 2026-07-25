@@ -37,4 +37,10 @@ describe('buildExplainPrompt', () => {
     expect(p).toContain('向量');
     expect(p).not.toContain('原文片段');
   });
+
+  it('hasImage：看图说明分支', () => {
+    const p = buildExplainPrompt('界面右上角按钮', { hasImage: true });
+    expect(p).toContain('附图');
+    expect(p).toContain('界面右上角按钮');
+  });
 });

@@ -7,10 +7,13 @@ import { AuthNav } from '@/components/AuthNav';
 import { GuestMigrationModal } from '@/components/GuestMigrationModal';
 import { useAuthSession } from '@/hooks/useAuthSession';
 import { getKeyboardSendShortcutHintLabel } from '@/lib/keyboard-send-hint';
+import { compressImageFile, type CompressedImage } from '@/lib/client/compress-image';
+import type { ExplainImage } from '@/hooks/useStreamExplain';
 
 interface Query {
   id: string;
   text: string;
+  image?: ExplainImage;
 }
 
 const EXAMPLES = [
@@ -25,11 +28,14 @@ const EXAMPLES = [
 export default function HomePage() {
   const { accessToken } = useAuthSession();
   const [input, setInput] = useState('');
+  const [pendingImage, setPendingImage] = useState<CompressedImage | null>(null);
+  const [imageError, setImageError] = useState<string | null>(null);
   const [queries, setQueries] = useState<Query[]>([]);
   const [notebookFlash, setNotebookFlash] = useState(false);
   /** null = 未挂载；'' = 手机端等不展示快捷键提示；否则为文案 */
   const [sendShortcutHint, setSendShortcutHint] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -37,11 +43,49 @@ export default function HomePage() {
     });
   }, []);
 
+  useEffect(() => {
+    return () => {
+      if (pendingImage?.previewUrl) {
+        URL.revokeObjectURL(pendingImage.previewUrl);
+      }
+    };
+  }, [pendingImage]);
+
+  async function attachImageFile(file: File | Blob) {
+    setImageError(null);
+    try {
+      if (pendingImage?.previewUrl) {
+        URL.revokeObjectURL(pendingImage.previewUrl);
+      }
+      const compressed = await compressImageFile(file);
+      setPendingImage(compressed);
+    } catch (err) {
+      console.error(err);
+      setImageError('图片处理失败，请换一张较小的 png/jpg');
+    }
+  }
+
+  function clearPendingImage() {
+    if (pendingImage?.previewUrl) {
+      URL.revokeObjectURL(pendingImage.previewUrl);
+    }
+    setPendingImage(null);
+    setImageError(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  }
+
   function submitQuery(text: string) {
     const trimmed = text.trim();
-    if (!trimmed) return;
-    setQueries((prev) => [{ id: crypto.randomUUID(), text: trimmed }, ...prev]);
+    if (!trimmed && !pendingImage) return;
+    const image = pendingImage
+      ? { mimeType: pendingImage.mimeType, dataBase64: pendingImage.dataBase64 }
+      : undefined;
+    setQueries((prev) => [
+      { id: crypto.randomUUID(), text: trimmed || '（看图解释）', image },
+      ...prev,
+    ]);
     setInput('');
+    clearPendingImage();
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -52,10 +96,27 @@ export default function HomePage() {
     submitQuery(input);
   }
 
+  async function handlePaste(e: React.ClipboardEvent<HTMLTextAreaElement>) {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const item of items) {
+      if (item.type.startsWith('image/')) {
+        const file = item.getAsFile();
+        if (file) {
+          e.preventDefault();
+          await attachImageFile(file);
+        }
+        return;
+      }
+    }
+  }
+
   function handleNotebookSave() {
     setNotebookFlash(true);
     setTimeout(() => setNotebookFlash(false), 2000);
   }
+
+  const canSend = Boolean(input.trim() || pendingImage);
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col">
@@ -87,7 +148,7 @@ export default function HomePage() {
               这是<span className="text-orange-400">啥</span>？
             </h1>
             <p className="text-zinc-400 text-base leading-relaxed px-1">
-              把任何让你头大的 AI 术语、新工具、震惊体新闻丢进来，用大白话告诉你这玩意儿是干嘛的。
+              把任何让你头大的 AI 术语、新工具、震惊体新闻丢进来，用大白话告诉你这玩意儿是干嘛的。也可粘贴截图。
             </p>
           </div>
         )}
@@ -95,16 +156,52 @@ export default function HomePage() {
         {/* Input */}
         <div className="w-full">
           <div className="relative rounded-xl border border-zinc-700 bg-zinc-900 focus-within:border-orange-400 transition-colors">
+            {pendingImage && (
+              <div className="px-4 pt-3 flex items-start gap-3">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={pendingImage.previewUrl}
+                  alt="待发送截图"
+                  className="h-16 w-auto rounded-md border border-zinc-700 object-cover"
+                />
+                <button
+                  type="button"
+                  onClick={clearPendingImage}
+                  className="text-xs text-zinc-500 hover:text-zinc-300 mt-1"
+                >
+                  移除截图
+                </button>
+              </div>
+            )}
             <textarea
               ref={textareaRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="粘贴文章标题、链接、截图文字，或者直接输入不懂的词..."
+              onPaste={handlePaste}
+              placeholder="粘贴文章标题、链接、截图，或者直接输入不懂的词..."
               rows={3}
               className="w-full min-w-0 bg-transparent resize-none rounded-xl px-4 pt-4 pb-14 md:pb-12 text-base md:text-sm text-zinc-100 placeholder:text-zinc-600 outline-none leading-relaxed"
             />
             <div className="absolute bottom-3 right-3 flex items-center gap-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) void attachImageFile(file);
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="touch-manipulation text-xs text-zinc-500 hover:text-zinc-300 border border-zinc-700 px-2.5 py-1.5 rounded-lg"
+                title="上传截图"
+              >
+                截图
+              </button>
               {sendShortcutHint === null ? (
                 <span className="text-xs text-zinc-600 tabular-nums" aria-hidden>
                   {'\u00a0'}
@@ -119,13 +216,14 @@ export default function HomePage() {
               ) : null}
               <button
                 onClick={() => submitQuery(input)}
-                disabled={!input.trim()}
+                disabled={!canSend}
                 className="touch-manipulation bg-orange-500 hover:bg-orange-400 disabled:opacity-30 disabled:cursor-not-allowed text-white text-base md:text-sm font-semibold min-h-11 md:min-h-0 px-4 py-2 md:py-1.5 rounded-lg transition-colors"
               >
                 这是啥？
               </button>
             </div>
           </div>
+          {imageError && <p className="mt-2 text-xs text-red-400">{imageError}</p>}
 
           {/* Example pills */}
           {queries.length === 0 && (
@@ -149,6 +247,7 @@ export default function HomePage() {
             <ExplanationCard
               key={q.id}
               inputText={q.text}
+              image={q.image}
               onSaved={handleNotebookSave}
             />
           ))}

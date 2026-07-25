@@ -34,6 +34,8 @@ export type ExplainPromptOptions = {
   parentContext?: string;
   /** 扩展划词：页面选区前后文（与 parentContext 语义不同） */
   surroundingText?: string;
+  /** Web 截图多模态：有图时改用看图说明 */
+  hasImage?: boolean;
 };
 
 function surroundingSection(surroundingText?: string): string {
@@ -50,15 +52,27 @@ export function buildExplainPrompt(
   let parentContext: string | undefined;
   let surroundingText: string | undefined;
 
+  let hasImage = false;
   if (typeof parentContextOrOptions === 'object' && parentContextOrOptions !== null) {
     parentContext = parentContextOrOptions.parentContext;
     surroundingText = parentContextOrOptions.surroundingText;
+    hasImage = Boolean(parentContextOrOptions.hasImage);
   } else {
     parentContext = parentContextOrOptions;
     surroundingText = maybeSurrounding;
   }
 
   const surrounding = surroundingSection(surroundingText);
+
+  if (hasImage) {
+    const caption = input.trim() || '（用户未补充文字）';
+    return `${surrounding}请看附图，用大白话解释图里出现的概念、工具或界面在干什么。
+
+用户补充说明：
+${caption}
+
+若图中文字看不清，根据可见部分合理推断，不要编造看不清的细节。`;
+  }
 
   if (parentContext?.trim()) {
     return `${surrounding}我在看一段解释，里面有个词/概念我没搞懂：

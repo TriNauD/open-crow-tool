@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { useStreamExplain } from '@/hooks/useStreamExplain';
+import { useStreamExplain, type ExplainImage } from '@/hooks/useStreamExplain';
 import { useAuthSession } from '@/hooks/useAuthSession';
 import { createNote, fetchNotes, replaceNote } from '@/lib/api/notes-client';
 import { saveGuestNote, getGuestNotes, removeGuestNote } from '@/lib/guest-notes';
@@ -17,6 +17,8 @@ interface SelectionPopoverState {
 
 interface ExplanationCardProps {
   inputText: string;
+  /** 可选截图（MVP 不存原图，保存笔记用文字占位） */
+  image?: ExplainImage;
   context?: string;         // parent explanation text for recursive context
   depth?: number;           // nesting depth, caps the recursion visually
   onSaved?: () => void;
@@ -24,6 +26,7 @@ interface ExplanationCardProps {
 
 export default function ExplanationCard({
   inputText,
+  image,
   context,
   depth = 0,
   onSaved,
@@ -38,10 +41,16 @@ export default function ExplanationCard({
   const [savePending, setSavePending] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
 
+  const noteInputText = image
+    ? inputText.trim()
+      ? `（图片）${inputText.trim()}`
+      : '（图片说明）'
+    : inputText;
+
   // Kick off explanation on mount
   useEffect(() => {
-    explain(inputText, context);
-  }, [inputText, context, explain]);
+    explain(inputText, { context, image });
+  }, [inputText, context, image, explain]);
 
   // Track text selection inside this card (input text + result area both supported).
   // stopPropagation ensures only the innermost card reacts when cards are nested.
@@ -82,8 +91,8 @@ export default function ExplanationCard({
     window.getSelection()?.removeAllRanges();
   }, [popover]);
 
-  // Normalize inputText for duplicate matching: trim + lowercase + collapse whitespace
-  const normalizedInput = inputText.trim().toLowerCase().replace(/\s+/g, '');
+  // Normalize for duplicate matching: trim + lowercase + collapse whitespace
+  const normalizedInput = noteInputText.trim().toLowerCase().replace(/\s+/g, '');
 
   // Only check for duplicates on top-level notes (depth === 0, no parent context)
   const shouldCheckDuplicate = depth === 0 && !context;
@@ -102,14 +111,14 @@ export default function ExplanationCard({
       parentText: match.parentText,
       source: match.source,
       savedAt: match.savedAt,
-      tags: [],
+      tags: match.tags ?? [],
     };
   }
 
   async function findCloudDuplicate(): Promise<NoteEntry | null> {
     if (!accessToken || !shouldCheckDuplicate) return null;
     // 用 GET /api/notes?q= 做候选集，再在本地做标准化后精确比；同题变体若与 ilike 搜索错位，后续再改后端或专用接口，避免拉全量。
-    const notes = await fetchNotes(accessToken, inputText.trim());
+    const notes = await fetchNotes(accessToken, noteInputText.trim());
     return (
       notes.find(
         (n) =>
@@ -129,7 +138,7 @@ export default function ExplanationCard({
           return;
         }
         const entry = await createNote(accessToken, {
-          inputText,
+          inputText: noteInputText,
           explanation: text,
           parentText: context,
           source: 'web',
@@ -145,7 +154,7 @@ export default function ExplanationCard({
         const clientNoteId = crypto.randomUUID();
         saveGuestNote({
           clientNoteId,
-          inputText,
+          inputText: noteInputText,
           explanation: text,
           parentText: context,
           source: 'web',
@@ -161,7 +170,7 @@ export default function ExplanationCard({
       setSavePending(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [text, accessToken, inputText, context, onSaved, normalizedInput, shouldCheckDuplicate]);
+  }, [text, accessToken, noteInputText, context, onSaved, normalizedInput, shouldCheckDuplicate]);
 
   const handleKeepBoth = useCallback(async () => {
     if (!text) return;
@@ -169,7 +178,7 @@ export default function ExplanationCard({
     try {
       if (accessToken) {
         const entry = await createNote(accessToken, {
-          inputText,
+          inputText: noteInputText,
           explanation: text,
           parentText: context,
           source: 'web',
@@ -178,7 +187,14 @@ export default function ExplanationCard({
         setSavedMode('cloud');
       } else {
         const clientNoteId = crypto.randomUUID();
-        saveGuestNote({ clientNoteId, inputText, explanation: text, parentText: context, source: 'web', savedAt: Date.now() });
+        saveGuestNote({
+          clientNoteId,
+          inputText: noteInputText,
+          explanation: text,
+          parentText: context,
+          source: 'web',
+          savedAt: Date.now(),
+        });
         setSavedId(clientNoteId);
         setSavedMode('guest');
       }
@@ -189,7 +205,7 @@ export default function ExplanationCard({
     } finally {
       setSavePending(false);
     }
-  }, [text, accessToken, inputText, context, onSaved]);
+  }, [text, accessToken, noteInputText, context, onSaved]);
 
   const handleReplace = useCallback(async () => {
     if (!text || !duplicateNote) return;
@@ -197,7 +213,7 @@ export default function ExplanationCard({
     try {
       if (accessToken) {
         const entry = await replaceNote(accessToken, duplicateNote.id, {
-          inputText,
+          inputText: noteInputText,
           explanation: text,
           parentText: context,
           source: 'web',
@@ -207,7 +223,14 @@ export default function ExplanationCard({
       } else {
         removeGuestNote(duplicateNote.id);
         const clientNoteId = crypto.randomUUID();
-        saveGuestNote({ clientNoteId, inputText, explanation: text, parentText: context, source: 'web', savedAt: Date.now() });
+        saveGuestNote({
+          clientNoteId,
+          inputText: noteInputText,
+          explanation: text,
+          parentText: context,
+          source: 'web',
+          savedAt: Date.now(),
+        });
         setSavedId(clientNoteId);
         setSavedMode('guest');
       }
@@ -218,7 +241,7 @@ export default function ExplanationCard({
     } finally {
       setSavePending(false);
     }
-  }, [text, accessToken, inputText, context, duplicateNote, onSaved]);
+  }, [text, accessToken, noteInputText, context, duplicateNote, onSaved]);
 
   const depthColors = [
     'border-zinc-800 bg-zinc-950',
@@ -242,7 +265,16 @@ export default function ExplanationCard({
         <span className="mt-0.5 shrink-0 text-xs font-semibold text-orange-400 uppercase tracking-wide">
           {depth === 0 ? '这是啥？' : '这又是啥？'}
         </span>
-        <p className="text-sm text-zinc-300 leading-relaxed select-text">{inputText}</p>
+        <p className="text-sm text-zinc-300 leading-relaxed select-text">
+          {image ? (
+            <>
+              <span className="text-emerald-400/80 mr-1">[截图]</span>
+              {inputText.trim() || '（看图解释）'}
+            </>
+          ) : (
+            inputText
+          )}
+        </p>
       </div>
 
       {/* Result area */}
