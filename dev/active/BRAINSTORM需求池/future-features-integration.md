@@ -56,7 +56,7 @@ git push origin fea/future-features
 |------|------|----------|-------------|----------|
 | 1 | B-1 笔记分类 | `fea/note-categories-wesrindo` | ✅ | `dev/active/笔记分类/笔记分类-manual-test.md` |
 | 2 | B-2 划词上下文 | `fea/selection-context-wesrindo` | ✅ | `dev/active/划词上下文/划词上下文-manual-test.md` |
-| 3 | C-1 名词解释与消歧 | — | ⏳ | — |
+| 3 | C-1 名词解释与消歧 | `fea/term-disambiguation-wesrindo` | ✅ | `dev/active/名词解释与消歧/名词解释与消歧-manual-test.md` |
 | 4 | C-2 截图上传 | — | ⏳ | — |
 | 5 | 划词保存重复笔记校验 | — | ⏳ | — |
 | 6 | C-3 Chrome扩展内登录 | — | ⏳ | — |
