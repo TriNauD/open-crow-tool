@@ -13,4 +13,8 @@ describe('CORS（扩展 / 跨域 Bearer）', () => {
     expect(res.status).toBe(204);
     expect(res.headers.get('Access-Control-Allow-Headers')).toContain('Authorization');
   });
+
+  it('Allow-Methods 含 PATCH（笔记分类更新）', () => {
+    expect(corsHeaders['Access-Control-Allow-Methods']).toContain('PATCH');
+  });
 });

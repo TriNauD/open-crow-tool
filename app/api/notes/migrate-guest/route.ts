@@ -4,6 +4,7 @@ import { getAccessTokenFromRequest, getRequestUser, unauthorizedResponse } from 
 import { isNotebookMultiUserEnabled } from '@/lib/config/notebook';
 import { logNotebookMetric } from '@/lib/observability/notebook';
 import { migrateGuestNotes, type GuestMigrationEntry } from '@/lib/db/notes';
+import { parseTagsInput } from '@/lib/notes/tags';
 import { corsHeaders, handleOptions } from '@/lib/utils/cors';
 
 export function OPTIONS() {
@@ -30,6 +31,11 @@ function normalizeGuestEntries(input: unknown): GuestMigrationEntry[] {
       const source: GuestMigrationEntry['source'] =
         row.source === 'chrome_extension' ? 'chrome_extension' : 'web';
 
+      const tagsResult = parseTagsInput(row.tags);
+      if (!tagsResult.ok) {
+        return null;
+      }
+
       return {
         clientNoteId: row.clientNoteId,
         inputText: row.inputText,
@@ -37,6 +43,7 @@ function normalizeGuestEntries(input: unknown): GuestMigrationEntry[] {
         parentText: typeof row.parentText === 'string' ? row.parentText : undefined,
         source,
         savedAt: row.savedAt,
+        tags: tagsResult.tags,
       } as GuestMigrationEntry;
     })
     .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
