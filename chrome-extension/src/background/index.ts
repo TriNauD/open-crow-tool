@@ -3,6 +3,7 @@ import { CROW_AUTH_BROADCAST_EVENT } from '../lib/crow-auth-event';
 import { CROW_EXTENSION_ENABLED_KEY } from '../lib/crow-session';
 import { performSupabasePasswordLogin } from '../lib/supabase-password-login';
 import { performSupabaseRefreshExchange } from '../lib/supabase-refresh-exchange';
+import { CROW_USER_LLM_HEADER } from '../lib/user-llm-config';
 
 /**
  * 扩展安装或重载时，将 content script 主动注入到已开着的旧标签页。
@@ -154,4 +155,94 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse): 
     });
 
   return true;
+});
+
+/**
+ * 划词解释经 SW 转发（流式 Port）。
+ * content script 在第三方页面直连 /api/explain 时 Origin 是网页 origin，
+ * 会被 dev 上 explain 的 Origin 护栏 403；SW 发起的 fetch Origin 为
+ * chrome-extension://，被护栏明确放行。流式 chunk 逐个经 port 回传。
+ */
+const EXPLAIN_PROXY_PORT = 'crow-explain-proxy';
+
+chrome.runtime.onConnect.addListener((port) => {
+  if (port.name !== EXPLAIN_PROXY_PORT) return;
+
+  // SW 流式等待首 token 期间可能超过 idle 阈值被回收；定时 ping 保活（Chrome 110+ 会因 port 消息重置 idle 计时）
+  const keepAlive = setInterval(() => {
+    try {
+      port.postMessage({ ping: true });
+    } catch {
+      clearInterval(keepAlive);
+    }
+  }, 20000);
+
+  port.onDisconnect.addListener(() => clearInterval(keepAlive));
+
+  port.onMessage.addListener((msg: unknown) => {
+    const { apiBaseUrl, body, userLlmHeader } = (msg ?? {}) as {
+      apiBaseUrl?: string;
+      body?: Record<string, unknown>;
+      userLlmHeader?: string;
+    };
+    if (!apiBaseUrl || !body) {
+      try {
+        port.postMessage({ error: '解释请求缺少参数' });
+      } catch {
+        /* port closed */
+      }
+      return;
+    }
+
+    void (async () => {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (userLlmHeader) headers[CROW_USER_LLM_HEADER] = userLlmHeader;
+
+      let res: Response;
+      try {
+        res = await fetch(`${apiBaseUrl.replace(/\/+$/, '')}/api/explain`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(body),
+        });
+      } catch {
+        try {
+          port.postMessage({ error: '网炸了或者 AI 挂了，稍后再试' });
+        } catch {
+          /* port closed */
+        }
+        return;
+      }
+
+      if (!res.ok || !res.body) {
+        const detail = await res.text().catch(() => '');
+        try {
+          port.postMessage({
+            error: detail.trim() ? detail.trim().slice(0, 300) : `请求失败（HTTP ${res.status}）`,
+          });
+        } catch {
+          /* port closed */
+        }
+        return;
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value, { stream: true });
+          if (chunk) port.postMessage({ chunk });
+        }
+        port.postMessage({ done: true });
+      } catch {
+        try {
+          port.postMessage({ error: '网炸了或者 AI 挂了，稍后再试' });
+        } catch {
+          /* port closed */
+        }
+      }
+    })();
+  });
 });
