@@ -25,6 +25,9 @@ export function mapPasswordLoginError(raw: string, status?: number): string {
   if (status === 429 || msg.includes('rate limit') || msg.includes('too many')) {
     return '尝试过于频繁，请稍后再试。';
   }
+  if (typeof status === 'number' && status >= 500) {
+    return '登录服务暂时不可用，请稍后重试；若反复出现，请检查网络或代理设置。';
+  }
   if (
     msg.includes('invalid login credentials') ||
     msg.includes('invalid credentials') ||
