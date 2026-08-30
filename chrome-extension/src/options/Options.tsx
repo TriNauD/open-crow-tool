@@ -13,6 +13,13 @@ import {
   type CrowAuth,
 } from '../lib/crow-session';
 import { performSupabasePasswordLogin } from '../lib/supabase-password-login';
+import {
+  CROW_USER_LLM_KEY,
+  clearUserLlmConfig,
+  loadUserLlmConfig,
+  normalizeUserLlmConfig,
+  saveUserLlmConfig,
+} from '../lib/user-llm-config';
 
 export default function Options() {
   const [apiBaseUrl, setApiBaseUrl] = useState('');
@@ -25,6 +32,14 @@ export default function Options() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshHint, setRefreshHint] = useState('');
   const [explainOn, setExplainOn] = useState(true);
+
+  const [showLlm, setShowLlm] = useState(false);
+  const [llmBaseURL, setLlmBaseURL] = useState('');
+  const [llmApiKey, setLlmApiKey] = useState('');
+  const [llmModel, setLlmModel] = useState('');
+  const [llmEnabled, setLlmEnabled] = useState(false);
+  const [llmSaved, setLlmSaved] = useState(false);
+  const [llmError, setLlmError] = useState('');
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -58,13 +73,26 @@ export default function Options() {
     []
   );
 
+  const refreshLlmState = useCallback(async () => {
+    const cfg = await loadUserLlmConfig();
+    if (cfg) {
+      setLlmBaseURL(cfg.baseURL);
+      setLlmApiKey(cfg.apiKey);
+      setLlmModel(cfg.model);
+      setLlmEnabled(true);
+    } else {
+      setLlmEnabled(false);
+    }
+  }, []);
+
   useEffect(() => {
     const id = window.setTimeout(() => {
       void applyAuthStateFromStorage({ showWebSyncHint: false });
+      void isExplainEnabled().then(setExplainOn);
+      void refreshLlmState();
     }, 0);
-    void isExplainEnabled().then(setExplainOn);
     return () => window.clearTimeout(id);
-  }, [applyAuthStateFromStorage]);
+  }, [applyAuthStateFromStorage, refreshLlmState]);
 
   useEffect(() => {
     function onBecameVisible() {
@@ -88,13 +116,16 @@ export default function Options() {
       if (changes[CROW_EXTENSION_ENABLED_KEY] !== undefined) {
         setExplainOn(changes[CROW_EXTENSION_ENABLED_KEY].newValue !== false);
       }
+      if (changes[CROW_USER_LLM_KEY] !== undefined) {
+        void refreshLlmState();
+      }
       const hit = CROW_AUTH_LOCAL_KEYS.some((k) => changes[k] !== undefined);
       if (!hit || skipAuthStorageEventsRef.current) return;
       void applyAuthStateFromStorage({ showWebSyncHint: true });
     }
     chrome.storage.onChanged.addListener(onStorageChanged);
     return () => chrome.storage.onChanged.removeListener(onStorageChanged);
-  }, [applyAuthStateFromStorage]);
+  }, [applyAuthStateFromStorage, refreshLlmState]);
 
   const isConnected = !!(apiBaseUrl && accessToken);
   const siteOrigin = apiBaseUrl || getBuildSiteOrigin();
@@ -228,6 +259,37 @@ export default function Options() {
         skipAuthStorageEventsRef.current = false;
       });
     }
+  }
+
+  async function handleLlmSave(e: React.FormEvent) {
+    e.preventDefault();
+    setLlmError('');
+    setLlmSaved(false);
+    const cfg = normalizeUserLlmConfig({
+      baseURL: llmBaseURL,
+      apiKey: llmApiKey,
+      model: llmModel,
+    });
+    if (!cfg) {
+      setLlmError('请填写完整的 API 地址（https:// 开头）、API Key 和模型名');
+      return;
+    }
+    await saveUserLlmConfig(cfg);
+    setLlmBaseURL(cfg.baseURL);
+    setLlmApiKey(cfg.apiKey);
+    setLlmModel(cfg.model);
+    setLlmEnabled(true);
+    setLlmSaved(true);
+    setTimeout(() => setLlmSaved(false), 2500);
+  }
+
+  async function handleLlmClear() {
+    await clearUserLlmConfig();
+    setLlmBaseURL('');
+    setLlmApiKey('');
+    setLlmModel('');
+    setLlmEnabled(false);
+    setLlmError('');
   }
 
   function openSite() {
@@ -399,6 +461,86 @@ export default function Options() {
             </>
           )}
         </div>
+
+        <hr style={styles.divider} />
+
+        {/* 自定义 AI 接口（可选）：划词解释优先走用户自己的 OpenAI-compatible API */}
+        <button
+          type="button"
+          onClick={() => setShowLlm((v) => !v)}
+          style={styles.toggleManual}
+        >
+          {showLlm ? '▲ 收起自定义 AI 接口' : '▼ 自定义 AI 接口（可选）'}
+        </button>
+
+        {showLlm && (
+          <form onSubmit={(e) => void handleLlmSave(e)} style={{ marginTop: 16 }}>
+            <div style={{ ...styles.statusBox, marginBottom: 14 }}>
+              <div style={styles.statusRow}>
+                <span style={llmEnabled ? styles.dotGreen : styles.dotRed} />
+                <span style={styles.statusTextWrap}>
+                  {llmEnabled ? '已启用自定义 API' : '未启用，走默认通道'}
+                </span>
+              </div>
+            </div>
+            <p style={styles.hint}>
+              填写任何 OpenAI 兼容接口（OpenAI、DeepSeek、Kimi、SiliconFlow
+              等），划词解释优先走你的 API，失败自动回退默认通道。Key 只保存在本机浏览器，不会上传存储。
+            </p>
+            <div style={styles.field}>
+              <label style={styles.label}>API 地址</label>
+              <input
+                style={styles.input}
+                type="url"
+                value={llmBaseURL}
+                onChange={(e) => setLlmBaseURL(e.target.value)}
+                placeholder="https://api.deepseek.com/v1"
+                spellCheck={false}
+              />
+            </div>
+            <div style={styles.field}>
+              <label style={styles.label}>API Key</label>
+              <input
+                style={styles.input}
+                type="password"
+                value={llmApiKey}
+                onChange={(e) => setLlmApiKey(e.target.value)}
+                placeholder="sk-..."
+                autoComplete="off"
+                spellCheck={false}
+              />
+            </div>
+            <div style={styles.field}>
+              <label style={styles.label}>模型名</label>
+              <input
+                style={styles.input}
+                type="text"
+                value={llmModel}
+                onChange={(e) => setLlmModel(e.target.value)}
+                placeholder="deepseek-chat"
+                spellCheck={false}
+              />
+            </div>
+            {llmError && <p style={styles.error}>{llmError}</p>}
+            <div style={styles.btnRow}>
+              <button
+                type="submit"
+                style={llmSaved ? styles.btnSaved : styles.btnSecondary}
+              >
+                {llmSaved ? '✓ 已保存' : '保存'}
+              </button>
+              {llmEnabled && (
+                <button
+                  type="button"
+                  onClick={() => void handleLlmClear()}
+                  style={styles.btnGhost}
+                >
+                  清除配置
+                </button>
+              )}
+            </div>
+          </form>
+        )}
 
         <hr style={styles.divider} />
 

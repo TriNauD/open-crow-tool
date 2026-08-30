@@ -1,4 +1,9 @@
 import { useState, useCallback, useRef } from 'react';
+import {
+  CROW_USER_LLM_HEADER,
+  encodeUserLlmConfigHeader,
+  loadUserLlmConfig,
+} from '../lib/user-llm-config';
 
 export interface StreamState {
   text: string;
@@ -37,9 +42,15 @@ export function useStreamExplain(apiBaseUrl: string) {
         if (options?.context) body.context = options.context;
         if (options?.surroundingText) body.surroundingText = options.surroundingText;
 
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        const userCfg = await loadUserLlmConfig();
+        if (userCfg) {
+          headers[CROW_USER_LLM_HEADER] = encodeUserLlmConfigHeader(userCfg);
+        }
+
         const res = await fetch(`${apiBaseUrl}/api/explain`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify(body),
           signal: controller.signal,
         });

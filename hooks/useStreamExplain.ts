@@ -1,6 +1,11 @@
 'use client';
 
 import { useState, useCallback, useRef } from 'react';
+import {
+  USER_LLM_CONFIG_HEADER,
+  encodeUserLLMConfigHeader,
+  loadStoredUserLLMConfig,
+} from '@/lib/user-llm-config';
 
 export interface ExplainState {
   text: string;
@@ -51,9 +56,15 @@ export function useStreamExplain() {
         if (options.context) body.context = options.context;
         if (options.image) body.image = options.image;
 
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        const userCfg = loadStoredUserLLMConfig();
+        if (userCfg) {
+          headers[USER_LLM_CONFIG_HEADER] = encodeUserLLMConfigHeader(userCfg);
+        }
+
         const res = await fetch('/api/explain', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify(body),
           signal: controller.signal,
         });

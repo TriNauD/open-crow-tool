@@ -147,6 +147,12 @@ export default function NotebookPage() {
           这是啥<span className="text-orange-400">？</span>
         </Link>
         <div className="flex items-center gap-3">
+          <Link
+            href="/settings"
+            className="text-sm border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500 px-3 py-1.5 rounded-lg transition-colors"
+          >
+            设置
+          </Link>
           <span className="text-sm text-zinc-500">这都是啥 — 笔记本</span>
           <AuthNav />
         </div>
