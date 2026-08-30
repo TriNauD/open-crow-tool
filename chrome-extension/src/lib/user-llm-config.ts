@@ -8,6 +8,9 @@ export const CROW_USER_LLM_KEY = 'crowUserLlmConfig';
 
 export const CROW_USER_LLM_HEADER = 'x-crow-llm-config';
 
+/** 站点后端响应头：实际生效的 provider（custom = 用户自配），供「测试连接」判断回退 */
+export const CROW_EFFECTIVE_PROVIDER_HEADER = 'x-crow-provider';
+
 export type CrowUserLLMConfig = {
   baseURL: string;
   apiKey: string;

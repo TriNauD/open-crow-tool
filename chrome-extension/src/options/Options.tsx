@@ -14,8 +14,11 @@ import {
 } from '../lib/crow-session';
 import { performSupabasePasswordLogin } from '../lib/supabase-password-login';
 import {
+  CROW_EFFECTIVE_PROVIDER_HEADER,
+  CROW_USER_LLM_HEADER,
   CROW_USER_LLM_KEY,
   clearUserLlmConfig,
+  encodeUserLlmConfigHeader,
   loadUserLlmConfig,
   normalizeUserLlmConfig,
   saveUserLlmConfig,
@@ -40,6 +43,10 @@ export default function Options() {
   const [llmEnabled, setLlmEnabled] = useState(false);
   const [llmSaved, setLlmSaved] = useState(false);
   const [llmError, setLlmError] = useState('');
+  const [llmTest, setLlmTest] = useState<{
+    status: 'idle' | 'testing' | 'ok' | 'fallback' | 'fail';
+    message: string;
+  }>({ status: 'idle', message: '' });
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -280,6 +287,7 @@ export default function Options() {
     setLlmModel(cfg.model);
     setLlmEnabled(true);
     setLlmSaved(true);
+    setLlmTest({ status: 'idle', message: '' });
     setTimeout(() => setLlmSaved(false), 2500);
   }
 
@@ -290,6 +298,59 @@ export default function Options() {
     setLlmModel('');
     setLlmEnabled(false);
     setLlmError('');
+    setLlmTest({ status: 'idle', message: '' });
+  }
+
+  /** 与网站 /settings 的「测试连接」同逻辑：发最小解释请求，读 X-Crow-Provider 判断是否真走用户 API */
+  async function handleLlmTest() {
+    const cfg = normalizeUserLlmConfig({
+      baseURL: llmBaseURL,
+      apiKey: llmApiKey,
+      model: llmModel,
+    });
+    if (!cfg) {
+      setLlmTest({ status: 'fail', message: '请先填写完整的 API 地址、API Key 和模型名' });
+      return;
+    }
+    setLlmTest({ status: 'testing', message: '' });
+    try {
+      const res = await fetch(`${siteOrigin}/api/explain`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          [CROW_USER_LLM_HEADER]: encodeUserLlmConfigHeader(cfg),
+        },
+        body: JSON.stringify({ text: 'hi' }),
+      });
+      if (!res.ok) {
+        const msg = await res.text().catch(() => `请求失败（${res.status}）`);
+        setLlmTest({ status: 'fail', message: msg || `请求失败（${res.status}）` });
+        return;
+      }
+      await res.text(); // 消费流，避免连接悬挂
+      const provider = res.headers.get(CROW_EFFECTIVE_PROVIDER_HEADER) ?? '';
+      if (provider === 'custom') {
+        setLlmTest({
+          status: 'ok',
+          message: `✓ 测试成功，正在使用你配置的 API（${cfg.model}）`,
+        });
+      } else if (provider) {
+        setLlmTest({
+          status: 'fallback',
+          message: `请求成功，但回退到了默认通道（${provider}）。你的 API 配置可能无效（地址、Key 或模型名不对），已不影响使用。`,
+        });
+      } else {
+        setLlmTest({
+          status: 'fail',
+          message: '站点后端未返回生效通道，请更新网站代码到含「用户自配 API」的版本后重试。',
+        });
+      }
+    } catch {
+      setLlmTest({
+        status: 'fail',
+        message: '网络错误：无法连接站点后端，请检查上方「API 地址」与网络。',
+      });
+    }
   }
 
   function openSite() {
@@ -522,6 +583,24 @@ export default function Options() {
               />
             </div>
             {llmError && <p style={styles.error}>{llmError}</p>}
+            {llmTest.message ? (
+              <p
+                style={{
+                  ...styles.hint,
+                  marginBottom: 12,
+                  color:
+                    llmTest.status === 'ok'
+                      ? '#22c55e'
+                      : llmTest.status === 'fallback'
+                        ? '#fbbf24'
+                        : llmTest.status === 'fail'
+                          ? '#f87171'
+                          : '#71717a',
+                }}
+              >
+                {llmTest.message}
+              </p>
+            ) : null}
             <div style={styles.btnRow}>
               <button
                 type="submit"
@@ -529,11 +608,23 @@ export default function Options() {
               >
                 {llmSaved ? '✓ 已保存' : '保存'}
               </button>
+              <button
+                type="button"
+                onClick={() => void handleLlmTest()}
+                disabled={llmTest.status === 'testing'}
+                style={{
+                  ...styles.btnSecondary,
+                  marginTop: 0,
+                  opacity: llmTest.status === 'testing' ? 0.6 : 1,
+                }}
+              >
+                {llmTest.status === 'testing' ? '测试中…' : '测试连接'}
+              </button>
               {llmEnabled && (
                 <button
                   type="button"
                   onClick={() => void handleLlmClear()}
-                  style={styles.btnGhost}
+                  style={{ ...styles.btnGhost, width: 'auto', marginTop: 0, flex: '0 1 auto' }}
                 >
                   清除配置
                 </button>
