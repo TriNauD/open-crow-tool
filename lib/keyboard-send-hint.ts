@@ -28,3 +28,14 @@ export function getKeyboardSendShortcutHintLabel(): KeyboardSendHintLabel {
   }
   return 'Enter 发送 · Alt+Enter 换行';
 }
+
+/** 触屏判定：主指针为触摸（手机/平板）时没有物理 Alt/Shift，Enter 应一律换行、仅按钮发送。仅客户端调用。 */
+export function isCoarsePointerDevice(): boolean {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
+  return window.matchMedia('(pointer: coarse)').matches;
+}
+
+/** 纯函数，便于单测：该设备上 Enter 是否应当触发发送 */
+export function shouldEnterSendOnDevice(pointerCoarse: boolean): boolean {
+  return !pointerCoarse;
+}
