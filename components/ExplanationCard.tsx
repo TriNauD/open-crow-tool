@@ -32,7 +32,7 @@ export default function ExplanationCard({
   depth = 0,
   onSaved,
 }: ExplanationCardProps) {
-  const { text, isLoading, error, isDone, explain } = useStreamExplain();
+  const { text, isLoading, error, isDone, explain, retry } = useStreamExplain();
   const { accessToken } = useAuthSession();
   const [popover, setPopover] = useState<SelectionPopoverState | null>(null);
   const [children, setChildren] = useState<{ id: string; text: string }[]>([]);
@@ -40,6 +40,8 @@ export default function ExplanationCard({
   const [savedMode, setSavedMode] = useState<'cloud' | 'guest' | null>(null);
   const [duplicateNote, setDuplicateNote] = useState<NoteEntry | null>(null);
   const [savePending, setSavePending] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
 
   const noteInputText = image
@@ -52,6 +54,14 @@ export default function ExplanationCard({
   useEffect(() => {
     explain(inputText, { context, image });
   }, [inputText, context, image, explain]);
+
+  // 清理「已复制」提示的定时器
+  useEffect(
+    () => () => {
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    },
+    []
+  );
 
   // Track text selection inside this card (input text + result area both supported).
   // stopPropagation ensures only the innermost card reacts when cards are nested.
@@ -91,6 +101,19 @@ export default function ExplanationCard({
     setPopover(null);
     window.getSelection()?.removeAllRanges();
   }, [popover]);
+
+  /** 复制完整解释为纯文本；「已复制」提示 2 秒后复原 */
+  const handleCopy = useCallback(async () => {
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+      copyTimerRef.current = setTimeout(() => setCopied(false), 2_000);
+    } catch (err) {
+      console.error('Copy failed', err);
+    }
+  }, [text]);
 
   const normalizedInput = normalizeNoteInput(noteInputText);
 
@@ -288,7 +311,15 @@ export default function ExplanationCard({
         )}
 
         {error && (
-          <p className="text-red-400 text-sm">{error}</p>
+          <div className="flex items-center gap-3">
+            <p className="text-red-400 text-sm">{error}</p>
+            <button
+              onClick={() => retry()}
+              className="text-xs text-zinc-400 hover:text-zinc-200 underline underline-offset-2 transition-colors shrink-0"
+            >
+              重试
+            </button>
+          </div>
         )}
 
         {text && (
@@ -330,6 +361,13 @@ export default function ExplanationCard({
               {savePending ? '检查中...' : '存到笔记本'}
             </button>
           )}
+          <span className="text-zinc-700 text-xs">·</span>
+          <button
+            onClick={handleCopy}
+            className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors underline underline-offset-2"
+          >
+            {copied ? '已复制' : '复制'}
+          </button>
           <span className="text-zinc-700 text-xs">·</span>
           <span className="text-xs text-zinc-600">选中文字可以继续追问</span>
         </div>
