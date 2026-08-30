@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import { assertSafeHttpUrl } from '@/lib/url/fetch-safe';
+import { assertHostResolvesPublic, assertSafeHttpUrl } from '@/lib/url/fetch-safe';
 
 /** 透传用户自配 LLM（OpenAI-compatible）的请求头名，值为 base64url(JSON) */
 export const USER_LLM_CONFIG_HEADER = 'x-crow-llm-config';
@@ -69,10 +69,12 @@ export function getModelForProvider(provider: string): string {
 
 /**
  * 解析并校验用户自配的 LLM 配置（来自 X-Crow-LLM-Config 头，base64url JSON）。
- * 任何不合法（格式、长度、非 https、私网/内网地址）一律返回 null，
+ * 任何不合法（格式、长度、非 https、私网/内网地址、DNS 解析到内网 IP）一律返回 null，
  * 调用方静默忽略并走服务器默认 provider 链，不给用户报错。
  */
-export function parseUserLLMConfig(raw: string | null | undefined): UserLLMConfig | null {
+export async function parseUserLLMConfig(
+  raw: string | null | undefined
+): Promise<UserLLMConfig | null> {
   if (!raw || raw.length > USER_LLM_CONFIG_HEADER_MAX) return null;
 
   let decoded: string;
@@ -124,6 +126,8 @@ export function parseUserLLMConfig(raw: string | null | undefined): UserLLMConfi
     if (parsed.protocol !== 'https:') return null;
     try {
       assertSafeHttpUrl(url);
+      // DNS 解析级校验：公网域名解析到私网/保留 IP（DNS rebinding、内网映射）也拒绝
+      await assertHostResolvesPublic(parsed.hostname);
     } catch {
       return null;
     }

@@ -112,7 +112,7 @@ export async function POST(req: Request) {
     }
 
     // 用户自配 LLM（OpenAI-compatible）优先；校验失败静默走服务器默认链
-    const userCfg = parseUserLLMConfig(req.headers.get(USER_LLM_CONFIG_HEADER));
+    const userCfg = await parseUserLLMConfig(req.headers.get(USER_LLM_CONFIG_HEADER));
     const chain = getProviderChain(userCfg);
     if (chain.length === 0) {
       return new Response('未配置可用的 AI Provider', { status: 500 });
