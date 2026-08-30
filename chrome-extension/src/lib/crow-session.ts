@@ -16,14 +16,8 @@ export const CROW_AUTH_LOCAL_KEYS = [
   'crowAuthUpdatedAt',
 ] as const;
 
-export type CrowAuth = {
-  apiBaseUrl: string;
-  accessToken: string;
-  refreshToken: string;
-  supabaseUrl: string;
-  supabaseAnonKey: string;
-  expiresAt: number | undefined;
-};
+export type { CrowAuth } from './crow-session-types';
+import type { CrowAuth } from './crow-session-types';
 
 const REFRESH_SKEW_SEC = 120;
 
