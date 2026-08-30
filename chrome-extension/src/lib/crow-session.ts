@@ -194,13 +194,14 @@ export async function clearCrowAuth(): Promise<void> {
   await chrome.storage.sync.remove(['accessToken', 'apiBaseUrl', 'adminSecret']);
 }
 
-/** 打包时注入的 Crow 站点 origin（扩展内登录后的默认 apiBaseUrl）。 */
+/** 打包时注入的 Crow 站点 origin（扩展内登录后的默认 apiBaseUrl、未连接时兜底域）。
+ *  不设置默认生产域——生产扩展未连接/未登录不能打到团队 Preview；联调构建显式设 dev。 */
 export function getBuildSiteOrigin(): string {
   const fromEnv =
     typeof import.meta.env.VITE_PUBLIC_SITE_ORIGIN === 'string'
       ? import.meta.env.VITE_PUBLIC_SITE_ORIGIN.trim().replace(/\/+$/, '')
       : '';
-  return fromEnv || 'https://dev.crowknows.tech';
+  return fromEnv || 'https://www.crowknows.tech';
 }
 
 /** 打包时注入的公开 Supabase 配置（扩展内登录必填）。 */
