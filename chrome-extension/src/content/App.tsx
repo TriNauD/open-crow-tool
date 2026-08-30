@@ -24,10 +24,12 @@ const EMPTY_AUTH: CrowAuth = {
   expiresAt: undefined,
 };
 
-/** 未连接时的公开 explain 端点 base URL（/api/explain 为公开接口，无需 token） */
+/** 未连接时的公开 explain 端点 base URL（/api/explain 为公开接口，无需 token）。
+ *  与 getBuildSiteOrigin() 同源变量：不设置默认生产域，联调构建用 VITE_PUBLIC_SITE_ORIGIN 覆盖。 */
 const FALLBACK_API_BASE_URL =
-  (typeof import.meta.env.VITE_PUBLIC_SITE_URL === 'string' && import.meta.env.VITE_PUBLIC_SITE_URL) ||
-  'https://dev.crowknows.tech';
+  (typeof import.meta.env.VITE_PUBLIC_SITE_ORIGIN === 'string' &&
+    import.meta.env.VITE_PUBLIC_SITE_ORIGIN.trim().replace(/\/+$/, '')) ||
+  'https://www.crowknows.tech';
 
 function openCrowOptionsPage(): void {
   if (!extensionContextLikelyOk()) return;
