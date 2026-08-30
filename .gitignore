@@ -52,6 +52,7 @@ yarn-error.log*
 .env
 .env.*
 !.env.local.example
+!chrome-extension/.env.example
 
 # vercel
 .vercel

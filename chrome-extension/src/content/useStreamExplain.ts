@@ -1,4 +1,8 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
+import {
+  encodeUserLlmConfigHeader,
+  loadUserLlmConfig,
+} from '../lib/user-llm-config';
 
 export interface StreamState {
   text: string;
@@ -7,6 +11,13 @@ export interface StreamState {
   isDone: boolean;
 }
 
+/**
+ * 解释请求经 background SW 转发（流式 Port）：
+ * 第三方页面直连 /api/explain 的 Origin 是网页 origin，会被站点护栏 403；
+ * SW 发起的请求 Origin 为 chrome-extension://，被放行。
+ * 用户自配 LLM 头（x-crow-llm-config）一并经 SW 透传。
+ * chrome.runtime 不可用（扩展重载中）时报错提示，不再尝试直连。
+ */
 export function useStreamExplain(apiBaseUrl: string) {
   const [state, setState] = useState<StreamState>({
     text: '',
@@ -15,43 +26,80 @@ export function useStreamExplain(apiBaseUrl: string) {
     isDone: false,
   });
 
-  const abortRef = useRef<AbortController | null>(null);
+  const portRef = useRef<chrome.runtime.Port | null>(null);
+
+  // 卡片关闭（hook 随组件卸载）时断开与 SW 的 Port，避免悬空连接与 SW 保活空转
+  useEffect(() => {
+    return () => {
+      portRef.current?.disconnect();
+      portRef.current = null;
+    };
+  }, []);
 
   const explain = useCallback(
-    async (input: string, context?: string) => {
-      abortRef.current?.abort();
-      const controller = new AbortController();
-      abortRef.current = controller;
-
+    async (
+      input: string,
+      options?: { context?: string; surroundingText?: string }
+    ) => {
+      portRef.current?.disconnect();
       setState({ text: '', isLoading: true, error: null, isDone: false });
 
+      if (typeof chrome === 'undefined' || !chrome.runtime?.connect) {
+        setState((s) => ({
+          ...s,
+          isLoading: false,
+          error: '插件上下文已失效，请刷新页面后重试',
+        }));
+        return;
+      }
+
+      const body: {
+        text: string;
+        context?: string;
+        surroundingText?: string;
+      } = { text: input };
+      if (options?.context) body.context = options.context;
+      if (options?.surroundingText) body.surroundingText = options.surroundingText;
+
+      const userCfg = await loadUserLlmConfig();
+      const userLlmHeader = userCfg ? encodeUserLlmConfigHeader(userCfg) : '';
+
+      let settled = false;
+
       try {
-        const res = await fetch(`${apiBaseUrl}/api/explain`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: input, context }),
-          signal: controller.signal,
+        const port = chrome.runtime.connect({ name: 'crow-explain-proxy' });
+        portRef.current = port;
+
+        port.onMessage.addListener((msg: unknown) => {
+          const m = msg as { chunk?: string; done?: boolean; error?: string; ping?: boolean };
+          if (m.ping) return;
+          if (m.chunk) {
+            setState((s) => ({ ...s, text: s.text + m.chunk }));
+          }
+          if (m.error) {
+            settled = true;
+            setState((s) => ({ ...s, isLoading: false, error: m.error! }));
+            port.disconnect();
+            return;
+          }
+          if (m.done) {
+            settled = true;
+            setState((s) => ({ ...s, isLoading: false, isDone: true }));
+          }
         });
 
-        if (!res.ok || !res.body) {
-          const msg = await res.text().catch(() => '请求失败');
-          setState((s) => ({ ...s, isLoading: false, error: msg }));
-          return;
-        }
+        port.onDisconnect.addListener(() => {
+          if (!settled) {
+            setState((s) => ({
+              ...s,
+              isLoading: false,
+              error: '与插件的连接中断了，请重试',
+            }));
+          }
+        });
 
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          const chunk = decoder.decode(value, { stream: true });
-          setState((s) => ({ ...s, text: s.text + chunk }));
-        }
-
-        setState((s) => ({ ...s, isLoading: false, isDone: true }));
-      } catch (err) {
-        if ((err as Error).name === 'AbortError') return;
+        port.postMessage({ apiBaseUrl, body, userLlmHeader });
+      } catch {
         setState((s) => ({
           ...s,
           isLoading: false,
@@ -63,7 +111,7 @@ export function useStreamExplain(apiBaseUrl: string) {
   );
 
   const reset = useCallback(() => {
-    abortRef.current?.abort();
+    portRef.current?.disconnect();
     setState({ text: '', isLoading: false, error: null, isDone: false });
   }, []);
 

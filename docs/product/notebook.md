@@ -17,11 +17,12 @@
 | `parent_text` | 父条目的原始文本（展示上下文用） |
 | `source` | 来源：`web` / `chrome_extension` |
 | `saved_at` | 时间戳 |
-| `tags` | 标签数组（预留，暂不做 UI） |
+| `tags` | MVP：**主分类**落在 `tags[0]`（空=`未分类`）；笔记本页 chip 筛选与编辑，见 [`dev/active/笔记分类/`](../../dev/active/笔记分类/) |
 
 **Web 端笔记本页面：**
 - 列表展示，默认折叠，点击展开
 - 搜索（按 input_text 和 explanation 全文搜索）
+- 分类 chip（全部 / 未分类 / 已有类）与搜索可叠加；展开后可编辑分类
 - 删除
 - 显示来源（Web / 插件，用小标签区分）
 
@@ -31,3 +32,4 @@
 - 用户可选择"都保留"或"覆盖旧的"
 - 追问笔记（有 parentId）跳过检测，允许重复
 - 登录态查云端，游客态查 localStorage
+- **扩展侧（已合 `fea/future-features`）**：保存对齐同一规则 — [`dev/active/划词保存重复笔记校验/`](../../dev/active/划词保存重复笔记校验/)；本批接手见 [FUTURE-FEATURES-HANDOFF](../../dev/active/BRAINSTORM需求池/FUTURE-FEATURES-HANDOFF.md)

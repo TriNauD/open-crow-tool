@@ -78,3 +78,8 @@
 
 - **立项执行**：扩展内登录为主路径 + 保留网站连接 + 手动降级；存储与鉴权契约与现有多用户扩展对齐。  
 - **技术细节**：以 tasks 中「登录方案定稿」为门禁后再大面积编码。
+
+### 补丁（2026-07-25 定稿）
+
+- **主方案 = A**：Options + GoTrue password grant（fetch）；见 `Chrome扩展内登录-context.md`「实现决策」。  
+- **不做**：方案 B（`chrome.identity` / PKCE）、Magic link、扩展内注册表单（注册仍引导网站）。

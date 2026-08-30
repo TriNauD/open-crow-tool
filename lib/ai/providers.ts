@@ -1,4 +1,16 @@
 import OpenAI from 'openai';
+import { assertSafeHttpUrl } from '@/lib/url/fetch-safe';
+
+/** 透传用户自配 LLM（OpenAI-compatible）的请求头名，值为 base64url(JSON) */
+export const USER_LLM_CONFIG_HEADER = 'x-crow-llm-config';
+
+/** 实际生效的 provider 名，随响应头返回，供「测试连接」判断回退 */
+export const EFFECTIVE_PROVIDER_HEADER = 'x-crow-provider';
+
+const USER_LLM_CONFIG_HEADER_MAX = 1024;
+const USER_LLM_LIMITS = { baseURL: 300, apiKey: 256, model: 120 };
+
+export type UserLLMConfig = { baseURL: string; apiKey: string; model: string };
 
 const PROVIDER_DEFAULTS: Record<string, { baseURL: string; model: string }> = {
   openai:      { baseURL: 'https://api.openai.com/v1',              model: 'gpt-4o' },
@@ -56,14 +68,89 @@ export function getModelForProvider(provider: string): string {
 }
 
 /**
- * Build ordered provider chain: [primary, ...fallbacks].
- * Only includes providers that have an API key configured.
+ * 解析并校验用户自配的 LLM 配置（来自 X-Crow-LLM-Config 头，base64url JSON）。
+ * 任何不合法（格式、长度、非 https、私网/内网地址）一律返回 null，
+ * 调用方静默忽略并走服务器默认 provider 链，不给用户报错。
  */
-export function getProviderChain(): { name: string; client: OpenAI; model: string }[] {
+export function parseUserLLMConfig(raw: string | null | undefined): UserLLMConfig | null {
+  if (!raw || raw.length > USER_LLM_CONFIG_HEADER_MAX) return null;
+
+  let decoded: string;
+  try {
+    const b64 = raw.replace(/-/g, '+').replace(/_/g, '/');
+    decoded = Buffer.from(b64, 'base64').toString('utf8');
+  } catch {
+    return null;
+  }
+
+  let obj: unknown;
+  try {
+    obj = JSON.parse(decoded);
+  } catch {
+    return null;
+  }
+  if (!obj || typeof obj !== 'object') return null;
+
+  const { baseURL, apiKey, model } = obj as Record<string, unknown>;
+  if (typeof baseURL !== 'string' || typeof apiKey !== 'string' || typeof model !== 'string') {
+    return null;
+  }
+
+  const url = baseURL.trim().replace(/\/+$/, '');
+  const key = apiKey.trim();
+  const mdl = model.trim();
+  if (!url || !key || !mdl) return null;
+  if (
+    url.length > USER_LLM_LIMITS.baseURL ||
+    key.length > USER_LLM_LIMITS.apiKey ||
+    mdl.length > USER_LLM_LIMITS.model
+  ) {
+    return null;
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return null;
+  }
+
+  const host = parsed.hostname.toLowerCase();
+  const isLocalHttp =
+    parsed.protocol === 'http:' &&
+    (host === 'localhost' || host.endsWith('.localhost') || host === '127.0.0.1' || host === '[::1]');
+
+  if (!isLocalHttp || process.env.NODE_ENV === 'production') {
+    if (parsed.protocol !== 'https:') return null;
+    try {
+      assertSafeHttpUrl(url);
+    } catch {
+      return null;
+    }
+  }
+
+  return { baseURL: url, apiKey: key, model: mdl };
+}
+
+/**
+ * Build ordered provider chain: [user custom (if any), primary, ...fallbacks].
+ * Only includes env providers that have an API key configured.
+ */
+export function getProviderChain(
+  userCfg?: UserLLMConfig | null
+): { name: string; client: OpenAI; model: string }[] {
+  const chain: { name: string; client: OpenAI; model: string }[] = [];
+
+  if (userCfg) {
+    chain.push({
+      name: 'custom',
+      client: new OpenAI({ apiKey: userCfg.apiKey, baseURL: userCfg.baseURL }),
+      model: userCfg.model,
+    });
+  }
+
   const primary = getPrimaryProvider();
   const ordered = [primary, ...FALLBACK_ORDER.filter((p) => p !== primary)];
-
-  const chain: { name: string; client: OpenAI; model: string }[] = [];
 
   for (const name of ordered) {
     const apiKey = resolveApiKey(name);

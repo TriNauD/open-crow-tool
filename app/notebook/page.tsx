@@ -1,13 +1,21 @@
 'use client';
 
-import { useEffect, useState, useTransition } from 'react';
+import { useEffect, useMemo, useState, useTransition } from 'react';
 import Link from 'next/link';
 import type { NoteEntry } from '@/lib/db/notes';
 import { AuthNav } from '@/components/AuthNav';
 import { GuestMigrationModal } from '@/components/GuestMigrationModal';
 import { useAuthSession } from '@/hooks/useAuthSession';
-import { deleteNoteById, fetchNotes } from '@/lib/api/notes-client';
-import { getGuestNotes, removeGuestNote } from '@/lib/guest-notes';
+import { deleteNoteById, fetchNotes, patchNoteTags } from '@/lib/api/notes-client';
+import { getGuestNotes, removeGuestNote, updateGuestNoteTags } from '@/lib/guest-notes';
+import {
+  collectCategories,
+  matchesCategoryFilter,
+  MAX_TAG_LENGTH,
+  parseTagsInput,
+  primaryCategory,
+  type CategoryFilter,
+} from '@/lib/notes/tags';
 
 function formatDate(ts: number): string {
   return new Intl.DateTimeFormat('zh-CN', {
@@ -22,6 +30,7 @@ export default function NotebookPage() {
   const { accessToken, user, isLoading: sessionLoading } = useAuthSession();
   const [notes, setNotes] = useState<NoteEntry[] | null>(null);
   const [query, setQuery] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [isPending, startTransition] = useTransition();
 
@@ -35,7 +44,8 @@ export default function NotebookPage() {
       );
     });
 
-    return data.map((note): NoteEntry => ({
+    return data.map(
+      (note): NoteEntry => ({
         id: note.clientNoteId,
         user_id: 'guest',
         inputText: note.inputText,
@@ -43,8 +53,9 @@ export default function NotebookPage() {
         parentText: note.parentText,
         source: note.source,
         savedAt: note.savedAt,
-        tags: [],
-      }));
+        tags: note.tags ?? [],
+      })
+    );
   }
 
   useEffect(() => {
@@ -75,6 +86,13 @@ export default function NotebookPage() {
     };
   }, [query, accessToken, sessionLoading]);
 
+  const categories = useMemo(() => collectCategories(notes ?? []), [notes]);
+
+  const visibleNotes = useMemo(() => {
+    const list = notes ?? [];
+    return list.filter((n) => matchesCategoryFilter(n.tags, categoryFilter));
+  }, [notes, categoryFilter]);
+
   function toggleExpand(id: string) {
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -95,8 +113,29 @@ export default function NotebookPage() {
     });
   }
 
+  function handleUpdateCategory(id: string, tags: string[]) {
+    startTransition(async () => {
+      try {
+        if (accessToken) {
+          const updated = await patchNoteTags(accessToken, id, tags);
+          setNotes((prev) => (prev ?? []).map((n) => (n.id === id ? updated : n)));
+        } else {
+          updateGuestNoteTags(id, tags);
+          setNotes((prev) =>
+            (prev ?? []).map((n) => (n.id === id ? { ...n, tags } : n))
+          );
+        }
+      } catch (err) {
+        console.error(err);
+        alert(err instanceof Error ? err.message : '更新分类失败');
+      }
+    });
+  }
+
   const isLoading = sessionLoading || notes === null;
-  const visibleNotes = notes ?? [];
+  const hasAnyNotes = (notes?.length ?? 0) > 0;
+  const showEmpty =
+    !isLoading && visibleNotes.length === 0 && (hasAnyNotes || Boolean(query.trim()));
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col">
@@ -108,6 +147,12 @@ export default function NotebookPage() {
           这是啥<span className="text-orange-400">？</span>
         </Link>
         <div className="flex items-center gap-3">
+          <Link
+            href="/settings"
+            className="text-sm border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500 px-3 py-1.5 rounded-lg transition-colors"
+          >
+            设置
+          </Link>
           <span className="text-sm text-zinc-500">这都是啥 — 笔记本</span>
           <AuthNav />
         </div>
@@ -120,9 +165,13 @@ export default function NotebookPage() {
             <p className="text-zinc-500 text-sm">
               {isLoading
                 ? '加载中...'
-                : visibleNotes.length === 0
+                : (notes?.length ?? 0) === 0
                   ? '还没存过任何东西'
-                  : `${user ? '账号' : '游客'}共 ${visibleNotes.length} 条，上次那个玩意儿你还记得吗`}
+                  : `${user ? '账号' : '游客'}共 ${notes!.length} 条${
+                      categoryFilter !== 'all'
+                        ? `，当前筛选 ${visibleNotes.length} 条`
+                        : ''
+                    }，上次那个玩意儿你还记得吗`}
             </p>
           </div>
           <Link
@@ -133,7 +182,30 @@ export default function NotebookPage() {
           </Link>
         </div>
 
-        {!isLoading && visibleNotes.length > 0 && (
+        {!isLoading && hasAnyNotes && (
+          <div className="mb-4 flex flex-wrap gap-2">
+            <CategoryChip
+              label="全部"
+              active={categoryFilter === 'all'}
+              onClick={() => setCategoryFilter('all')}
+            />
+            <CategoryChip
+              label="未分类"
+              active={categoryFilter === 'uncategorized'}
+              onClick={() => setCategoryFilter('uncategorized')}
+            />
+            {categories.map((name) => (
+              <CategoryChip
+                key={name}
+                label={name}
+                active={categoryFilter === name}
+                onClick={() => setCategoryFilter(name)}
+              />
+            ))}
+          </div>
+        )}
+
+        {!isLoading && hasAnyNotes && (
           <div className="mb-6">
             <input
               type="text"
@@ -154,19 +226,23 @@ export default function NotebookPage() {
               <span>加载中...</span>
             </div>
           </div>
-        ) : visibleNotes.length === 0 ? (
+        ) : (notes?.length ?? 0) === 0 ? (
+          <div className="text-center py-20">
+            <p className="text-zinc-600 text-base mb-4">什么都没有，去问几个试试</p>
+            <Link
+              href="/"
+              className="inline-block bg-orange-500 hover:bg-orange-400 text-white text-sm font-semibold px-5 py-2 rounded-lg transition-colors"
+            >
+              这是啥？
+            </Link>
+          </div>
+        ) : showEmpty ? (
           <div className="text-center py-20">
             <p className="text-zinc-600 text-base mb-4">
-              {query ? '没找到匹配的记录' : '什么都没有，去问几个试试'}
+              {query || categoryFilter !== 'all'
+                ? '没找到匹配的记录'
+                : '什么都没有，去问几个试试'}
             </p>
-            {!query && (
-              <Link
-                href="/"
-                className="inline-block bg-orange-500 hover:bg-orange-400 text-white text-sm font-semibold px-5 py-2 rounded-lg transition-colors"
-              >
-                这是啥？
-              </Link>
-            )}
           </div>
         ) : (
           <div className="flex flex-col gap-3">
@@ -177,7 +253,9 @@ export default function NotebookPage() {
                 isExpanded={expanded.has(note.id)}
                 onToggle={() => toggleExpand(note.id)}
                 onDelete={() => handleDelete(note.id)}
-                isDeleting={isPending}
+                onUpdateCategory={(tags) => handleUpdateCategory(note.id, tags)}
+                recentCategories={categories}
+                isBusy={isPending}
               />
             ))}
           </div>
@@ -195,19 +273,66 @@ export default function NotebookPage() {
   );
 }
 
+function CategoryChip({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
+        active
+          ? 'border-orange-400/80 bg-orange-500/15 text-orange-300'
+          : 'border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200'
+      }`}
+    >
+      {label}
+    </button>
+  );
+}
+
 function NoteCard({
   note,
   isExpanded,
   onToggle,
   onDelete,
-  isDeleting,
+  onUpdateCategory,
+  recentCategories,
+  isBusy,
 }: {
   note: NoteEntry;
   isExpanded: boolean;
   onToggle: () => void;
   onDelete: () => void;
-  isDeleting: boolean;
+  onUpdateCategory: (tags: string[]) => void;
+  recentCategories: string[];
+  isBusy: boolean;
 }) {
+  const category = primaryCategory(note.tags);
+  const [draft, setDraft] = useState('');
+  const [editing, setEditing] = useState(false);
+
+  function startEditing() {
+    setDraft(category ?? '');
+    setEditing(true);
+  }
+
+  function commitCategory() {
+    const parsed = parseTagsInput(draft.trim() ? [draft] : []);
+    if (!parsed.ok) {
+      alert(parsed.error);
+      return;
+    }
+    onUpdateCategory(parsed.tags);
+    setEditing(false);
+  }
+
   return (
     <div className="border border-zinc-800 rounded-xl bg-zinc-900 overflow-hidden">
       <button
@@ -215,12 +340,17 @@ function NoteCard({
         className="w-full flex items-start justify-between gap-3 px-4 py-3 text-left hover:bg-zinc-800/50 transition-colors"
       >
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-0.5">
+          <div className="flex items-center gap-2 mb-0.5 flex-wrap">
             {note.parentText && (
               <span className="text-xs text-orange-400/70 font-medium shrink-0">追问</span>
             )}
             {note.source === 'chrome_extension' && (
               <span className="text-xs text-blue-400/70 font-medium shrink-0">插件</span>
+            )}
+            {category ? (
+              <span className="text-xs text-emerald-400/80 font-medium shrink-0">{category}</span>
+            ) : (
+              <span className="text-xs text-zinc-600 font-medium shrink-0">未分类</span>
             )}
             <p className="text-sm text-zinc-200 font-medium truncate">{note.inputText}</p>
           </div>
@@ -248,10 +378,73 @@ function NoteCard({
           <p className="mt-3 text-sm text-zinc-100 leading-relaxed whitespace-pre-wrap">
             {note.explanation}
           </p>
+
+          <div className="mt-4 flex flex-col gap-2">
+            <p className="text-xs text-zinc-500">分类</p>
+            {editing ? (
+              <div className="flex flex-col gap-2">
+                <input
+                  type="text"
+                  value={draft}
+                  maxLength={MAX_TAG_LENGTH}
+                  onChange={(e) => setDraft(e.target.value)}
+                  placeholder="例如：RAG（留空=未分类）"
+                  className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-100 outline-none focus:border-orange-400"
+                />
+                {recentCategories.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {recentCategories.map((name) => (
+                      <button
+                        key={name}
+                        type="button"
+                        onClick={() => setDraft(name)}
+                        className="text-xs px-2 py-1 rounded border border-zinc-700 text-zinc-400 hover:border-zinc-500"
+                      >
+                        {name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <div className="flex gap-2 justify-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDraft(category ?? '');
+                      setEditing(false);
+                    }}
+                    className="text-xs text-zinc-500 hover:text-zinc-300"
+                  >
+                    取消
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isBusy}
+                    onClick={commitCategory}
+                    className="text-xs text-orange-400 hover:text-orange-300 disabled:opacity-40"
+                  >
+                    保存分类
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm text-zinc-300">{category ?? '未分类'}</span>
+                <button
+                  type="button"
+                  disabled={isBusy}
+                  onClick={startEditing}
+                  className="text-xs text-zinc-500 hover:text-zinc-300 disabled:opacity-40"
+                >
+                  编辑分类
+                </button>
+              </div>
+            )}
+          </div>
+
           <div className="mt-4 flex items-center justify-end">
             <button
               onClick={onDelete}
-              disabled={isDeleting}
+              disabled={isBusy}
               className="text-xs text-zinc-600 hover:text-red-400 disabled:opacity-40 transition-colors"
             >
               删除
