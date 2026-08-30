@@ -20,6 +20,8 @@
 - **重试**：请求失败时红字旁出现「重试」，原样重发同一请求重新进入流式态（`useStreamExplain` 记录最近一次入参）
 - 扩展端 `ExplainCard` 对表跟进；AI 调用侧配套加了 18s 连接超时与 provider 自动切换（见 `dev/logs` BF-2）
 
+**迭代（触屏 Enter 换行，2026-08-31，R7）：** 触屏设备（`pointer: coarse`）上 Enter 不再被拦截——一律换行，发送仅靠按钮；桌面键位不变，角标文案移动端维持隐藏。分支 `fea/mobile-enter-newline`。
+
 **迭代说明（BRAINSTORM 阶段 A ✅，2026-04）：**  
 首页输入区快捷键提示按操作系统显示（Mac `⌘↵` / Win/Linux `Ctrl+Enter`，手机浏览器不展示）；关键输入控件使用足够字号以免 iOS 聚焦时整页缩放。归档：`dev/done/BRAINSTORM阶段A/阶段A-plan.md`、`阶段A-qa.md`。**需求池**（含后续阶段条目）：[`dev/active/BRAINSTORM需求池/README.md`](../../dev/active/BRAINSTORM需求池/README.md)。
 
