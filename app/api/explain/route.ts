@@ -3,7 +3,12 @@ import type { ChatCompletionChunk } from 'openai/resources/chat/completions';
 import type { ChatCompletionContentPart } from 'openai/resources/chat/completions';
 import OpenAI from 'openai';
 import { corsHeaders, handleOptions } from '@/lib/utils/cors';
-import { getProviderChain } from '@/lib/ai/providers';
+import {
+  EFFECTIVE_PROVIDER_HEADER,
+  USER_LLM_CONFIG_HEADER,
+  getProviderChain,
+  parseUserLLMConfig,
+} from '@/lib/ai/providers';
 import { SYSTEM_PROMPT, buildExplainPrompt } from '@/lib/ai/prompts';
 import { toDataUrl, validateExplainImage } from '@/lib/ai/image-limits';
 
@@ -73,17 +78,21 @@ export async function POST(req: Request) {
       ];
     }
 
-    const chain = getProviderChain();
+    // 用户自配 LLM（OpenAI-compatible）优先；校验失败静默走服务器默认链
+    const userCfg = parseUserLLMConfig(req.headers.get(USER_LLM_CONFIG_HEADER));
+    const chain = getProviderChain(userCfg);
     if (chain.length === 0) {
       return new Response('未配置可用的 AI Provider', { status: 500 });
     }
 
     let stream: Stream<ChatCompletionChunk> | undefined;
+    let usedProvider = '';
     let lastErr: unknown;
 
     for (const { name, client, model } of chain) {
       try {
         stream = await createChatStream(client, model, userContent);
+        usedProvider = name;
         console.log(`[explain] using provider="${name}", model="${model}", hasImage=${hasImage}`);
         break;
       } catch (err) {
@@ -120,6 +129,7 @@ export async function POST(req: Request) {
       headers: {
         'Content-Type': 'text/plain; charset=utf-8',
         'X-Content-Type-Options': 'nosniff',
+        [EFFECTIVE_PROVIDER_HEADER]: usedProvider,
         ...corsHeaders,
       },
     });

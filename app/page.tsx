@@ -176,6 +176,12 @@ ${text}
         </span>
         <div className="flex items-center gap-3">
           <Link
+            href="/settings"
+            className="text-sm transition-colors px-3 py-1.5 rounded-lg border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500"
+          >
+            设置
+          </Link>
+          <Link
             href="/notebook"
             className={`text-sm transition-colors px-3 py-1.5 rounded-lg border ${
               notebookFlash
