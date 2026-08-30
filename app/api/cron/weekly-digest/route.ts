@@ -8,10 +8,19 @@ import {
   type Tier,
 } from '@/lib/email';
 import { getActiveSubscribers } from '@/lib/db/subscribers';
-import { getProviderChain } from '@/lib/ai/providers';
+import {
+  getProviderChain,
+  getProviderTimeoutMs,
+  isProviderTimeoutError,
+  runProviderChain,
+  withProviderTimeout,
+} from '@/lib/ai/providers';
 
 // Vercel hobby: 60s max, pro: 300s
 export const maxDuration = 60;
+
+/** AI 评审阶段的整体预算：为抓取与逐个发信（600ms/人）留出余量，避免 60s 被 AI 挂起吃光 */
+const AI_PHASE_BUDGET_MS = 40_000;
 
 const VALID_TIERS: Tier[] = ['夯', '顶级', '人上人', 'NPC', '拉完了'];
 
@@ -128,38 +137,48 @@ export async function GET(req: NextRequest) {
   let reviewed: ReviewedRepo[] | undefined;
   let aiUsed = true;
   const chain = getProviderChain();
-  let lastErr: unknown;
+  const aiDeadline = Date.now() + AI_PHASE_BUDGET_MS;
 
-  for (const { name, client, model } of chain) {
-    try {
-      const completion = await client.chat.completions.create({
-        model,
-        messages: [{ role: 'user', content: buildReviewPrompt(trending) }],
-        temperature: 0.3,
-      });
+  try {
+    const { value, providerName } = await runProviderChain(
+      chain,
+      ({ client, model }) => {
+        // 单次调用超时取「配置值」与「AI 阶段剩余预算」的较小者，预算耗尽后快速失败
+        const remaining = aiDeadline - Date.now();
+        const timeoutMs = Math.max(3_000, Math.min(getProviderTimeoutMs(), remaining));
+        return withProviderTimeout(timeoutMs, async (signal) => {
+          const completion = await client.chat.completions.create(
+            {
+              model,
+              messages: [{ role: 'user', content: buildReviewPrompt(trending) }],
+              temperature: 0.3,
+            },
+            { signal }
+          );
 
-      const raw = completion.choices[0]?.message?.content ?? '';
-      reviewed = parseReviewedRepos(raw);
-      console.log(`[weekly-digest] using provider="${name}", model="${model}"`);
-      log.aiProvider = name;
-      log.aiReviewed = reviewed.length;
+          const raw = completion.choices[0]?.message?.content ?? '';
+          return parseReviewedRepos(raw);
+        });
+      },
+      (name, err) => {
+        const kind = isProviderTimeoutError(err) ? 'timeout' : 'error';
+        console.warn(`[weekly-digest] provider "${name}" ${kind}: ${String(err)}, trying next...`);
+      }
+    );
 
-      const tierCount: Record<string, number> = {};
-      for (const r of reviewed) tierCount[r.tier] = (tierCount[r.tier] ?? 0) + 1;
-      log.tierDistribution = tierCount;
+    reviewed = value;
+    console.log(`[weekly-digest] using provider="${providerName}"`);
+    log.aiProvider = providerName;
+    log.aiReviewed = reviewed.length;
 
-      break;
-    } catch (err) {
-      lastErr = err;
-      console.warn(`[weekly-digest] provider "${name}" failed, trying next...`);
-    }
-  }
-
-  if (!reviewed) {
-    console.error('[weekly-digest] all AI providers failed, using fallback:', lastErr);
+    const tierCount: Record<string, number> = {};
+    for (const r of reviewed) tierCount[r.tier] = (tierCount[r.tier] ?? 0) + 1;
+    log.tierDistribution = tierCount;
+  } catch (err) {
+    console.error('[weekly-digest] all AI providers failed, using fallback:', err);
     reviewed = fallbackRepos(trending);
     aiUsed = false;
-    log.aiError = String(lastErr);
+    log.aiError = String(err);
     log.fallback = true;
   }
 
