@@ -33,6 +33,8 @@ export function useStreamExplain() {
   });
 
   const abortRef = useRef<AbortController | null>(null);
+  /** 最近一次请求的入参，供失败后「重试」原样重发 */
+  const lastRequestRef = useRef<{ input: string; options?: ExplainRequestOptions } | null>(null);
 
   const explain = useCallback(
     async (input: string, contextOrOptions?: string | ExplainRequestOptions) => {
@@ -46,6 +48,7 @@ export function useStreamExplain() {
         typeof contextOrOptions === 'string'
           ? { context: contextOrOptions }
           : (contextOrOptions ?? {});
+      lastRequestRef.current = { input, options };
 
       try {
         const body: {
@@ -103,5 +106,12 @@ export function useStreamExplain() {
     setState({ text: '', isLoading: false, error: null, isDone: false });
   }, []);
 
-  return { ...state, explain, reset };
+  /** 失败后原样重发最近一次请求 */
+  const retry = useCallback(() => {
+    const last = lastRequestRef.current;
+    if (!last) return;
+    return explain(last.input, last.options);
+  }, [explain]);
+
+  return { ...state, explain, retry, reset };
 }
