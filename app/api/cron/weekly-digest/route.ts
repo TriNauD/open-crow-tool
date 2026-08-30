@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { fetchTrending, type TrendingRepo } from '@/lib/github-trending';
+import { fetchTrending, sanitizeGithubRepoUrl, type TrendingRepo } from '@/lib/github-trending';
 import {
   sendWeeklyDigest,
   sendDigestOpsReportComplete,
@@ -58,7 +58,7 @@ function parseReviewedRepos(raw: string): ReviewedRepo[] {
 
   return parsed.map((item) => ({
     name: item.name ?? '',
-    url: item.url ?? `https://github.com/${item.name}`,
+    url: sanitizeGithubRepoUrl(item.url, item.name ?? ''),
     summary: item.summary ?? '',
     tech_score: Math.min(5, Math.max(1, Number(item.tech_score) || 3)),
     scene_score: Math.min(5, Math.max(1, Number(item.scene_score) || 3)),
