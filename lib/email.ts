@@ -137,6 +137,8 @@ export interface DigestOpsCompletePayload {
   fetchError?: string;
   aiError?: string;
   fallback?: boolean;
+  /** 本轮 Trending 来自「上次成功结果」缓存的降级发送（R15），值为缓存保存时间 */
+  degradedFromCacheIso?: string;
 }
 
 export interface DigestOpsAbortedPayload {
@@ -192,7 +194,7 @@ function buildDigestOpsCompleteHtml(p: DigestOpsCompletePayload): string {
     <tr><td style="padding:4px 12px 4px 0;color:#666;">本轮实际收件人数</td><td>${p.recipientCount}</td></tr>
     <tr><td style="padding:4px 12px 4px 0;color:#666;">发送成功 / 失败</td><td><strong>${p.sendOk}</strong> / <strong style="color:${p.sendFail ? '#c00' : '#0a0'}">${p.sendFail}</strong></td></tr>
     <tr><td style="padding:4px 12px 4px 0;color:#666;">AI 评审</td><td>${p.aiUsed ? '已用 AI' : '降级 fallback'}${p.fallback ? '（本轮曾解析失败或异常）' : ''}</td></tr>
-    <tr><td style="padding:4px 12px 4px 0;color:#666;">Trending 条数</td><td>${p.fetchedTrendingCount ?? '—'}</td></tr>
+    <tr><td style="padding:4px 12px 4px 0;color:#666;">Trending 条数</td><td>${p.fetchedTrendingCount ?? '—'}${p.degradedFromCacheIso ? `（⚠️ 抓取失败，降级用缓存于 ${escapeHtml(p.degradedFromCacheIso)} 的上次成功结果）` : ''}</td></tr>
   </table>
   ${p.aiError ? `<p style="margin:12px 0 4px 0;font-weight:600;">AI 异常（已尽力继续）</p><pre style="background:#f5f5f5;padding:8px;overflow:auto;font-size:12px;">${escapeHtml(p.aiError)}</pre>` : ''}
   ${p.fetchError ? `<p style="margin:12px 0 4px 0;font-weight:600;">抓取异常</p><pre style="background:#f5f5f5;padding:8px;overflow:auto;font-size:12px;">${escapeHtml(p.fetchError)}</pre>` : ''}

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { fetchTrending, type TrendingRepo } from '@/lib/github-trending';
+import { loadTrendingCache, saveTrendingCache } from '@/lib/trending-cache';
 import {
   sendWeeklyDigest,
   sendDigestOpsReportComplete,
@@ -90,24 +91,26 @@ export async function GET(req: NextRequest) {
   const langFilter = process.env.DIGEST_LANGUAGE_FILTER ?? '';
   const log: Record<string, unknown> = {};
 
-  // 1. Fetch trending
+  // 1. Fetch trending（失败或为空时尝试用上次成功结果降级——R15）
   let trending: TrendingRepo[] = [];
   try {
     trending = await fetchTrending(langFilter || undefined);
     log.fetched = trending.length;
+    if (trending.length > 0) {
+      await saveTrendingCache(trending);
+    }
   } catch (err) {
     log.fetchError = String(err);
-    try {
-      await sendDigestOpsReportAborted({
-        ranAtIso: new Date().toISOString(),
-        stage: 'fetch-trending',
-        message: '抓取 GitHub Trending 失败，未进入 AI 与发信。',
-        extra: { log },
-      });
-    } catch (notifyErr) {
-      console.error('[weekly-digest] ops notify failed:', notifyErr);
+  }
+
+  if (trending.length === 0) {
+    const cached = await loadTrendingCache();
+    if (cached) {
+      trending = cached.repos;
+      log.degradedFromCache = cached.savedAtIso;
+      log.fetched = cached.repos.length;
+      console.warn(`[weekly-digest] trending fetch degraded, using cache from ${cached.savedAtIso}`);
     }
-    return NextResponse.json({ error: 'Failed to fetch trending', log }, { status: 500 });
   }
 
   if (trending.length === 0) {
@@ -115,13 +118,13 @@ export async function GET(req: NextRequest) {
       await sendDigestOpsReportAborted({
         ranAtIso: new Date().toISOString(),
         stage: 'fetch-trending',
-        message: 'Trending 列表为空，未发送任何订阅邮件。',
+        message: '抓取 GitHub Trending 失败且无可用缓存，未进入 AI 与发信。',
         extra: { log },
       });
     } catch (notifyErr) {
       console.error('[weekly-digest] ops notify failed:', notifyErr);
     }
-    return NextResponse.json({ error: 'No trending repos found', log }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to fetch trending', log }, { status: 500 });
   }
 
   // 2. AI batch review (with provider chain fallback)
@@ -223,6 +226,7 @@ export async function GET(req: NextRequest) {
       aiError: typeof log.aiError === 'string' ? log.aiError : undefined,
       fetchError: typeof log.fetchError === 'string' ? log.fetchError : undefined,
       fallback: log.fallback === true,
+      degradedFromCacheIso: typeof log.degradedFromCache === 'string' ? log.degradedFromCache : undefined,
     });
   } catch (notifyErr) {
     console.error('[weekly-digest] ops notify failed:', notifyErr);
