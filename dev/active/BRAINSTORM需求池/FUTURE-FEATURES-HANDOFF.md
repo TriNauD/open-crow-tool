@@ -53,6 +53,7 @@ BRAINSTORM 阶段 A 已结项；阶段 **B / C / D** 一批功能（笔记分类
 | 6 | `8499cfa` | `fea/url-fetch-wesrindo` | D-1 链接内容抓取 |
 | 7 | `91d1713` | `fea/feishu-eval-stub-wesrindo` | D-2 飞书 stub / No-Go |
 | 8 | `f662f7a` | `fea/chrome-ext-inapp-login-wesrindo` | C-3 扩展内登录 |
+| 9 | `c595825` | `fea/ext-inline-login-wesrindo` | 扩展登录丝滑化（卡片/Popup 内嵌登录 + 过期就近恢复，2026-08-30） |
 
 > 进度表上 C-3 排在「重复校验」与 D-1 之间；**实际 merge 顺序**是 D-1 / D-2 先合、C-3 最后合——功能上互不阻塞，接手时以 HEAD 全量为准。
 
@@ -85,6 +86,7 @@ BRAINSTORM 阶段 A 已结项；阶段 **B / C / D** 一批功能（笔记分类
 | **C-3** | Chrome 扩展内登录 | **已合 future** | lint + `supabase-password-login` + 扩展 build | [`Chrome扩展内登录-manual-test.md`](../Chrome扩展内登录/Chrome扩展内登录-manual-test.md) | 手测 §A/C/D 未勾；**无 Magic link / 无扩展内注册**；邮箱未验证仅提示 |
 | **D-1** | 链接内容抓取 | **已合 future** | lint + `fetch-safe-ssrf` | [`链接内容抓取-manual-test.md`](../链接内容抓取/链接内容抓取-manual-test.md) | 限流/登录门禁二期；抓取质量因站点而异 |
 | **D-2** | 飞书等平台 | **stub / No-Go** | lint + `feishu-stub` | [`evaluation`](../飞书等平台/飞书等平台-evaluation.md) + [`manual-test`](../飞书等平台/飞书等平台-manual-test.md) | **不做**完整开放平台；真机「飞书网页+扩展」验证待用户 |
+| **扩展登录丝滑化** | 卡片/Popup 内嵌登录 + 过期就近恢复 | **已合 future**（2026-08-30） | lint + `crow-inline-login` + 扩展 build + ext e2e 5/5 | [`扩展登录丝滑化-manual-test.md`](../扩展登录丝滑化/扩展登录丝滑化-manual-test.md) | 手测三条新路径待用户；manifest 0.1.26；已清理 fabDebug 埋点 |
 
 **整体**：编码与合入 future **已完成**；**批量用户手测、qa.md、PR → `dev`、结项迁 `dev/done` 均未做**。
 

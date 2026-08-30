@@ -65,5 +65,6 @@ git push origin fea/future-features
 | 6 | C-3 Chrome扩展内登录 | `fea/chrome-ext-inapp-login-wesrindo` | ✅ | `dev/active/Chrome扩展内登录/Chrome扩展内登录-manual-test.md` | 方案 A password grant |
 | 7 | D-1 链接内容抓取 | `fea/url-fetch-wesrindo` | ✅ | `dev/active/链接内容抓取/链接内容抓取-manual-test.md` | `POST /api/fetch-url` + SSRF |
 | 8 | D-2 飞书等平台 | `fea/feishu-eval-stub-wesrindo` | ✅ stub/No-Go | `dev/active/飞书等平台/飞书等平台-evaluation.md` + `…-manual-test.md` | `POST /api/feishu/events` → 501 |
+| 9 | 扩展登录丝滑化 | `fea/ext-inline-login-wesrindo` | ✅ | `dev/active/扩展登录丝滑化/扩展登录丝滑化-manual-test.md` | 卡片/Popup 内嵌登录 + 过期就近恢复；manifest 0.1.26；手测待做 |
 
 > 更新约定：某条 merge 进 future 后，将对应行改为 ✅ 并填分支名与文档路径；状态细节同步 [handoff](./FUTURE-FEATURES-HANDOFF.md)。
