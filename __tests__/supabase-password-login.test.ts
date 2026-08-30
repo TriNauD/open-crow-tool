@@ -17,6 +17,11 @@ describe('mapPasswordLoginError', () => {
     expect(mapPasswordLoginError('rate limit exceeded', 429)).toContain('过于频繁');
   });
 
+  it('映射 5xx 为可读提示', () => {
+    expect(mapPasswordLoginError('HTTP 502', 502)).toContain('登录服务暂时不可用');
+    expect(mapPasswordLoginError('', 503)).toContain('登录服务暂时不可用');
+  });
+
   it('映射网络失败', () => {
     expect(mapPasswordLoginError('Failed to fetch', 0)).toContain('网络异常');
   });
