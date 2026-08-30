@@ -34,6 +34,7 @@
 - **划词保存重复笔记校验（已合 future）**：扩展保存前对齐 Web normalize 查重（都保留/覆盖）— [`dev/active/划词保存重复笔记校验/`](../../dev/active/划词保存重复笔记校验/)。
 - **D-2 飞书等平台（已合 future：stub / No-Go）**：`POST /api/feishu/events` → 501；评估见 [`飞书等平台-evaluation.md`](../../dev/active/飞书等平台/飞书等平台-evaluation.md)。
 - **暂停划词开关（✅ 2026-05-16 结项）**：Popup/Options 共用 `crow_extension_enabled`（缺省开启）；关时卸载划词 UI、快捷键不进入解释；**保留**网站「连接插件」桥接。未连接账号时仍可调用公开 `/api/explain` 查看解释，**存入笔记本**前引导连接。详情与验收：`dev/done/Chrome扩展暂停划词开关/`、`dev/logs/Chrome扩展暂停划词开关-log.md`。
+- **站点兜底域统一（✅ 2026-08-31）**：`VITE_PUBLIC_SITE_ORIGIN` 不设置时构建产物默认生产域 **`https://www.crowknows.tech`**——覆盖未登录划词解释、扩展内登录默认 apiBaseUrl 与 Options 占位符（此前硬编码 dev 站，生产用户未登录时请求会打到团队 Preview 且被部署保护拦成 401）；联调构建显式设 `VITE_PUBLIC_SITE_ORIGIN=https://dev.crowknows.tech`。
 
 **不做（本阶段仍不考虑）：**
 - 离线缓存解释结果
