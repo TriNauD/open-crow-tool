@@ -39,11 +39,14 @@
    **预期**：展开三个字段 + 状态条「未启用，走默认通道」。
 2. 填三项 → 「**保存**」。
    **预期**：按钮变「✓ 已保存」，状态条变「已启用自定义 API」。
-3. 任意网页划词 → 点浮标等解释完成。
+3. 点「**测试连接**」。
+   **预期**：与网站 /settings 一致——配置正确时绿色「✓ 测试成功，正在使用你配置的 API（模型名）」；Key 改错后保存再测，黄色「请求成功，但回退到了默认通道…」。
+   **失败看哪里**：Network 中 `POST {站点}/api/explain` 请求头 `X-Crow-LLM-Config`；响应头 `X-Crow-Provider`。灰色「站点后端未返回生效通道」说明网站代码未含本功能。
+4. 任意网页划词 → 点浮标等解释完成。
    **预期**：解释正常；`chrome://extensions` → 扩展 SW 日志或站点服务端日志确认 `provider="custom"`。
-4. 把 Key 改错 → 保存 → 再划词。
+5. 把 Key 改错 → 保存 → 再划词。
    **预期**：解释仍正常（自动回退默认通道），不报错给用户。
-5. 点「**清除配置**」→ 再划词。
+6. 点「**清除配置**」→ 再划词。
    **预期**：回到默认通道；`chrome.storage.local` 中 `crowUserLlmConfig` 已移除。
    **失败看哪里**：划词请求的 Request Headers 是否带 `X-Crow-LLM-Config`；预检（OPTIONS）响应 `Access-Control-Allow-Headers` 是否包含 `x-crow-llm-config`。
 
