@@ -66,5 +66,6 @@ git push origin fea/future-features
 | 7 | D-1 链接内容抓取 | `fea/url-fetch-wesrindo` | ✅ | `dev/active/链接内容抓取/链接内容抓取-manual-test.md` | `POST /api/fetch-url` + SSRF |
 | 8 | D-2 飞书等平台 | `fea/feishu-eval-stub-wesrindo` | ✅ stub/No-Go | `dev/active/飞书等平台/飞书等平台-evaluation.md` + `…-manual-test.md` | `POST /api/feishu/events` → 501 |
 | 9 | 扩展登录丝滑化 | `fea/ext-inline-login-wesrindo` | ✅ | `dev/active/扩展登录丝滑化/扩展登录丝滑化-manual-test.md` | 卡片/Popup 内嵌登录 + 过期就近恢复；manifest 0.1.26；手测待做 |
+| 10 | Web 会话检查超时兜底 + 扩展类型链修复 | `fea/web-session-check-timeout-wesrindo` | ✅ | 无独立手测文档（随网站常规回归） | token 过期刷新卡住时 6s 超时先渲染，onAuthStateChange 恢复后切回（2026-08-30） |
 
 > 更新约定：某条 merge 进 future 后，将对应行改为 ✅ 并填分支名与文档路径；状态细节同步 [handoff](./FUTURE-FEATURES-HANDOFF.md)。

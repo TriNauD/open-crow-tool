@@ -54,6 +54,7 @@ BRAINSTORM 阶段 A 已结项；阶段 **B / C / D** 一批功能（笔记分类
 | 7 | `91d1713` | `fea/feishu-eval-stub-wesrindo` | D-2 飞书 stub / No-Go |
 | 8 | `f662f7a` | `fea/chrome-ext-inapp-login-wesrindo` | C-3 扩展内登录 |
 | 9 | `c595825` | `fea/ext-inline-login-wesrindo` | 扩展登录丝滑化（卡片/Popup 内嵌登录 + 过期就近恢复，2026-08-30） |
+| 10 | 见 merge 列表 | `fea/web-session-check-timeout-wesrindo` | Web 会话检查 6s 超时兜底 + 扩展纯模块拆分修 Next build 类型链（2026-08-30） |
 
 > 进度表上 C-3 排在「重复校验」与 D-1 之间；**实际 merge 顺序**是 D-1 / D-2 先合、C-3 最后合——功能上互不阻塞，接手时以 HEAD 全量为准。
 
