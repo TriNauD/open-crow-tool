@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   encodeUserLlmConfigHeader,
   loadUserLlmConfig,
@@ -27,6 +27,14 @@ export function useStreamExplain(apiBaseUrl: string) {
   });
 
   const portRef = useRef<chrome.runtime.Port | null>(null);
+
+  // 卡片关闭（hook 随组件卸载）时断开与 SW 的 Port，避免悬空连接与 SW 保活空转
+  useEffect(() => {
+    return () => {
+      portRef.current?.disconnect();
+      portRef.current = null;
+    };
+  }, []);
 
   const explain = useCallback(
     async (
