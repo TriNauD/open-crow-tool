@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildCrowAuthFromLogin } from '../chrome-extension/src/lib/crow-inline-login';
+import { buildCrowAuthFromLogin } from '../chrome-extension/src/lib/crow-auth-build';
 
 describe('buildCrowAuthFromLogin', () => {
   it('组装 CrowAuth 并规范化 origin / url / anon', () => {

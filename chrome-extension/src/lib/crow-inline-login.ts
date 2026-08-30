@@ -1,43 +1,16 @@
 /**
- * 卡片 / Popup 内嵌登录的共享逻辑。
+ * 卡片 / Popup 内嵌登录：chrome 相关传输与持久化。
  * 与 refresh 相同的双通道策略：优先经 background SW 调 GoTrue（避开第三方页面
  * 的 CSP / Origin 差异），SW 不可用时再由当前上下文直连兜底。
+ * 纯逻辑（buildCrowAuthFromLogin / 类型）在 crow-auth-build.ts——本文件引用 chrome
+ * 全局，不得被根目录 Vitest 测试直接 import（会拖进网站类型检查程序）。
  */
-import type { CrowAuth } from './crow-session';
+import type { CrowAuth } from './crow-session-types';
 import { getBuildSiteOrigin, getBuildSupabasePublic, persistCrowAuth } from './crow-session';
 import { performSupabasePasswordLogin, type SupabasePasswordLoginResult } from './supabase-password-login';
+import { buildCrowAuthFromLogin, type InlineLoginInput, type InlineLoginResult } from './crow-auth-build';
 
-export type InlineLoginInput = {
-  email: string;
-  password: string;
-};
-
-export type InlineLoginOk = {
-  ok: true;
-  auth: CrowAuth;
-};
-
-export type InlineLoginFail = {
-  ok: false;
-  message: string;
-};
-
-export type InlineLoginResult = InlineLoginOk | InlineLoginFail;
-
-/** 登录成功后组装 CrowAuth（siteOrigin 作为 apiBaseUrl 默认值）。 */
-export function buildCrowAuthFromLogin(
-  result: { access_token: string; refresh_token: string; expires_at: number },
-  opts: { siteOrigin: string; supabaseUrl: string; supabaseAnonKey: string }
-): CrowAuth {
-  return {
-    apiBaseUrl: opts.siteOrigin.trim().replace(/\/+$/, ''),
-    accessToken: result.access_token,
-    refreshToken: result.refresh_token,
-    supabaseUrl: opts.supabaseUrl.trim().replace(/\/+$/, ''),
-    supabaseAnonKey: opts.supabaseAnonKey.trim(),
-    expiresAt: result.expires_at,
-  };
-}
+export type { InlineLoginInput, InlineLoginResult } from './crow-auth-build';
 
 function passwordLoginViaBackground(
   supabaseUrl: string,
@@ -114,3 +87,6 @@ export async function loginAndPersist(input: InlineLoginInput): Promise<InlineLo
   await persistCrowAuth(auth);
   return { ok: true, auth };
 }
+
+export { buildCrowAuthFromLogin };
+export type { CrowAuth };
