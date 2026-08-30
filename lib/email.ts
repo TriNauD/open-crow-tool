@@ -49,7 +49,16 @@ function getBeijingDate(date: Date): { month: number; day: number } {
   return { month: bjDate.getUTCMonth() + 1, day: bjDate.getUTCDate() };
 }
 
-function buildEmailHtml(repos: ReviewedRepo[], date: Date, unsubscribeUrl?: string): string {
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/** 渲染订阅者周报 HTML：name/summary/url 等内容源自 AI 与 GitHub 页面，必须转义后插入 */
+export function buildEmailHtml(repos: ReviewedRepo[], date: Date, unsubscribeUrl?: string): string {
   const { month, day } = getBeijingDate(date);
   const grouped = new Map<Tier, ReviewedRepo[]>();
   for (const tier of TIER_ORDER) grouped.set(tier, []);
@@ -69,14 +78,14 @@ function buildEmailHtml(repos: ReviewedRepo[], date: Date, unsubscribeUrl?: stri
               (r) => `
       <div style="border-bottom:1px solid #e8e8e8;padding:14px 0;">
         <p style="margin:0 0 4px 0;font-size:15px;font-weight:600;color:#1a1a1a;">
-          <a href="${r.url}" style="color:#333;text-decoration:none;">${r.name}</a>
+          <a href="${escapeHtml(r.url)}" style="color:#333;text-decoration:none;">${escapeHtml(r.name)}</a>
           <span style="font-size:12px;font-weight:400;color:#888;margin-left:8px;">
-            技术 ${r.tech_score}/5 &nbsp;·&nbsp; 场景 ${r.scene_score}/5
+            技术 ${Number(r.tech_score) || 0}/5 &nbsp;·&nbsp; 场景 ${Number(r.scene_score) || 0}/5
           </span>
         </p>
-        <p style="margin:0 0 6px 0;font-size:14px;color:#444;line-height:1.6;">${r.summary}</p>
-        <a href="${r.url}" style="font-size:13px;color:#E05A00;text-decoration:none;font-weight:500;">
-          有点意思，给我也整一个！→ ${r.url}
+        <p style="margin:0 0 6px 0;font-size:14px;color:#444;line-height:1.6;">${escapeHtml(r.summary)}</p>
+        <a href="${escapeHtml(r.url)}" style="font-size:13px;color:#E05A00;text-decoration:none;font-weight:500;">
+          有点意思，给我也整一个！→ ${escapeHtml(r.url)}
         </a>
       </div>`
             )
@@ -112,7 +121,7 @@ function buildEmailHtml(repos: ReviewedRepo[], date: Date, unsubscribeUrl?: stri
       <p style="margin:0 0 6px 0;font-size:12px;color:#bbb;text-align:center;">
         由 <a href="https://github.com/trending" style="color:#bbb;">GitHub Trending</a> 自动聚合 · 这是啥？周报
       </p>
-      ${unsubscribeUrl ? `<p style="margin:0;font-size:11px;color:#ccc;text-align:center;"><a href="${unsubscribeUrl}" style="color:#ccc;">退订</a></p>` : ''}
+      ${unsubscribeUrl ? `<p style="margin:0;font-size:11px;color:#ccc;text-align:center;"><a href="${escapeHtml(unsubscribeUrl)}" style="color:#ccc;">退订</a></p>` : ''}
     </div>
   </div>
 </body>
@@ -156,14 +165,6 @@ function parseOpsNotifyEmails(): string[] {
 
 function opsNotifyOnlyOnFailure(): boolean {
   return process.env.DIGEST_OPS_NOTIFY_ONLY_ON_FAILURE === 'true';
-}
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
 }
 
 function buildDigestOpsCompleteHtml(p: DigestOpsCompletePayload): string {
@@ -294,7 +295,7 @@ function buildWelcomeEmailHtml(unsubscribeUrl: string): string {
     </div>
     <div style="padding:16px 28px 24px;border-top:1px solid #f0f0f0;">
       <p style="margin:0;font-size:11px;color:#ccc;text-align:center;">
-        不想收了？<a href="${unsubscribeUrl}" style="color:#ccc;">退订</a>
+        不想收了？<a href="${escapeHtml(unsubscribeUrl)}" style="color:#ccc;">退订</a>
       </p>
     </div>
   </div>
@@ -328,7 +329,7 @@ function buildReactivationEmailHtml(unsubscribeUrl: string): string {
     </div>
     <div style="padding:16px 28px 24px;border-top:1px solid #f0f0f0;">
       <p style="margin:0;font-size:11px;color:#ccc;text-align:center;">
-        不想收了？<a href="${unsubscribeUrl}" style="color:#ccc;">退订</a>
+        不想收了？<a href="${escapeHtml(unsubscribeUrl)}" style="color:#ccc;">退订</a>
       </p>
     </div>
   </div>
@@ -353,7 +354,7 @@ function buildUnsubscribeConfirmHtml(resubscribeUrl: string): string {
     <p style="margin:0 0 24px 0;font-size:15px;color:#666;line-height:1.6;">
       你已成功退订 GitHub 周报「速通热榜」。<br>以后不会再打扰你了。
     </p>
-    <a href="${resubscribeUrl}" style="font-size:13px;color:#aaa;text-decoration:underline;">误操作了？点此重新订阅</a>
+    <a href="${escapeHtml(resubscribeUrl)}" style="font-size:13px;color:#aaa;text-decoration:underline;">误操作了？点此重新订阅</a>
   </div>
 </body>
 </html>`;
