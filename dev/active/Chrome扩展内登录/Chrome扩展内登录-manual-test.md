@@ -1,6 +1,7 @@
 # Chrome 扩展内登录 — 保姆级手动测试
 
-> 合入 `fea/future-features` 后使用。方案 **A**：Options 内邮箱密码 → GoTrue password grant → `persistCrowAuth`（含 refresh）。网站「连接插件」保留。
+> 合入 `fea/future-features` 后使用。方案 **A**：Options 内邮箱密码 → GoTrue password grant → `persistCrowAuth`（含 refresh）。网站「连接插件」保留。  
+> **2026-08-30 起**：划词卡片 / Popup 支持**内嵌登录**（动线收敛），新增手测路径见 [`../扩展登录丝滑化/扩展登录丝滑化-manual-test.md`](../扩展登录丝滑化/扩展登录丝滑化-manual-test.md)。
 
 ## 环境
 

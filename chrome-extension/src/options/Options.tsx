@@ -46,7 +46,7 @@ export default function Options() {
       setManualUrl(url || getBuildSiteOrigin());
       setManualToken(token);
       if (!token && sync.adminSecret) {
-        setError('检测到旧版配置，请在下方登录，或在网站登录后点「连接插件」。');
+        setError('检测到旧版配置，请在上方登录，或在网站登录后点「连接插件」。');
       } else {
         setError('');
       }
@@ -129,7 +129,7 @@ export default function Options() {
       }
 
       if (!fromDisk?.accessToken && sync.adminSecret) {
-        setError('检测到旧版配置，请在下方登录，或在网站登录后点「连接插件」。');
+        setError('检测到旧版配置，请在上方登录，或在网站登录后点「连接插件」。');
       } else if (!fromDisk?.accessToken) {
         setError('');
       }
@@ -169,7 +169,7 @@ export default function Options() {
       setManualUrl(auth.apiBaseUrl);
       setManualToken(auth.accessToken);
       setPassword('');
-      setRefreshHint('登录成功，已连接到你的账号。');
+      setRefreshHint('登录成功，已连接到你的账号。回到网页重新划词即可保存。');
       setTimeout(() => setRefreshHint(''), 2800);
     } finally {
       setLoginLoading(false);
