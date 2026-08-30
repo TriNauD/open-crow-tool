@@ -68,5 +68,6 @@ git push origin fea/future-features
 | 9 | 扩展登录丝滑化 | `fea/ext-inline-login-wesrindo` | ✅ | `dev/active/扩展登录丝滑化/扩展登录丝滑化-manual-test.md` | 卡片/Popup 内嵌登录 + 过期就近恢复；manifest 0.1.26；手测待做 |
 | 10 | Web 会话检查超时兜底 + 扩展类型链修复 | `fea/web-session-check-timeout-wesrindo` | ✅ | 无独立手测文档（随网站常规回归） | token 过期刷新卡住时 6s 超时先渲染，onAuthStateChange 恢复后切回（2026-08-30） |
 | 11 | 用户自配 API | `fea/user-llm-config-wesrindo` | ✅ | `dev/active/用户自配API/用户自配API-manual-test.md` | OpenAI-compatible BYOK：`X-Crow-LLM-Config` 透传 + custom 优先/回退；Web `/settings` + 扩展 Options；manifest 0.1.27；手测待做（2026-08-30） |
+| 12 | 链接抓取成本护栏 | `fea/fetch-url-cost-guard` | ✅ | 随部署冒烟（限流/403 无 UI，curl 即可验证） | `/api/fetch-url` 按 IP 限流 20/h + Origin 校验 + URL≤2048；共用 `lib/request-guard.ts`（explain 同款护栏在 dev 侧 `bugfix/explain-cost-guard`，随 dev 合回 future） |
 
 > 更新约定：某条 merge 进 future 后，将对应行改为 ✅ 并填分支名与文档路径；状态细节同步 [handoff](./FUTURE-FEATURES-HANDOFF.md)。
