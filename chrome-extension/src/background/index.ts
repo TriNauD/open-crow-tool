@@ -1,6 +1,7 @@
 import type { CrowAuth } from '../lib/crow-session';
 import { CROW_AUTH_BROADCAST_EVENT } from '../lib/crow-auth-event';
 import { CROW_EXTENSION_ENABLED_KEY } from '../lib/crow-session';
+import { performSupabasePasswordLogin } from '../lib/supabase-password-login';
 import { performSupabaseRefreshExchange } from '../lib/supabase-refresh-exchange';
 
 /**
@@ -89,28 +90,43 @@ chrome.commands.onCommand.addListener(async (command) => {
 
 /** content / options 划词保存前 refresh：在 SW 内 fetch，避免第三方页面 Origin 拖累 Supabase token 端点 */
 chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse): boolean => {
-  const raw = message as { type?: string; payload?: Record<string, unknown> };
-  if (raw?.type === 'CROW_DEBUG_FAB') {
-    // #region agent log
-    fetch('http://127.0.0.1:7254/ingest/d81ae450-4ef0-4188-89ac-154a7304bd7d', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '821123' },
-      body: JSON.stringify({ sessionId: '821123', ...raw.payload }),
-    }).catch(() => {});
-    // #endregion
-    return false;
-  }
-
   const msg = message as {
     type?: string;
     supabaseUrl?: string;
     supabaseAnonKey?: string;
     refreshToken?: string;
+    email?: string;
+    password?: string;
   };
+
   if (msg?.type === 'CROW_BROADCAST_AUTH_RELOAD') {
     const full = message as { type?: string; auth?: CrowAuth };
     void broadcastAuthUpdatedToAllTabs(full.auth);
     return false;
+  }
+  if (msg?.type === 'CROW_PASSWORD_LOGIN') {
+    void performSupabasePasswordLogin(
+      msg.supabaseUrl ?? '',
+      msg.supabaseAnonKey ?? '',
+      msg.email ?? '',
+      msg.password ?? ''
+    )
+      .then((r) => {
+        if (r.ok) {
+          sendResponse({
+            ok: true as const,
+            access_token: r.access_token,
+            refresh_token: r.refresh_token,
+            expires_at: r.expires_at,
+          });
+        } else {
+          sendResponse({ ok: false as const, message: r.message });
+        }
+      })
+      .catch(() => {
+        sendResponse({ ok: false as const, message: '登录失败，请稍后重试。' });
+      });
+    return true;
   }
   if (msg?.type !== 'CROW_EXCHANGE_REFRESH') {
     return false;

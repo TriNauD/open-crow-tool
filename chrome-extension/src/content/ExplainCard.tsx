@@ -3,6 +3,7 @@ import type { CrowAuth } from '../lib/crow-session';
 import { ensureFreshAuth, loadCrowAuth } from '../lib/crow-session';
 import { useStreamExplain } from './useStreamExplain';
 import { normalizeNoteInput } from './normalize-note-input';
+import CrowLoginForm from '../components/CrowLoginForm';
 
 interface Props {
   text: string;
@@ -40,6 +41,7 @@ export default function ExplainCard({
   const [saveError, setSaveError] = useState<'generic' | 'expired' | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [duplicate, setDuplicate] = useState<DuplicateHit | null>(null);
+  const [loginOpen, setLoginOpen] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
   const { text: explanation, isLoading, error, isDone, explain } = useStreamExplain(
     config.apiBaseUrl
@@ -245,6 +247,18 @@ export default function ExplainCard({
     }
   }
 
+  /** 内嵌登录成功：更新会话并自动继续登录前被打断的保存动作（含重复确认的覆盖场景） */
+  async function handleLoginSuccess(auth: CrowAuth) {
+    setLoginOpen(false);
+    setSaveError(null);
+    onSessionUpdate?.(auth);
+    if (duplicate) {
+      await handleReplace();
+    } else {
+      await handleSave();
+    }
+  }
+
   return (
     <div ref={cardRef} className="crow-card" style={{ left, top }}>
       <div className="crow-card-header">
@@ -269,6 +283,35 @@ export default function ExplainCard({
           </div>
         )}
         {error && <div className="crow-error">{error}</div>}
+        {loginOpen && (
+          <div style={{ marginTop: explanation ? 10 : 0 }}>
+            <CrowLoginForm
+              variant="card"
+              onSuccess={(auth) => void handleLoginSuccess(auth)}
+              onCancel={() => setLoginOpen(false)}
+            />
+            {onConnectPlugin && (
+              <p style={{ fontSize: 11, color: '#52525b', margin: '8px 0 0' }}>
+                无法登录？
+                <button
+                  type="button"
+                  onClick={onConnectPlugin}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#fb923c',
+                    cursor: 'pointer',
+                    padding: 0,
+                    textDecoration: 'underline',
+                    fontSize: 11,
+                  }}
+                >
+                  打开扩展设置
+                </button>
+              </p>
+            )}
+          </div>
+        )}
         {explanation && !duplicate && (
           <span>
             {explanation}
@@ -297,21 +340,43 @@ export default function ExplainCard({
       {showSaveFooter && (
         <div className="crow-card-footer">
           {!isAuthenticated ? (
-            <button
-              className="crow-save-btn"
-              onClick={onConnectPlugin}
-              type="button"
-              title="点击打开插件设置，登录或连接你的账号"
-            >
-              登录后可保存
-            </button>
+            loginOpen ? (
+              <span className="crow-hint" style={{ fontSize: 12 }}>
+                登录后即可存入笔记本
+              </span>
+            ) : (
+              <button
+                className="crow-save-btn"
+                onClick={() => setLoginOpen(true)}
+                type="button"
+                title="在本卡片内登录，登录后自动继续保存"
+              >
+                登录后可保存
+              </button>
+            )
           ) : savedId ? (
             <button className="crow-save-btn saved" disabled>
               ✓ 已存入笔记本
             </button>
           ) : saveError === 'expired' ? (
             <span className="crow-error" style={{ fontSize: 12 }}>
-              ⚠️ 登录或连接已过期，请在扩展设置中重新登录，或
+              ⚠️ 登录或连接已过期，
+              <button
+                type="button"
+                onClick={() => setLoginOpen(true)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#fb923c',
+                  cursor: 'pointer',
+                  padding: 0,
+                  textDecoration: 'underline',
+                  fontSize: 12,
+                }}
+              >
+                重新登录
+              </button>
+              后自动继续保存，或
               <a
                 href={config.apiBaseUrl}
                 target="_blank"

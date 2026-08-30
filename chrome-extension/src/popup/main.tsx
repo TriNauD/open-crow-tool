@@ -7,6 +7,7 @@ import {
   isExplainEnabled,
   setExplainEnabled,
 } from '../lib/crow-session';
+import CrowLoginForm from '../components/CrowLoginForm';
 
 function Popup() {
   const [configured, setConfigured] = useState<boolean | null>(null);
@@ -58,9 +59,14 @@ function Popup() {
         这是啥<span style={{ color: '#f97316' }}>？</span>
       </p>
       {configured === false && (
-        <p style={{ color: '#fb923c', marginBottom: 10, fontSize: 12 }}>
-          ⚠️ 尚未登录，请打开设置登录账号
-        </p>
+        <>
+          <p style={{ color: '#fb923c', marginBottom: 10, fontSize: 12 }}>
+            尚未登录，输入网站同款邮箱密码即可：
+          </p>
+          <div style={{ marginBottom: 12 }}>
+            <CrowLoginForm variant="popup" onSuccess={() => setConfigured(true)} />
+          </div>
+        </>
       )}
       {configured === true && (
         <p style={{ color: '#4ade80', marginBottom: 10, fontSize: 12 }}>

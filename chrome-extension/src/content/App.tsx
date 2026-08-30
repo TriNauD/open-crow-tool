@@ -1,17 +1,16 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   extensionContextLikelyOk,
   ignoreIfContextInvalidated,
   isExtensionContextInvalidatedError,
 } from '../lib/extension-context';
 import type { CrowAuth } from '../lib/crow-session';
-import { CROW_AUTH_LOCAL_KEYS, loadCrowAuth } from '../lib/crow-session';
+import { loadCrowAuth } from '../lib/crow-session';
 import {
   CROW_AUTH_BROADCAST_EVENT,
   clearPendingCrowAuth,
   drainPendingCrowAuth,
 } from './crow-auth-broadcast';
-import { fabDebug } from './debug-fab-log';
 import FloatingButton from './FloatingButton';
 import ExplainCard from './ExplainCard';
 import { extractSurroundingText } from './surrounding-text';
@@ -82,74 +81,24 @@ function readDomSelection(): Selection | null {
 }
 
 /** 会话刚就绪时读 DOM：瞬时读空则保留 React 内已有选区（常见于先划词、后「连接插件」时 hasApi 才变 true）。 */
-function pickSelectionAfterAuth(prev: Selection | null, phase: string): Selection | null {
-  const dom = readDomSelection();
-  const next = dom ?? prev;
-  // #region agent log
-  fabDebug({
-    hypothesisId: 'H4',
-    location: 'App.tsx:pickSelectionAfterAuth',
-    message: phase,
-    data: {
-      hasSel: !!next,
-      fromDom: !!dom,
-      keptPrev: !dom && !!prev,
-      prevLen: prev?.text?.length ?? 0,
-    },
-  });
-  // #endregion
-  return next;
+function pickSelectionAfterAuth(prev: Selection | null): Selection | null {
+  return readDomSelection() ?? prev;
 }
 
 export default function App() {
   const [config, setConfig] = useState<CrowAuth>(EMPTY_AUTH);
   const [selection, setSelection] = useState<Selection | null>(null);
   const [explaining, setExplaining] = useState<Selection | null>(null);
-  const configRef = useRef(config);
-  useEffect(() => {
-    configRef.current = config;
-  }, [config]);
-
-  useEffect(() => {
-    fabDebug({
-      hypothesisId: 'H3',
-      location: 'App.tsx:mount',
-      message: 'App component mounted',
-      data: {
-        isTop: window === window.top,
-        href: window.location.href.slice(0, 96),
-      },
-    });
-  }, []);
-
-  useEffect(() => {
-    fabDebug({
-      hypothesisId: 'H1',
-      location: 'App.tsx:stateSnapshot',
-      message: 'config / selection / explaining',
-      data: {
-        hasApi: !!config.apiBaseUrl,
-        hasSelection: !!selection,
-        explaining: !!explaining,
-      },
-    });
-  }, [config.apiBaseUrl, selection, explaining]);
 
   const reloadAuth = useCallback(() => {
     if (!extensionContextLikelyOk()) return;
     void loadCrowAuth()
       .then((a) => {
         if (a) {
-          fabDebug({
-            hypothesisId: 'H1',
-            location: 'App.tsx:reloadAuth',
-            message: 'loadCrowAuth has session',
-            data: { hasApi: !!a.apiBaseUrl },
-          });
           setConfig(a);
-          setSelection((prev) => pickSelectionAfterAuth(prev, 'reloadAuth sync'));
-          queueMicrotask(() => setSelection((prev) => pickSelectionAfterAuth(prev, 'reloadAuth microtask')));
-          setTimeout(() => setSelection((prev) => pickSelectionAfterAuth(prev, 'reloadAuth 50ms')), 50);
+          setSelection((prev) => pickSelectionAfterAuth(prev));
+          queueMicrotask(() => setSelection((prev) => pickSelectionAfterAuth(prev)));
+          setTimeout(() => setSelection((prev) => pickSelectionAfterAuth(prev)), 50);
         } else {
           setConfig(EMPTY_AUTH);
         }
@@ -165,44 +114,15 @@ export default function App() {
     reloadAuth();
 
     function onStorageChanged(changes: Record<string, chrome.storage.StorageChange>, area: chrome.storage.AreaName) {
-      const hitCrow = CROW_AUTH_LOCAL_KEYS.some((k) => changes[k] !== undefined);
-      // #region agent log
-      fabDebug({
-        hypothesisId: 'H7',
-        location: 'App.tsx:onStorageChanged',
-        message: 'storage listener',
-        data: {
-          area,
-          hitCrow,
-          keys: Object.keys(changes).slice(0, 12),
-        },
-      });
-      // #endregion
       if (area === 'local' || area === 'sync') reloadAuth();
     }
 
     function onBecameVisible() {
       if (document.visibilityState !== 'visible') return;
-      // #region agent log
-      fabDebug({
-        hypothesisId: 'H6',
-        location: 'App.tsx:visibilitychange',
-        message: 'visible -> reloadAuth',
-        data: {},
-      });
-      // #endregion
       reloadAuth();
     }
 
     function onWindowFocus() {
-      // #region agent log
-      fabDebug({
-        hypothesisId: 'H6',
-        location: 'App.tsx:window-focus',
-        message: 'focus -> reloadAuth',
-        data: {},
-      });
-      // #endregion
       reloadAuth();
     }
 
@@ -233,26 +153,13 @@ export default function App() {
     function scheduleSelectionReadAfterPointer() {
       lastPointerUpAt = Date.now();
       if (readR != null) clearTimeout(readR);
-      function flushPointerSelection(phase: string) {
-        const s = readDomSelection();
-        // #region agent log
-        fabDebug({
-          hypothesisId: 'H2',
-          location: 'App.tsx:pointerRead',
-          message: phase,
-          data: {
-            hasSel: !!s,
-            textLen: s?.text?.length ?? 0,
-            hasApi: !!configRef.current.apiBaseUrl,
-          },
-        });
-        // #endregion
-        setSelection(s);
+      function flushPointerSelection() {
+        setSelection(readDomSelection());
       }
-      queueMicrotask(() => flushPointerSelection('microtask'));
+      queueMicrotask(() => flushPointerSelection());
       readR = setTimeout(() => {
         readR = undefined;
-        flushPointerSelection('delayed-50ms');
+        flushPointerSelection();
       }, 50);
     }
 
@@ -268,18 +175,6 @@ export default function App() {
       selT = setTimeout(() => {
         const s = readDomSelection();
         if (!s) return;
-        // #region agent log
-        fabDebug({
-          hypothesisId: 'H5',
-          location: 'App.tsx:selectionchange',
-          message: 'debounced selectionchange',
-          data: {
-            hasSel: true,
-            textLen: s.text.length,
-            hasApi: !!configRef.current.apiBaseUrl,
-          },
-        });
-        // #endregion
         setSelection(s);
       }, 90);
     }
@@ -306,17 +201,11 @@ export default function App() {
   useEffect(() => {
     function applyFromBroadcast(auth: CrowAuth | undefined) {
       const direct = !!(auth?.apiBaseUrl && auth?.accessToken);
-      fabDebug({
-        hypothesisId: 'H4',
-        location: 'App.tsx:applyFromBroadcast',
-        message: direct ? 'direct setConfig' : 'fallback reloadAuth',
-        data: { direct },
-      });
       if (direct) {
         setConfig(auth!);
-        setSelection((prev) => pickSelectionAfterAuth(prev, 'broadcast sync'));
-        queueMicrotask(() => setSelection((prev) => pickSelectionAfterAuth(prev, 'broadcast microtask')));
-        setTimeout(() => setSelection((prev) => pickSelectionAfterAuth(prev, 'broadcast 50ms')), 50);
+        setSelection((prev) => pickSelectionAfterAuth(prev));
+        queueMicrotask(() => setSelection((prev) => pickSelectionAfterAuth(prev)));
+        setTimeout(() => setSelection((prev) => pickSelectionAfterAuth(prev)), 50);
       } else reloadAuth();
     }
 
