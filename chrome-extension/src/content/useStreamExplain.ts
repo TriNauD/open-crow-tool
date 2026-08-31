@@ -10,6 +10,8 @@ export interface StreamState {
   isLoading: boolean;
   error: string | null;
   isDone: boolean;
+  /** 今日免费额度已用完，本次使用免费模型（后台 SW 透传 x-crow-quota-out） */
+  quotaOut?: boolean;
 }
 
 export function useStreamExplain(apiBaseUrl: string) {
@@ -20,18 +22,25 @@ export function useStreamExplain(apiBaseUrl: string) {
     isDone: false,
   });
 
-  const abortRef = useRef<AbortController | null>(null);
+  const portRef = useRef<chrome.runtime.Port | null>(null);
+
+  /** 关闭当前解释流端口（重新点击 / reset 时用于中断上一轮） */
+  const closeStream = useCallback(() => {
+    try {
+      portRef.current?.disconnect();
+    } catch {
+      /* already closed */
+    }
+    portRef.current = null;
+  }, []);
 
   const explain = useCallback(
     async (
       input: string,
       options?: { context?: string; surroundingText?: string }
     ) => {
-      abortRef.current?.abort();
-      const controller = new AbortController();
-      abortRef.current = controller;
-
-      setState({ text: '', isLoading: true, error: null, isDone: false });
+      closeStream();
+      setState({ text: '', isLoading: true, error: null, isDone: false, quotaOut: false });
 
       try {
         const body: {
@@ -48,32 +57,58 @@ export function useStreamExplain(apiBaseUrl: string) {
           headers[CROW_USER_LLM_HEADER] = encodeUserLlmConfigHeader(userCfg);
         }
 
-        const res = await fetch(`${apiBaseUrl}/api/explain`, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify(body),
-          signal: controller.signal,
+        // 划词解释经命名端口转发到 background service worker：
+        // SW 在 chrome-extension:// Origin 下 fetch，绕开后端 isOriginAllowed
+        // 对第三方网页 Origin 的拒绝；流式分块经同一端口回传。
+        await new Promise<void>((resolve) => {
+          let finished = false;
+          let receivedAny = false;
+
+          const finish = () => {
+            if (finished) return;
+            finished = true;
+            try {
+              portRef.current?.disconnect();
+            } catch {
+              /* already closed */
+            }
+            portRef.current = null;
+            resolve();
+          };
+
+          const port = chrome.runtime.connect({ name: 'explain-stream' });
+          portRef.current = port;
+
+          port.onMessage.addListener(
+            (msg: { chunk?: string; error?: string; meta?: { quotaOut?: boolean } } | null) => {
+              if (msg?.meta?.quotaOut) {
+                setState((s) => ({ ...s, quotaOut: true }));
+                return;
+              }
+              if (msg?.error) {
+              receivedAny = true;
+              setState((s) => ({ ...s, isLoading: false, isDone: true, error: msg.error }));
+              finish();
+            } else if (msg?.chunk) {
+              receivedAny = true;
+              setState((s) => ({ ...s, text: s.text + msg.chunk }));
+            }
+          });
+
+          port.onDisconnect.addListener(() => {
+            if (!finished) {
+              setState((s) =>
+                receivedAny
+                  ? { ...s, isLoading: false, isDone: true }
+                  : { ...s, isLoading: false, error: '网炸了或者 AI 挂了，稍后再试' }
+              );
+            }
+            finish();
+          });
+
+          port.postMessage({ apiBaseUrl, body, headers });
         });
-
-        if (!res.ok || !res.body) {
-          const msg = await res.text().catch(() => '请求失败');
-          setState((s) => ({ ...s, isLoading: false, error: msg }));
-          return;
-        }
-
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          const chunk = decoder.decode(value, { stream: true });
-          setState((s) => ({ ...s, text: s.text + chunk }));
-        }
-
-        setState((s) => ({ ...s, isLoading: false, isDone: true }));
-      } catch (err) {
-        if ((err as Error).name === 'AbortError') return;
+      } catch {
         setState((s) => ({
           ...s,
           isLoading: false,
@@ -81,13 +116,13 @@ export function useStreamExplain(apiBaseUrl: string) {
         }));
       }
     },
-    [apiBaseUrl]
+    [apiBaseUrl, closeStream]
   );
 
   const reset = useCallback(() => {
-    abortRef.current?.abort();
-    setState({ text: '', isLoading: false, error: null, isDone: false });
-  }, []);
+    closeStream();
+    setState({ text: '', isLoading: false, error: null, isDone: false, quotaOut: false });
+  }, [closeStream]);
 
   return { ...state, explain, reset };
 }

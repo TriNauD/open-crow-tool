@@ -89,6 +89,105 @@ chrome.commands.onCommand.addListener(async (command) => {
 });
 
 /** content / options 划词保存前 refresh：在 SW 内 fetch，避免第三方页面 Origin 拖累 Supabase token 端点 */
+
+/** 划词解释：content 经命名端口连接 SW，SW 内 fetch（Origin 为 chrome-extension://，被 isOriginAllowed 放行），流式分块经端口回传 */
+const EXPLAIN_STREAM_PORT = 'explain-stream';
+
+async function streamExplainViaPort(
+  msg: {
+    apiBaseUrl: string;
+    body: { text: string; context?: string; surroundingText?: string };
+    headers: Record<string, string>;
+  },
+  port: chrome.runtime.Port
+): Promise<void> {
+  const apiBaseUrl = (msg?.apiBaseUrl ?? '').replace(/\/+$/, '');
+  const decoder = new TextDecoder();
+  const controller = new AbortController();
+
+  try {
+    if (!apiBaseUrl) {
+      try {
+        port.postMessage({ error: '扩展未配置 API 地址，请在网站登录后点「连接插件」' });
+      } catch {
+        /* port closed */
+      }
+      return;
+    }
+
+    const res = await fetch(`${apiBaseUrl}/api/explain`, {
+      method: 'POST',
+      headers: msg.headers,
+      body: JSON.stringify(msg.body),
+      signal: controller.signal,
+    });
+
+    if (!res.ok) {
+      const detail = await res.text().catch(() => '请求失败');
+      try {
+        port.postMessage({ error: detail });
+      } catch {
+        /* port closed */
+      }
+      return;
+    }
+
+    // 预算降级标记透传给内容侧，卡片据此提示「额度已用完，本次免费模型」
+    if (res.headers.get('x-crow-quota-out') === '1') {
+      try {
+        port.postMessage({ meta: { quotaOut: true } });
+      } catch {
+        /* port closed */
+      }
+    }
+
+    const reader = res.body?.getReader();
+    if (!reader) {
+      controller.abort();
+      try {
+        port.postMessage({ error: '网炸了或者 AI 挂了，稍后再试' });
+      } catch {
+        /* port closed */
+      }
+      return;
+    }
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      try {
+        port.postMessage({ chunk: decoder.decode(value, { stream: true }) });
+      } catch {
+        /* content 侧断开（如重新点击）即中止 */
+        controller.abort();
+        return;
+      }
+    }
+  } catch (err) {
+    if ((err as Error).name === 'AbortError') return;
+    try {
+      port.postMessage({ error: '网炸了或者 AI 挂了，稍后再试' });
+    } catch {
+      /* port closed */
+    }
+  } finally {
+    controller.abort();
+  }
+}
+
+chrome.runtime.onConnect.addListener((port) => {
+  if (port.name !== EXPLAIN_STREAM_PORT) return;
+
+  port.onMessage.addListener((message: unknown) => {
+    const msg = message as {
+      apiBaseUrl: string;
+      body: { text: string; context?: string; surroundingText?: string };
+      headers: Record<string, string>;
+    };
+    void streamExplainViaPort(msg, port);
+  });
+});
+
 chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse): boolean => {
   const msg = message as {
     type?: string;
