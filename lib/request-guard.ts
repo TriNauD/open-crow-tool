@@ -13,6 +13,22 @@ const memoryMap = new Map<string, { count: number; resetAt: number }>();
 /** 内存兜底的最大条目数，超过即清一轮过期，防 Map 无限膨胀 */
 const MEMORY_MAX_ENTRIES = 10_000;
 
+/** 单日预算记账：key 含日期，跨天自然重置 */
+const BUDGET_PREFIX = 'crow:budget';
+const BUDGET_MEMORY_MAP = new Map<string, number>();
+/** 内存预算条目的最大数量 */
+const BUDGET_MEMORY_MAX_ENTRIES = 10_000;
+
+/** 默认单人单日预算（元），可用 EXPLAIN_DAILY_BUDGET_CNY 调整 */
+const DEFAULT_DAILY_BUDGET_CNY = 2;
+
+function todayKey(d = new Date()): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 export type RateLimitResult = {
   ok: boolean;
   /** 被拒时距窗口重置的秒数，用于 Retry-After */
@@ -119,6 +135,81 @@ export async function checkRateLimit(
 /** 仅供单测清空内存计数 */
 export function resetRateLimitMemory(): void {
   memoryMap.clear();
+}
+
+function budgetKey(scope: string, ip: string): string {
+  return `${BUDGET_PREFIX}:${scope}:${todayKey()}:${ip}`;
+}
+
+async function budgetUsed(key: string): Promise<number> {
+  if (upstashConfigured()) {
+    return (await upstashCommand('get', key)) ?? 0;
+  }
+  return BUDGET_MEMORY_MAP.get(key) ?? 0;
+}
+
+async function budgetAdd(key: string, amount: number): Promise<void> {
+  if (upstashConfigured()) {
+    await upstashCommand('incrbyfloat', key, String(amount));
+    return;
+  }
+  if (BUDGET_MEMORY_MAP.size > BUDGET_MEMORY_MAX_ENTRIES) {
+    BUDGET_MEMORY_MAP.clear();
+  }
+  BUDGET_MEMORY_MAP.set(key, (BUDGET_MEMORY_MAP.get(key) ?? 0) + amount);
+}
+
+async function budgetSet(key: string, amount: number): Promise<void> {
+  if (upstashConfigured()) {
+    await upstashCommand('set', key, String(amount));
+    return;
+  }
+  BUDGET_MEMORY_MAP.set(key, amount);
+}
+
+export type BudgetDecision = {
+  /** 是否走付费档（预算未超）；false 时用免费模型 */
+  premium: boolean;
+  /** 今日剩余预算（元，预估口径） */
+  remaining: number;
+};
+
+/**
+ * 单人单日预算路由：预算未超 → 付费档；已超 → 免费档。
+ * 选档用预估费用判断；实际结算由 budgetSettle 修正账面。
+ */
+export async function budgetDecide(
+  scope: string,
+  ip: string,
+  estimatedCostCny: number,
+  dailyBudgetCny: number = DEFAULT_DAILY_BUDGET_CNY
+): Promise<BudgetDecision> {
+  const key = budgetKey(scope, ip);
+  const used = await budgetUsed(key);
+  const remaining = Math.max(0, dailyBudgetCny - used);
+  // 预估恰好占满预算也算可走付费档
+  return {
+    premium: used + estimatedCostCny <= dailyBudgetCny + 1e-9,
+    remaining,
+  };
+}
+
+/** 走付费档后先落预估费用（预算内），串行化由限流窗口兜着 */
+export async function budgetReserve(scope: string, ip: string, costCny: number): Promise<void> {
+  await budgetAdd(budgetKey(scope, ip), costCny);
+}
+
+/** 流结束后按真实 usage 结算：补记「实际 - 预估」差额，超支最多到 +2 元 */
+export async function budgetSettle(
+  scope: string,
+  ip: string,
+  actualCostCny: number,
+  reservedCostCny: number
+): Promise<void> {
+  const key = budgetKey(scope, ip);
+  const used = await budgetUsed(key);
+  const adjusted = Math.max(0, used - reservedCostCny + actualCostCny);
+  await budgetSet(key, adjusted);
 }
 
 /**

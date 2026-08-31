@@ -43,7 +43,7 @@ export default function ExplainCard({
   const [duplicate, setDuplicate] = useState<DuplicateHit | null>(null);
   const [loginOpen, setLoginOpen] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
-  const { text: explanation, isLoading, error, isDone, explain } = useStreamExplain(
+  const { text: explanation, isLoading, error, isDone, explain, quotaOut } = useStreamExplain(
     config.apiBaseUrl
   );
 
@@ -336,6 +336,12 @@ export default function ExplainCard({
           </div>
         )}
       </div>
+
+      {quotaOut && isDone && (
+        <div className="crow-hint" style={{ fontSize: 11 }}>
+          今日免费额度已用完，本次使用免费模型
+        </div>
+      )}
 
       {showSaveFooter && (
         <div className="crow-card-footer">

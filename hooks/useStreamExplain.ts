@@ -12,6 +12,8 @@ export interface ExplainState {
   isLoading: boolean;
   error: string | null;
   isDone: boolean;
+  /** 今日免费额度已用完，本次使用免费模型（服务端 x-crow-quota-out 头） */
+  quotaOut?: boolean;
 }
 
 export type ExplainImage = {
@@ -74,6 +76,8 @@ export function useStreamExplain() {
           setState((s) => ({ ...s, isLoading: false, error: msg || '请求失败了' }));
           return;
         }
+
+        setState((s) => ({ ...s, quotaOut: res.headers.get('x-crow-quota-out') === '1' }));
 
         const reader = res.body.getReader();
         const decoder = new TextDecoder();

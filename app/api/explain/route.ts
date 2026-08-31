@@ -6,37 +6,47 @@ import { corsHeaders, handleOptions } from '@/lib/utils/cors';
 import {
   EFFECTIVE_PROVIDER_HEADER,
   USER_LLM_CONFIG_HEADER,
+  MODEL_PRICING_CNY_PER_M,
+  estimateCostCny,
+  getModelForProvider,
   getProviderChain,
   parseUserLLMConfig,
 } from '@/lib/ai/providers';
 import { SYSTEM_PROMPT, buildExplainPrompt } from '@/lib/ai/prompts';
 import { toDataUrl, validateExplainImage } from '@/lib/ai/image-limits';
-import { checkRateLimit, getClientIp, isOriginAllowed } from '@/lib/request-guard';
+import {
+  budgetDecide,
+  budgetReserve,
+  budgetSettle,
+  getClientIp,
+  isOriginAllowed,
+} from '@/lib/request-guard';
 
 type UserContent = string | ChatCompletionContentPart[];
 
 /** 正文输入上限：与链接抓取的 FETCH_MAX_TEXT_CHARS 一致，链接场景够用；max_tokens 只管输出不管输入 */
 const MAX_TEXT_CHARS = 12_000;
 const MAX_CONTEXT_CHARS = 2_000;
-/** 按 IP 固定窗口限流（默认 60 次/小时，可用环境变量调整） */
-const RATE_LIMIT = Number(process.env.RATE_LIMIT_EXPLAIN_PER_HOUR ?? 60);
-const RATE_WINDOW_MS = 60 * 60 * 1000;
+/** 单日单人预算（元），用完后降级免费模型；可用 EXPLAIN_DAILY_BUDGET_CNY 调整 */
+const DAILY_BUDGET_CNY = Number(process.env.EXPLAIN_DAILY_BUDGET_CNY ?? 2);
 
 async function createChatStream(
   client: OpenAI,
   model: string,
   userContent: UserContent
 ): Promise<Stream<ChatCompletionChunk>> {
-  return client.chat.completions.create({
-    model,
-    messages: [
-      { role: 'system', content: SYSTEM_PROMPT },
-      { role: 'user', content: userContent },
-    ],
-    max_tokens: 400,
-    temperature: 0.7,
-    stream: true,
-  });
+return client.chat.completions.create({
+      model,
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: userContent },
+      ],
+      max_tokens: 400,
+      temperature: 0.7,
+      stream: true,
+      // 最后一块带 usage，用于预算按真实 token 结算
+      stream_options: { include_usage: true },
+    });
 }
 
 export function OPTIONS() {
@@ -49,14 +59,11 @@ export async function POST(req: Request) {
     return new Response('Origin 不被允许', { status: 403, headers: corsHeaders });
   }
 
-  const rl = await checkRateLimit('explain', getClientIp(req), RATE_LIMIT, RATE_WINDOW_MS);
-  if (!rl.ok) {
-    console.warn(`[explain] rate limited ip="${getClientIp(req)}" backend=${rl.backend}`);
-    return new Response('请求太频繁了，请稍后再试', {
-      status: 429,
-      headers: { 'Retry-After': String(rl.retryAfterSec), ...corsHeaders },
-    });
-  }
+  // 用户自配模型烧用户自己的额度，不参与预算；服务器默认模型走「单日 ¥2/人」预算路由
+  const userCfg = parseUserLLMConfig(req.headers.get(USER_LLM_CONFIG_HEADER));
+  let budgetOk = true;
+  let reservedCostCny = 0;
+  let premiumModel = '';
 
   try {
     const body = await req.json();
@@ -111,21 +118,36 @@ export async function POST(req: Request) {
       ];
     }
 
-    // 用户自配 LLM（OpenAI-compatible）优先；校验失败静默走服务器默认链
-    const userCfg = parseUserLLMConfig(req.headers.get(USER_LLM_CONFIG_HEADER));
-    const chain = getProviderChain(userCfg);
+    // 预算路由：无自配时才参与。先用付费档判预估费是否在今日预算内；
+    // 超了就降级免费档（预算外不再列入 nvidia 等付费兜底）
+    if (!userCfg) {
+      const ip = getClientIp(req);
+      premiumModel = getModelForProvider('siliconflow', { hasImage, budgetOk: true });
+      const estCost = estimateCostCny(premiumModel, textStr.length, hasImage);
+      const decision = await budgetDecide('explain', ip, estCost, DAILY_BUDGET_CNY);
+      budgetOk = decision.premium;
+      reservedCostCny = estCost;
+      if (budgetOk) await budgetReserve('explain', ip, estCost);
+      console.log(
+        `[explain] budget ip="${ip}" est=¥${estCost.toFixed(4)} premium=${budgetOk} remaining=¥${decision.remaining.toFixed(2)}`
+      );
+    }
+
+    const chain = getProviderChain(userCfg, { hasImage, budgetOk });
     if (chain.length === 0) {
       return new Response('未配置可用的 AI Provider', { status: 500 });
     }
 
     let stream: Stream<ChatCompletionChunk> | undefined;
     let usedProvider = '';
+    let usedModel = '';
     let lastErr: unknown;
 
     for (const { name, client, model } of chain) {
       try {
         stream = await createChatStream(client, model, userContent);
         usedProvider = name;
+        usedModel = model;
         console.log(`[explain] using provider="${name}", model="${model}", hasImage=${hasImage}`);
         break;
       } catch (err) {
@@ -143,6 +165,7 @@ export async function POST(req: Request) {
     }
 
     const encoder = new TextEncoder();
+    let streamUsage: { promptTokens?: number; completionTokens?: number } | undefined;
     const readable = new ReadableStream({
       async start(controller) {
         try {
@@ -151,21 +174,41 @@ export async function POST(req: Request) {
             if (delta) {
               controller.enqueue(encoder.encode(delta));
             }
+            if (chunk.usage) {
+              streamUsage = {
+                promptTokens: chunk.usage.prompt_tokens ?? 0,
+                completionTokens: chunk.usage.completion_tokens ?? 0,
+              };
+            }
           }
         } finally {
           controller.close();
+          // 预算结算：有真实 usage 按实际补记差额；无 usage（中断/上游不回）保留预估，成本已发生
+          if (budgetOk && !userCfg) {
+            const p = MODEL_PRICING_CNY_PER_M[usedModel];
+            const actual =
+              p && streamUsage
+                ? ((streamUsage.promptTokens ?? 0) / 1e6) * p.input +
+                  ((streamUsage.completionTokens ?? 0) / 1e6) * p.output
+                : reservedCostCny;
+            void budgetSettle('explain', getClientIp(req), actual, reservedCostCny);
+          }
         }
       },
     });
 
-    return new Response(readable, {
-      headers: {
-        'Content-Type': 'text/plain; charset=utf-8',
-        'X-Content-Type-Options': 'nosniff',
-        [EFFECTIVE_PROVIDER_HEADER]: usedProvider,
-        ...corsHeaders,
-      },
-    });
+    const responseHeaders: Record<string, string> = {
+      'Content-Type': 'text/plain; charset=utf-8',
+      'X-Content-Type-Options': 'nosniff',
+      [EFFECTIVE_PROVIDER_HEADER]: usedProvider,
+      ...corsHeaders,
+    };
+    if (budgetOk === false && !userCfg) {
+      // 预算用完后降级免费模型的标记，客户端据此提示
+      responseHeaders['x-crow-quota-out'] = '1';
+    }
+
+    return new Response(readable, { headers: responseHeaders });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error('[/api/explain]', msg);
