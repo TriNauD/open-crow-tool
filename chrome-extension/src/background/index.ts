@@ -164,6 +164,13 @@ async function streamExplainViaPort(
         return;
       }
     }
+    // 流结束：发 done 标记，使内容侧能区分「正常完成（含空流）」与「网络断开」；
+    // 空流时不发消息、仅靠端口断开会让内容侧误报「网炸了」。
+    try {
+      port.postMessage({ done: true });
+    } catch {
+      /* port closed */
+    }
   } catch (err) {
     if ((err as Error).name === 'AbortError') return;
     try {

@@ -107,7 +107,7 @@ export function useStreamExplain(apiBaseUrl: string) {
           portRef.current = port;
 
           port.onMessage.addListener(
-            (msg: { chunk?: string; error?: string; meta?: { quotaOut?: boolean } } | null) => {
+            (msg: { chunk?: string; done?: boolean; error?: string; meta?: { quotaOut?: boolean } } | null) => {
               if (msg?.meta?.quotaOut) {
                 setState((s) => ({ ...s, quotaOut: true }));
                 return;
@@ -116,10 +116,14 @@ export function useStreamExplain(apiBaseUrl: string) {
               receivedAny = true;
               setState((s) => ({ ...s, isLoading: false, isDone: true, error: msg.error }));
               finish();
-            } else if (msg?.chunk) {
-              receivedAny = true;
-              setState((s) => ({ ...s, text: s.text + msg.chunk }));
-            }
+              } else if (msg?.done) {
+                receivedAny = true;
+                setState((s) => ({ ...s, isLoading: false, isDone: true }));
+                finish();
+              } else if (msg?.chunk) {
+                receivedAny = true;
+                setState((s) => ({ ...s, text: s.text + msg.chunk }));
+              }
           });
 
           port.onDisconnect.addListener(() => {
