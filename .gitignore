@@ -38,6 +38,9 @@ Desktop.ini
 # Claude local (skills moved to .cursor/skills/)
 .claude/
 
+# Zcode local (session plans)
+.zcode/
+
 # Editor local settings (personal, not for repo)
 # To share recommended extensions, un-ignore .vscode/extensions.json
 .vscode/
