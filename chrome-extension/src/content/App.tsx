@@ -40,6 +40,8 @@ interface Selection {
   text: string;
   x: number;
   y: number;
+  /** 选区底边（视口坐标）；浮动按钮避让放下方时用 */
+  bottom: number;
   /** 选区前后纯文本；取不到则为 undefined */
   surroundingText?: string;
 }
@@ -59,6 +61,7 @@ function selectionFromWindow(w: Window, iframeOffset?: { left: number; top: numb
     text,
     x: ox + rect.left + rect.width / 2,
     y: oy + rect.top,
+    bottom: oy + rect.bottom,
     surroundingText: surrounding || undefined,
   };
 }
@@ -254,6 +257,7 @@ export default function App() {
         text,
         x: rect.left + rect.width / 2,
         y: rect.top,
+        bottom: rect.bottom,
         surroundingText: surrounding || undefined,
       });
       sel.removeAllRanges();
@@ -285,7 +289,12 @@ export default function App() {
   return (
     <>
       {selection && !explaining && (
-        <FloatingButton x={selection.x} y={selection.y} onClick={triggerExplain} />
+        <FloatingButton
+          x={selection.x}
+          y={selection.y}
+          bottom={selection.bottom}
+          onClick={triggerExplain}
+        />
       )}
       {explaining && (
         <ExplainCard
