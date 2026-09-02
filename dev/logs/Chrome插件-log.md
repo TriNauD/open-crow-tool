@@ -48,3 +48,15 @@ host 元素 `pointer-events: none`，实际 UI 元素 `pointer-events: auto`。
 - Web 前端：Server Actions → lib/storage.ts → Supabase（ADMIN_SECRET 不出服务端）
 - Chrome 插件：`/api/notes` REST + `x-admin-secret` header（外部客户端必须带 secret）
 - 两者共享同一套 Supabase 数据，笔记本统一展示，来源用 source 字段区分
+
+---
+
+## BF 存档
+
+### BF-1：子卡片图钉是无效按钮，且追问分支无法单独收起（2026-09-03）
+
+- **现象**：追问产生的子卡片右上角图钉可点击但无任何效果；多轮嵌套追问后想收起某条分支，只能滚动翻找，单条追问没有收起入口。
+- **根因**：图钉/拖拽按主卡（`position: fixed`）设计，子卡片内嵌在父卡滚动 body 里，钉住与拖拽对其天然无效；折叠徽章原先只在「该卡有自己的子卡」时渲染，无追问的子卡没有任何收起控件。
+- **涉及文件**：`chrome-extension/src/content/ExplainCard.tsx`（图钉仅 depth 0 渲染；折叠徽章所有子卡常显，无追问的子卡仅显示箭头）、`chrome-extension/manifest.json`（0.1.30）。
+- **验证**：`npm run verify` 全绿（地图/lint/test 62/build）、`npm run test:e2e:ext` 5/5；手测路径见 PR 描述。
+- **分支 / PR**：`bugfix/ext-bubble-scroll-follow` → #47

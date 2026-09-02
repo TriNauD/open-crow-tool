@@ -386,13 +386,15 @@ export default function ExplainCard({
         <div style={{ minWidth: 0, flex: 1 }}>
           <div className="crow-card-label">
             这是啥？
-            {children.length > 0 && (
+            {/* 主卡有子卡时、以及所有子卡片：都可折叠自身内容 */}
+            {(depth > 0 || children.length > 0) && (
               <button
                 className="crow-collapse-badge"
                 onClick={(e) => { e.stopPropagation(); setCollapsed((v) => !v); }}
                 title={collapsed ? '展开内容' : '折叠内容'}
               >
-                {collapsed ? '▶' : '▼'} {children.length} 条追问
+                {collapsed ? '▶' : '▼'}
+                {children.length > 0 ? ` ${children.length} 条追问` : ''}
               </button>
             )}
           </div>
@@ -401,14 +403,17 @@ export default function ExplainCard({
           </div>
         </div>
         <div className="crow-header-actions">
-          <button
-            className={`crow-pin-btn${pinned ? ' active' : ''}`}
-            onClick={(e) => { e.stopPropagation(); setPinned((v) => !v); }}
-            title={pinned ? '取消钉住' : '钉住卡片'}
-            type="button"
-          >
-            {pinned ? '📍' : '📌'}
-          </button>
+          {/* 图钉只对主卡有意义：子卡片内嵌在父卡 body 里，钉住/拖拽均无效 */}
+          {depth === 0 && (
+            <button
+              className={`crow-pin-btn${pinned ? ' active' : ''}`}
+              onClick={(e) => { e.stopPropagation(); setPinned((v) => !v); }}
+              title={pinned ? '取消钉住' : '钉住卡片'}
+              type="button"
+            >
+              {pinned ? '📍' : '📌'}
+            </button>
+          )}
           <button className="crow-close" onClick={onClose} title="关闭 (Esc)">
             ×
           </button>
