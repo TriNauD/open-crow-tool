@@ -199,6 +199,8 @@ function AnchoredButton({ x, y, bottom, range, onClick }: Props) {
   return createPortal(
     <button
       ref={btnRef}
+      // class 仅作测试/调试选择器句柄；亮 DOM 中样式全部内联（shadow 样式不适用）
+      className="crow-btn"
       style={{ ...BASE_STYLE, visibility: revealed && !orphaned ? 'visible' : 'hidden' }}
       onMouseDown={(e) => e.stopPropagation()}
       onClick={(e) => {

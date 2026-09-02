@@ -108,7 +108,7 @@ async function clearCrowAuth(worker: Worker) {
   });
 }
 
-/** 在宿主页「这是啥？」划词浮标（开放 Shadow root 内 .crow-btn） */
+/** 在宿主页「这是啥？」划词浮标（锚点模式在亮 DOM body 直下，回退模式在开放 Shadow root 内） */
 export async function expectCrowFabVisible(page: Page, timeout = 20_000) {
   const host = page.locator('#crow-ext-host');
   await expect(host).toBeAttached({ timeout });
@@ -116,9 +116,11 @@ export async function expectCrowFabVisible(page: Page, timeout = 20_000) {
     .poll(
       async () =>
         host.evaluate((el: HTMLElement) => {
-          const btn = el.shadowRoot?.querySelector(
-            '.crow-btn'
+          const light = document.body.querySelector(
+            ':scope > button.crow-btn'
           ) as HTMLElement | null;
+          const btn =
+            light ?? (el.shadowRoot?.querySelector('.crow-btn') as HTMLElement | null);
           if (!btn) return false;
           const r = btn.getBoundingClientRect();
           return r.width > 0 && r.height > 0;
@@ -135,7 +137,10 @@ export async function expectNoCrowFab(page: Page, timeout = 12_000) {
     .poll(
       async () =>
         host.evaluate((el: HTMLElement) => {
-          return !el.shadowRoot?.querySelector('.crow-btn');
+          return (
+            !document.body.querySelector(':scope > button.crow-btn') &&
+            !el.shadowRoot?.querySelector('.crow-btn')
+          );
         }),
       { timeout }
     )

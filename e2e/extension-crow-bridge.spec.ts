@@ -81,9 +81,12 @@ test.describe('Crow extension bridge', () => {
       .poll(
         async () =>
           host.evaluate((el: HTMLElement) => {
-            const btn = el.shadowRoot?.querySelector(
-              '.crow-btn'
+            // 锚点定位模式在亮 DOM（本 frame 的 body），回退模式在 shadow root
+            const light = document.body.querySelector(
+              ':scope > button.crow-btn'
             ) as HTMLElement | null;
+            const btn =
+              light ?? (el.shadowRoot?.querySelector('.crow-btn') as HTMLElement | null);
             if (!btn) return false;
             const r = btn.getBoundingClientRect();
             return r.width > 0 && r.height > 0;
