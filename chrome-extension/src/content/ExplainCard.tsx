@@ -79,10 +79,12 @@ export default function ExplainCard({
   });
   const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
 
-  // ── 折叠状态：null = 未手动干预，跟随自动折叠（子卡片出现即收起）；手动切换后以手动为准 ──
-  const [userCollapsed, setUserCollapsed] = useState<boolean | null>(null);
-  const autoCollapsed = children.length > 0 && isDone;
-  const collapsed = userCollapsed ?? autoCollapsed;
+  // ── 折叠状态：仅手动切换（出子卡片不自动收起，改为自动滚动到最新回答） ──
+  const [collapsed, setCollapsed] = useState(false);
+
+  // ── 出子卡片后自动跟随滚动到底部；用户向上滚动即停止跟随 ──
+  const followBottomRef = useRef(false);
+  const childNodesRef = useRef(new Map<string, HTMLDivElement>());
 
   // ── 滚动箭头状态 ──
   const [canScroll, setCanScroll] = useState(false);
@@ -157,9 +159,15 @@ export default function ExplainCard({
     const ro = new ResizeObserver(checkScroll);
     ro.observe(el);
     el.addEventListener('scroll', checkScroll, { passive: true });
+    // 向上滚 = 用户想停在上面，关掉底部跟随
+    const onWheel = (e: WheelEvent) => {
+      if (e.deltaY < 0) followBottomRef.current = false;
+    };
+    el.addEventListener('wheel', onWheel, { passive: true });
     return () => {
       ro.disconnect();
       el.removeEventListener('scroll', checkScroll);
+      el.removeEventListener('wheel', onWheel);
     };
   }, [checkScroll, explanation, children.length]);
 
@@ -205,6 +213,7 @@ export default function ExplainCard({
   }, []);
 
   const scrollToBottom = useCallback(() => {
+    followBottomRef.current = true;
     const el = bodyRef.current;
     if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
   }, []);
@@ -334,10 +343,28 @@ export default function ExplainCard({
   const handleFollowUpSubmit = useCallback(() => {
     const q = followUpText.trim();
     if (!q) return;
+    followBottomRef.current = true;
     setChildren((prev) => [...prev, { id: crypto.randomUUID(), text: q }]);
     setFollowUpText('');
     setFollowUpOpen(false);
   }, [followUpText]);
+
+  // ═══════════════════════════════════════════
+  //  效果：子卡片出现/流式增长时跟随滚动到底部
+  //  （子卡片无高度上限，增长撑大父卡片 body 的滚动区，
+  //   ResizeObserver 挂在子卡片包裹层上才能感知内容变化）
+  // ═══════════════════════════════════════════
+  useEffect(() => {
+    const el = bodyRef.current;
+    if (!el || children.length === 0) return;
+    const follow = () => {
+      if (followBottomRef.current) el.scrollTop = el.scrollHeight;
+    };
+    follow();
+    const ro = new ResizeObserver(follow);
+    childNodesRef.current.forEach((node) => node && ro.observe(node));
+    return () => ro.disconnect();
+  }, [children]);
 
   // ═══════════════════════════════════════════
   //  渲染
@@ -362,7 +389,7 @@ export default function ExplainCard({
             {children.length > 0 && (
               <button
                 className="crow-collapse-badge"
-                onClick={(e) => { e.stopPropagation(); setUserCollapsed(!collapsed); }}
+                onClick={(e) => { e.stopPropagation(); setCollapsed((v) => !v); }}
                 title={collapsed ? '展开内容' : '折叠内容'}
               >
                 {collapsed ? '▶' : '▼'} {children.length} 条追问
@@ -453,7 +480,14 @@ export default function ExplainCard({
 
         {/* 递归子卡片 */}
         {children.map((child) => (
-          <div key={child.id} className="crow-child-card">
+          <div
+            key={child.id}
+            className="crow-child-card"
+            ref={(node) => {
+              if (node) childNodesRef.current.set(child.id, node);
+              else childNodesRef.current.delete(child.id);
+            }}
+          >
             <ExplainCard
               text={child.text}
               surroundingText={explanation}

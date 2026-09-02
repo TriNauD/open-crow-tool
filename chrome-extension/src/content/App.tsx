@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { flushSync } from 'react-dom';
 import {
   extensionContextLikelyOk,
   ignoreIfContextInvalidated,
@@ -14,6 +15,7 @@ import {
 import FloatingButton from './FloatingButton';
 import ExplainCard from './ExplainCard';
 import { extractSurroundingText } from './surrounding-text';
+import { ANCHOR_OK } from './floating-placement';
 
 const EMPTY_AUTH: CrowAuth = {
   apiBaseUrl: '',
@@ -42,6 +44,8 @@ interface Selection {
   y: number;
   /** 选区底边（视口坐标）；浮动按钮避让放下方时用 */
   bottom: number;
+  /** 划词 Range 快照：锚点定位模式插入锚点用 */
+  range?: Range;
   /** 选区前后纯文本；取不到则为 undefined */
   surroundingText?: string;
 }
@@ -62,6 +66,7 @@ function selectionFromWindow(w: Window, iframeOffset?: { left: number; top: numb
     x: ox + rect.left + rect.width / 2,
     y: oy + rect.top,
     bottom: oy + rect.bottom,
+    range: range.cloneRange(),
     surroundingText: surrounding || undefined,
   };
 }
@@ -178,7 +183,17 @@ export default function App() {
       selT = setTimeout(() => {
         const s = readDomSelection();
         if (!s) return;
-        setSelection(s);
+        // 无实际变化时保留旧对象：避免锚点插入引发的 selectionchange 反复重建
+        // Selection（新 Range 会触发锚点 effect 重跑）
+        setSelection((prev) =>
+          prev &&
+          prev.text === s.text &&
+          prev.x === s.x &&
+          prev.y === s.y &&
+          prev.bottom === s.bottom
+            ? prev
+            : s
+        );
       }, 90);
     }
 
@@ -200,6 +215,40 @@ export default function App() {
       document.removeEventListener('keydown', onKeyDown);
     };
   }, []);
+
+  // ═══════════════════════════════════════════
+  //  效果：滚动/视口变化时按钮跟随选区文字（仅回退路径需要；
+  //  锚点定位模式下按钮在内容流里被原生滚动跟随，JS 参与反而造成一帧滞后）
+  // ═══════════════════════════════════════════
+  const hasSelection = selection !== null;
+  useEffect(() => {
+    if (!hasSelection || ANCHOR_OK) return;
+    let raf = 0;
+    function sync() {
+      raf = 0;
+      // flushSync 保证坐标与本次滚动同一帧上屏；否则按钮落后文字一帧，滚动时微微晃动
+      flushSync(() => {
+        setSelection((prev) => {
+          if (!prev) return prev;
+          // 跟随读用轻量版：只取矩形坐标，不做 toString / 前后文提取，避免长任务拖慢滚动帧
+          const sel = window.getSelection();
+          if (!sel || sel.isCollapsed || !sel.rangeCount) return prev;
+          const rect = sel.getRangeAt(0).getBoundingClientRect();
+          return { ...prev, x: rect.left + rect.width / 2, y: rect.top, bottom: rect.bottom };
+        });
+      });
+    }
+    function onScrollOrResize() {
+      if (!raf) raf = requestAnimationFrame(sync);
+    }
+    window.addEventListener('scroll', onScrollOrResize, true);
+    window.addEventListener('resize', onScrollOrResize);
+    return () => {
+      if (raf) cancelAnimationFrame(raf);
+      window.removeEventListener('scroll', onScrollOrResize, true);
+      window.removeEventListener('resize', onScrollOrResize);
+    };
+  }, [hasSelection]);
 
   useEffect(() => {
     function applyFromBroadcast(auth: CrowAuth | undefined) {
@@ -258,6 +307,7 @@ export default function App() {
         x: rect.left + rect.width / 2,
         y: rect.top,
         bottom: rect.bottom,
+        range: range.cloneRange(),
         surroundingText: surrounding || undefined,
       });
       sel.removeAllRanges();
@@ -293,6 +343,7 @@ export default function App() {
           x={selection.x}
           y={selection.y}
           bottom={selection.bottom}
+          range={selection.range}
           onClick={triggerExplain}
         />
       )}

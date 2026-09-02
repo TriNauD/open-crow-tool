@@ -107,7 +107,8 @@ dev/active/需求名称/
 1. 将文档迁移到 `dev/done/需求名称/`（含 plan/context/tasks/qa 与 **`需求名称-dev-preview-acceptance.md`**（若存在））。
 2. 在 `dev/logs/需求名称-log.md` 记录问题与关键变更。
 3. PM 更新 `docs/PRD.md`、`docs/PLAN.md` 及所涉 `docs/product/*` / `docs/tech/*` 分卷（大需求写分卷，小改可只动总览一句）；**qa / dev-preview-acceptance** 写明验收结论（PASS、日期、Preview URL 等）；**`tasks.md`** 结项勾选。
-4. **`git commit` 与推送**（见 **`git-branching.mdc`**「`dev` 直推破例」）：
+4. **同步代码地图**：改动涉及模块的 `docs/map/` 分卷已更新（`scripts/check-map.mjs` 挂在 verify / CI 强校验，地图不同步构建即红）。
+5. **`git commit` 与推送**（见 **`git-branching.mdc`**「`dev` 直推破例」）：
    - **仅文档 / 规则 / 技能 / 上述结项类 `.md`**（无业务代码、无依赖与构建配置）：**允许**在 **`dev`** 上直接 commit + **`push`**。
    - **若仍含代码或行为变更**：**fea/* → PR → `dev`**，不得夹带。
 
