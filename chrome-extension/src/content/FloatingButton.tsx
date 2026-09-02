@@ -23,8 +23,15 @@ const POLL_MS = 50;
 export default function FloatingButton({ x, y, bottom, onClick }: Props) {
   /** 宿主气泡压得住任何 z-index，只能挑空位 */
   const [placement, setPlacementState] = useState<Placement>(() => decidePlacement(x, y, bottom));
-  const placementRef = useRef(placement);
   const [revealed, setRevealed] = useState(false);
+  /** 定时器读 ref 而非依赖坐标 props：滚动跟随时坐标每帧更新，不能每帧重跑避让检测 */
+  const coordsRef = useRef({ x, y, bottom });
+  const placementRef = useRef(placement);
+  // 每次渲染后同步最新值给定时器（react-hooks/refs 禁止渲染期写 ref）
+  useEffect(() => {
+    coordsRef.current = { x, y, bottom };
+    placementRef.current = placement;
+  });
   const clampedX = clampButtonX(x);
   const top = placement === 'above' ? Math.max(8, y - 6) : bottom + 6;
 
@@ -34,7 +41,8 @@ export default function FloatingButton({ x, y, bottom, onClick }: Props) {
     const start = Date.now();
     const timers: number[] = [];
     const tick = () => {
-      const next = decidePlacement(x, y, bottom);
+      const { x: cx, y: cy, bottom: cb } = coordsRef.current;
+      const next = decidePlacement(cx, cy, cb);
       if (next !== placementRef.current) {
         placementRef.current = next;
         setPlacementState(next);
@@ -49,22 +57,23 @@ export default function FloatingButton({ x, y, bottom, onClick }: Props) {
     };
     tick();
     return () => timers.forEach((t) => clearTimeout(t));
-  }, [x, y, bottom]);
+  }, []);
 
   // 兜底复检：比静默期更晚出现的宿主气泡仍会被挪开
   useEffect(() => {
     const timers = [400, 1000].map((delay) =>
       window.setTimeout(() => {
-        if (!isRectCoveredByHostUI(candidateRect(placement, x, y, bottom))) return;
+        const { x: cx, y: cy, bottom: cb } = coordsRef.current;
+        if (!isRectCoveredByHostUI(candidateRect(placement, cx, cy, cb))) return;
         const other: Placement = placement === 'above' ? 'below' : 'above';
-        if (!isRectCoveredByHostUI(candidateRect(other, x, y, bottom))) {
+        if (!isRectCoveredByHostUI(candidateRect(other, cx, cy, cb))) {
           placementRef.current = other;
           setPlacementState(other);
         }
       }, delay)
     );
     return () => timers.forEach((t) => clearTimeout(t));
-  }, [placement, x, y, bottom]);
+  }, [placement]);
 
   return (
     <button

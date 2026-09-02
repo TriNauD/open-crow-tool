@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { flushSync } from 'react-dom';
 import {
   extensionContextLikelyOk,
   ignoreIfContextInvalidated,
@@ -212,11 +213,16 @@ export default function App() {
     let raf = 0;
     function sync() {
       raf = 0;
-      setSelection((prev) => {
-        if (!prev) return prev;
-        const fresh = readDomSelection();
-        if (!fresh || fresh.text !== prev.text) return prev;
-        return fresh;
+      // flushSync 保证坐标与本次滚动同一帧上屏；否则按钮落后文字一帧，滚动时微微晃动
+      flushSync(() => {
+        setSelection((prev) => {
+          if (!prev) return prev;
+          // 跟随读用轻量版：只取矩形坐标，不做 toString / 前后文提取，避免长任务拖慢滚动帧
+          const sel = window.getSelection();
+          if (!sel || sel.isCollapsed || !sel.rangeCount) return prev;
+          const rect = sel.getRangeAt(0).getBoundingClientRect();
+          return { ...prev, x: rect.left + rect.width / 2, y: rect.top, bottom: rect.bottom };
+        });
       });
     }
     function onScrollOrResize() {
