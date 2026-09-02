@@ -27,6 +27,7 @@
 - 划词存笔记时请求带 `Authorization: Bearer <jwt>`，与网站笔记本 API 一致；CORS 预检需允许 `Authorization`（由 Web 端 `cors` 工具配置保证）。
 
 **进行中 / Future Features（与文档同步）：**
+- **追问树形索引（文档先行，编码下轮）**：追问嵌套多轮后，主卡左侧显示可收起的树形大纲（节点 = 各卡问题，缩进 = 层级）；阈值（嵌套 ≥2 层或追问 ≥3 条）出现，点击定位+橙色高亮，目标被折叠自动展开 — [`dev/active/追问树形索引/`](../../dev/active/追问树形索引/)。
 - **本批接手手册**：[FUTURE-FEATURES-HANDOFF](../../dev/active/BRAINSTORM需求池/FUTURE-FEATURES-HANDOFF.md)（分支 `fea/future-features`，**暂不合 `dev`**）。
 - **C-3 扩展内独立登录（已合 future）**：方案 A — Options + GoTrue password grant；目录 [`dev/active/Chrome扩展内登录/`](../../dev/active/Chrome扩展内登录/)，手测 [`Chrome扩展内登录-manual-test.md`](../../dev/active/Chrome扩展内登录/Chrome扩展内登录-manual-test.md)。
 - **插件内 session refresh**：网站「连接插件」下发 `refresh_token` 与公开 Supabase URL/anon key；扩展写入 `chrome.storage.local`，在请求前与 401 时用 Supabase 刷新 access token，减少散发使用下的过期重连。需求目录：`dev/active/Chrome扩展插件内refresh/`（结项后可迁 `dev/done`）。

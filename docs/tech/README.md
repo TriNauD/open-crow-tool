@@ -31,6 +31,7 @@
 | Chrome 扩展内登录（C-3） | [Chrome扩展内登录](../../dev/active/Chrome扩展内登录/) | 已合 future：GoTrue password grant + `CrowAuth` |
 | 链接内容抓取（D-1） | [链接内容抓取](../../dev/active/链接内容抓取/) | 已合 future：`POST /api/fetch-url` + `fetch-safe` |
 | 飞书等平台（D-2） | [飞书等平台](../../dev/active/飞书等平台/) | 已合 future：`/api/feishu/events` 501 stub |
+| 追问树形索引 | [追问树形索引](../../dev/active/追问树形索引/) | 主卡左侧可收起树形大纲，阈值出现、点击定位+高亮；**文档先行，编码下轮** |
 
 **立项默认**：新需求在本表增一行（与 `dev/active/…` 同批文档 commit）；结项后删除或改写。见 `.cursor/rules/dev-workflow.mdc` 阶段 3。
 
