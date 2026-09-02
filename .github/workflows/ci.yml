@@ -41,6 +41,9 @@ jobs:
       - name: Install dependencies (app)
         run: npm ci
 
+      - name: Code map sync check
+        run: node scripts/check-map.mjs
+
       - name: ESLint
         run: npm run lint
 
