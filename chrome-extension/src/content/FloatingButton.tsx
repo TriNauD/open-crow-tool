@@ -156,15 +156,22 @@ function AnchoredButton({ x, y, bottom, range, onClick }: Props) {
     return { x: hr.left + d.dx, y: hr.top + d.dya, bottom: hr.top + d.dyb };
   }, []);
 
-  // 静默期：等宿主气泡现身再首现，避免「先被挡再跳开」
+  // 静默期：等宿主气泡现身再首现，避免「先被挡再跳开」。
+  // 挂靠宿主是 setTimeout(0) 异步完成的：tick 首帧时宿主可能尚未挂上，
+  // 必须等（继续轮询）而不是立刻判定 orphaned——否则按钮永远 hidden（必现 bug）。
   useEffect(() => {
     const start = Date.now();
     const timers: number[] = [];
     const tick = () => {
       const c = currentCoords();
       if (!c) {
-        setOrphaned(true);
-        setRevealed(true);
+        // 挂靠未完成或宿主失效：未到静默期就继续等，超时才隐藏
+        if (Date.now() - start >= SETTLE_MS) {
+          setOrphaned(true);
+          setRevealed(true);
+          return;
+        }
+        timers.push(window.setTimeout(tick, POLL_MS));
         return;
       }
       const next = decidePlacement(c.x, c.y, c.bottom);
