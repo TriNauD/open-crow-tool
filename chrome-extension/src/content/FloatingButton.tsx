@@ -69,6 +69,8 @@ function AnchoredButton({ x, y, bottom, range, onClick }: Props) {
   const placementRef = useRef(placement);
 
   // 划词起止各插一个 0 尺寸锚点 span；卸载时移除，页面 DOM 还原。
+  // 仅挂载时插一次：若依赖 range 对象，锚点插入引发的 selectionchange 会再造一个新
+  // range 触发重插，形成「拆锚点→selectionchange→重插」的闪烁循环。
   // 插入放进定时器回调：setState 不能出现在 effect 同步体（react-hooks/set-state-in-effect）
   useEffect(() => {
     if (!range) return;
@@ -77,12 +79,25 @@ function AnchoredButton({ x, y, bottom, range, onClick }: Props) {
       const a = makeAnchorSpan(ANCHOR_A);
       const b = makeAnchorSpan(ANCHOR_B);
       try {
-        const ra = range.cloneRange();
-        ra.collapse(true);
-        ra.insertNode(a);
-        const rb = range.cloneRange();
-        rb.collapse(false);
-        rb.insertNode(b);
+      const ra = range.cloneRange();
+      ra.collapse(true);
+      ra.insertNode(a);
+      const rb = range.cloneRange();
+      rb.collapse(false);
+      rb.insertNode(b);
+      // insertNode 会打断浏览器选区（App 二次读选区将得到 null 而误卸载按钮）：
+      // 用锚点位置立即重建原选区，同一 tick 内完成，视觉无感
+      const doc = a.ownerDocument;
+      const sel = doc.getSelection();
+      if (sel) {
+        const restored = doc.createRange();
+        const pa = a.parentNode!;
+        const pb = b.parentNode!;
+        restored.setStart(pa, Array.prototype.indexOf.call(pa.childNodes, a));
+        restored.setEnd(pb, Array.prototype.indexOf.call(pb.childNodes, b) + 1);
+        sel.removeAllRanges();
+        sel.addRange(restored);
+      }
       } catch {
         setAnchorFailed(true);
         return;
@@ -98,7 +113,8 @@ function AnchoredButton({ x, y, bottom, range, onClick }: Props) {
       }
       anchorsRef.current = null;
     };
-  }, [range]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 见上：仅挂载时插一次
+  }, []);
 
   // 布局：anchor() 定位，水平取起止锚点中点，上/下由 placement 决定
   useEffect(() => {

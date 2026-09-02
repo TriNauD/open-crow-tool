@@ -183,7 +183,17 @@ export default function App() {
       selT = setTimeout(() => {
         const s = readDomSelection();
         if (!s) return;
-        setSelection(s);
+        // 无实际变化时保留旧对象：避免锚点插入引发的 selectionchange 反复重建
+        // Selection（新 Range 会触发锚点 effect 重跑）
+        setSelection((prev) =>
+          prev &&
+          prev.text === s.text &&
+          prev.x === s.x &&
+          prev.y === s.y &&
+          prev.bottom === s.bottom
+            ? prev
+            : s
+        );
       }, 90);
     }
 
