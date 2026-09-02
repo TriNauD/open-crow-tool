@@ -201,6 +201,36 @@ export default function App() {
     };
   }, []);
 
+  // ═══════════════════════════════════════════
+  //  效果：滚动/视口变化时按钮跟随选区文字。
+  //  按钮是 fixed + 划词瞬间坐标，页面（尤其 chatgpt 的内部聊天容器）一滚就与选区脱开；
+  //  capture 监听才能收到内部容器的 scroll。选区被页面清掉/内容变化时留在原地。
+  // ═══════════════════════════════════════════
+  const hasSelection = selection !== null;
+  useEffect(() => {
+    if (!hasSelection) return;
+    let raf = 0;
+    function sync() {
+      raf = 0;
+      setSelection((prev) => {
+        if (!prev) return prev;
+        const fresh = readDomSelection();
+        if (!fresh || fresh.text !== prev.text) return prev;
+        return fresh;
+      });
+    }
+    function onScrollOrResize() {
+      if (!raf) raf = requestAnimationFrame(sync);
+    }
+    window.addEventListener('scroll', onScrollOrResize, true);
+    window.addEventListener('resize', onScrollOrResize);
+    return () => {
+      if (raf) cancelAnimationFrame(raf);
+      window.removeEventListener('scroll', onScrollOrResize, true);
+      window.removeEventListener('resize', onScrollOrResize);
+    };
+  }, [hasSelection]);
+
   useEffect(() => {
     function applyFromBroadcast(auth: CrowAuth | undefined) {
       const direct = !!(auth?.apiBaseUrl && auth?.accessToken);
