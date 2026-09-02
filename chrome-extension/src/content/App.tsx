@@ -15,6 +15,7 @@ import {
 import FloatingButton from './FloatingButton';
 import ExplainCard from './ExplainCard';
 import { extractSurroundingText } from './surrounding-text';
+import { ANCHOR_OK } from './floating-placement';
 
 const EMPTY_AUTH: CrowAuth = {
   apiBaseUrl: '',
@@ -43,6 +44,8 @@ interface Selection {
   y: number;
   /** 选区底边（视口坐标）；浮动按钮避让放下方时用 */
   bottom: number;
+  /** 划词 Range 快照：锚点定位模式插入锚点用 */
+  range?: Range;
   /** 选区前后纯文本；取不到则为 undefined */
   surroundingText?: string;
 }
@@ -63,6 +66,7 @@ function selectionFromWindow(w: Window, iframeOffset?: { left: number; top: numb
     x: ox + rect.left + rect.width / 2,
     y: oy + rect.top,
     bottom: oy + rect.bottom,
+    range: range.cloneRange(),
     surroundingText: surrounding || undefined,
   };
 }
@@ -203,13 +207,12 @@ export default function App() {
   }, []);
 
   // ═══════════════════════════════════════════
-  //  效果：滚动/视口变化时按钮跟随选区文字。
-  //  按钮是 fixed + 划词瞬间坐标，页面（尤其 chatgpt 的内部聊天容器）一滚就与选区脱开；
-  //  capture 监听才能收到内部容器的 scroll。选区被页面清掉/内容变化时留在原地。
+  //  效果：滚动/视口变化时按钮跟随选区文字（仅回退路径需要；
+  //  锚点定位模式下按钮在内容流里被原生滚动跟随，JS 参与反而造成一帧滞后）
   // ═══════════════════════════════════════════
   const hasSelection = selection !== null;
   useEffect(() => {
-    if (!hasSelection) return;
+    if (!hasSelection || ANCHOR_OK) return;
     let raf = 0;
     function sync() {
       raf = 0;
@@ -294,6 +297,7 @@ export default function App() {
         x: rect.left + rect.width / 2,
         y: rect.top,
         bottom: rect.bottom,
+        range: range.cloneRange(),
         surroundingText: surrounding || undefined,
       });
       sel.removeAllRanges();
@@ -329,6 +333,7 @@ export default function App() {
           x={selection.x}
           y={selection.y}
           bottom={selection.bottom}
+          range={selection.range}
           onClick={triggerExplain}
         />
       )}

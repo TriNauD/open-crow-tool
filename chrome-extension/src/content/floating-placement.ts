@@ -5,6 +5,12 @@
 
 export type Placement = 'above' | 'below';
 
+/** CSS Anchor Positioning 支持（Chrome 125+）：ChatGPT 划词气泡同款方案 */
+export const ANCHOR_OK =
+  typeof CSS !== 'undefined' &&
+  typeof CSS.supports === 'function' &&
+  CSS.supports('anchor-name: --crow-t');
+
 export type RectLike = { left: number; top: number; right: number; bottom: number };
 
 /** 按钮估算尺寸：检测用，无需精确 */
