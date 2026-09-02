@@ -15,7 +15,7 @@ interface Props {
   y: number;
   /** 选区底边（视口坐标）；placement=below 时按钮放它下面 */
   bottom: number;
-  /** 划词 Range：锚点定位模式下据此插入锚点 span */
+  /** 划词 Range：锚点定位模式下据此确定宿主元素与偏移 */
   range?: Range;
   onClick: () => void;
 }
@@ -23,8 +23,7 @@ interface Props {
 /** 宿主气泡（如 ChatGPT）常在划词后 ~200-300ms 才弹出：静默期内先藏着等它现身 */
 const SETTLE_MS = 300;
 const POLL_MS = 50;
-const ANCHOR_A = '--crow-sel-a';
-const ANCHOR_B = '--crow-sel-b';
+const ANCHOR_HOST = '--crow-sel-host';
 
 const BASE_STYLE: CSSProperties = {
   position: 'fixed',
@@ -44,7 +43,7 @@ const BASE_STYLE: CSSProperties = {
 };
 
 export default function FloatingButton(props: Props) {
-  // ChatGPT 划词气泡同款：CSS Anchor Positioning——锚点在内容流里随内容被原生滚动，
+  // ChatGPT 划词气泡同款：CSS Anchor Positioning——宿主元素随内容被原生滚动，
   // 浏览器同帧重定位按钮，无 JS 参与、零抖动。不支持时回退 fixed + JS 跟随。
   if (ANCHOR_OK && props.range) {
     return <AnchoredButton {...props} />;
@@ -52,122 +51,127 @@ export default function FloatingButton(props: Props) {
   return <FixedButton {...props} />;
 }
 
-function makeAnchorSpan(name: string): HTMLSpanElement {
-  const s = document.createElement('span');
-  s.style.cssText = `position:relative;display:inline-block;width:0;height:0;anchor-name:${name};`;
-  return s;
+/** 从选区起点向上找最近块级宿主（display 非 inline），供 anchor-name 挂靠 */
+function findBlockHost(range: Range): HTMLElement | null {
+  let el: HTMLElement | null =
+    range.startContainer instanceof HTMLElement
+      ? range.startContainer
+      : range.startContainer.parentElement;
+  while (el && el !== document.documentElement) {
+    if (!getComputedStyle(el).display.startsWith('inline')) return el;
+    el = el.parentElement;
+  }
+  return null;
 }
 
-/** 锚点定位版：渲染进亮 DOM（position-anchor 不能跨 shadow 边界引用） */
+/** 选区相对宿主的静态偏移（px）：滚动时二者同体移动，偏移恒定 */
+interface HostDeltas {
+  /** 选区中心 x - 宿主 left */
+  dx: number;
+  /** 选区 top - 宿主 top */
+  dya: number;
+  /** 选区 bottom - 宿主 top */
+  dyb: number;
+}
+
+/**
+ * 锚点定位版：渲染进亮 DOM（position-anchor 不能跨 shadow 边界引用）。
+ *
+ * 注意：Chromium 的显式 `anchor(--name …)` 引用解析一次后不随滚动更新，
+ * 只有 `position-anchor` + 隐式 `anchor(side)` 会实时重算——因此只用单个隐式锚点，
+ * 选区与宿主的偏移在挂载时量好写成静态 px 值。
+ * 不向页面插入任何节点（插入选区会打断选区并被 React 重渲染清除），
+ * 仅在宿主元素上设 anchor-name 内联样式。
+ */
 function AnchoredButton({ x, y, bottom, range, onClick }: Props) {
   const [placement, setPlacement] = useState<Placement>('above');
   const [revealed, setRevealed] = useState(false);
   const [orphaned, setOrphaned] = useState(false);
   const [anchorFailed, setAnchorFailed] = useState(false);
   const btnRef = useRef<HTMLButtonElement | null>(null);
-  const anchorsRef = useRef<{ a: HTMLSpanElement; b: HTMLSpanElement } | null>(null);
+  const hostRef = useRef<HTMLElement | null>(null);
+  const deltasRef = useRef<HostDeltas | null>(null);
+  const savedAnchorNameRef = useRef<string | null>(null);
   const placementRef = useRef(placement);
 
-  // 划词起止各插一个 0 尺寸锚点 span；卸载时移除，页面 DOM 还原。
-  // 仅挂载时插一次：若依赖 range 对象，锚点插入引发的 selectionchange 会再造一个新
-  // range 触发重插，形成「拆锚点→selectionchange→重插」的闪烁循环。
-  // 插入放进定时器回调：setState 不能出现在 effect 同步体（react-hooks/set-state-in-effect）
+  // 挂靠宿主：把「宿主 anchor-name + 静态偏移」作为状态（setState 只能出现在 callback）
+
+  // 布局样式直接派生：anchor() 定位会随滚动实时重算——不能用 effect 写 DOM 的
+  // top/left（React 重渲染时 style prop 会重置抹掉，wikipedia 场景实测）；也不能用
+  // effect setState（react-hooks/set-state-in-effect）。渲染期纯计算最稳。
+  const [offset, setOffset] = useState<{ dx: number; dya: number; dyb: number } | null>(null);
+  const layoutStyle: CSSProperties = offset
+    ? {
+        positionAnchor: ANCHOR_HOST,
+        left: `calc(anchor(left) + ${offset.dx}px)`,
+        top:
+          placement === 'above'
+            ? `calc(anchor(top) + ${offset.dya}px)`
+            : `calc(anchor(top) + ${offset.dyb}px)`,
+        translate: placement === 'above' ? '-50% calc(-100% - 6px)' : '-50% 6px',
+      }
+    : {};
+
   useEffect(() => {
     if (!range) return;
-    let inserted: { a: HTMLSpanElement; b: HTMLSpanElement } | null = null;
     const t = window.setTimeout(() => {
-      const a = makeAnchorSpan(ANCHOR_A);
-      const b = makeAnchorSpan(ANCHOR_B);
-      try {
-      const ra = range.cloneRange();
-      ra.collapse(true);
-      ra.insertNode(a);
-      const rb = range.cloneRange();
-      rb.collapse(false);
-      rb.insertNode(b);
-      // insertNode 会打断浏览器选区（App 二次读选区将得到 null 而误卸载按钮）：
-      // 用锚点位置立即重建原选区，同一 tick 内完成，视觉无感
-      const doc = a.ownerDocument;
-      const sel = doc.getSelection();
-      if (sel) {
-        const restored = doc.createRange();
-        const pa = a.parentNode!;
-        const pb = b.parentNode!;
-        restored.setStart(pa, Array.prototype.indexOf.call(pa.childNodes, a));
-        restored.setEnd(pb, Array.prototype.indexOf.call(pb.childNodes, b) + 1);
-        sel.removeAllRanges();
-        sel.addRange(restored);
-      }
-      } catch {
+      const host = findBlockHost(range);
+      const selRect = range.getBoundingClientRect();
+      if (!host || selRect.width + selRect.height === 0) {
         setAnchorFailed(true);
         return;
       }
-      inserted = { a, b };
-      anchorsRef.current = inserted;
+      const hostRect = host.getBoundingClientRect();
+      hostRef.current = host;
+      const d = {
+        dx: (selRect.left + selRect.right) / 2 - hostRect.left,
+        dya: selRect.top - hostRect.top,
+        dyb: selRect.bottom - hostRect.top,
+      };
+      deltasRef.current = d;
+      setOffset(d);
+      savedAnchorNameRef.current = host.style.getPropertyValue('anchor-name') || null;
+      host.style.setProperty('anchor-name', ANCHOR_HOST);
     }, 0);
     return () => {
       clearTimeout(t);
-      if (inserted) {
-        inserted.a.remove();
-        inserted.b.remove();
+      if (hostRef.current) {
+        if (savedAnchorNameRef.current === null) {
+          hostRef.current.style.removeProperty('anchor-name');
+        } else {
+          hostRef.current.style.setProperty('anchor-name', savedAnchorNameRef.current);
+        }
       }
-      anchorsRef.current = null;
+      hostRef.current = null;
+      deltasRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 见上：仅挂载时插一次
-  }, []);
+  }, [range]);
 
-  // 布局：anchor() 定位，水平取起止锚点中点，上/下由 placement 决定
-  useEffect(() => {
-    const el = btnRef.current;
-    if (!el) return;
-    el.style.left = `calc((anchor(${ANCHOR_A} center) + anchor(${ANCHOR_B} center)) / 2)`;
-    if (placement === 'above') {
-      el.style.top = `anchor(${ANCHOR_A} top)`;
-      el.style.translate = '-50% calc(-100% - 6px)';
-    } else {
-      el.style.top = `anchor(${ANCHOR_B} bottom)`;
-      el.style.translate = '-50% 6px';
-    }
-  }, [placement]);
-
-  /** 锚点矩形 → 当前选区坐标（滚动后仍准确）；锚点失效返回 null */
+  /** 宿主实时矩形 + 静态偏移 → 当前选区坐标（滚动后仍准确）；宿主失效返回 null */
   const currentCoords = useCallback((): { x: number; y: number; bottom: number } | null => {
-    const an = anchorsRef.current;
-    if (!an || !an.a.isConnected || !an.b.isConnected) return null;
-    const ra = an.a.getBoundingClientRect();
-    const rb = an.b.getBoundingClientRect();
-    return {
-      x: (ra.left + ra.right + rb.left + rb.right) / 4,
-      y: Math.min(ra.top, rb.top),
-      bottom: Math.max(ra.bottom, rb.bottom),
-    };
+    const host = hostRef.current;
+    const d = deltasRef.current;
+    if (!host || !d || !host.isConnected) return null;
+    const hr = host.getBoundingClientRect();
+    return { x: hr.left + d.dx, y: hr.top + d.dya, bottom: hr.top + d.dyb };
   }, []);
 
-  // 静默期：等宿主气泡现身再首现，避免「先被挡再跳开」
+  // 静默期：等宿主气泡现身再首现，避免「先被挡再跳开」。
+  // 挂靠宿主是 setTimeout(0) 异步完成的：tick 首帧时宿主可能尚未挂上，
+  // 必须等（继续轮询）而不是立刻判定 orphaned——否则按钮永远 hidden（必现 bug）。
   useEffect(() => {
     const start = Date.now();
     const timers: number[] = [];
     const tick = () => {
-      const an = anchorsRef.current;
-      if (an && (!an.a.isConnected || !an.b.isConnected)) {
-        // 页面重渲染毁掉了锚点：隐藏按钮
-        setOrphaned(true);
-        setRevealed(true);
-        return;
-      }
-      if (!an) {
-        // 锚点尚未插入完成，稍后再查
+      const c = currentCoords();
+      if (!c) {
+        // 挂靠未完成或宿主失效：未到静默期就继续等，超时才隐藏
         if (Date.now() - start >= SETTLE_MS) {
+          setOrphaned(true);
           setRevealed(true);
           return;
         }
         timers.push(window.setTimeout(tick, POLL_MS));
-        return;
-      }
-      const c = currentCoords();
-      if (!c) {
-        setOrphaned(true);
-        setRevealed(true);
         return;
       }
       const next = decidePlacement(c.x, c.y, c.bottom);
@@ -187,16 +191,21 @@ function AnchoredButton({ x, y, bottom, range, onClick }: Props) {
     return () => timers.forEach((t) => clearTimeout(t));
   }, [currentCoords]);
 
-  // 兜底复检：更晚出现的宿主气泡仍会被挪开
+  // 兜底复检：更晚出现的宿主气泡仍会被挪开；宿主样式被页面重渲染抹掉时补写
   useEffect(() => {
     const timers = [400, 1000].map((delay) =>
       window.setTimeout(() => {
-        if (!anchorsRef.current) return;
-        const c = currentCoords();
-        if (!c) {
+        const host = hostRef.current;
+        if (!host) return;
+        if (!host.isConnected) {
           setOrphaned(true);
           return;
         }
+        if (host.style.getPropertyValue('anchor-name') !== ANCHOR_HOST) {
+          host.style.setProperty('anchor-name', ANCHOR_HOST);
+        }
+        const c = currentCoords();
+        if (!c) return;
         if (!isRectCoveredByHostUI(candidateRect(placement, c.x, c.y, c.bottom))) return;
         const other: Placement = placement === 'above' ? 'below' : 'above';
         if (!isRectCoveredByHostUI(candidateRect(other, c.x, c.y, c.bottom))) {
@@ -217,7 +226,7 @@ function AnchoredButton({ x, y, bottom, range, onClick }: Props) {
       ref={btnRef}
       // class 仅作测试/调试选择器句柄；亮 DOM 中样式全部内联（shadow 样式不适用）
       className="crow-btn"
-      style={{ ...BASE_STYLE, visibility: revealed && !orphaned ? 'visible' : 'hidden' }}
+      style={{ ...BASE_STYLE, ...layoutStyle, visibility: revealed && !orphaned ? 'visible' : 'hidden' }}
       onMouseDown={(e) => e.stopPropagation()}
       onClick={(e) => {
         e.stopPropagation();
