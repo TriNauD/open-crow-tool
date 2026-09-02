@@ -79,8 +79,10 @@ export default function ExplainCard({
   });
   const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
 
-  // ── 折叠状态 ──
-  const [collapsed, setCollapsed] = useState(false);
+  // ── 折叠状态：null = 未手动干预，跟随自动折叠（子卡片出现即收起）；手动切换后以手动为准 ──
+  const [userCollapsed, setUserCollapsed] = useState<boolean | null>(null);
+  const autoCollapsed = children.length > 0 && isDone;
+  const collapsed = userCollapsed ?? autoCollapsed;
 
   // ── 滚动箭头状态 ──
   const [canScroll, setCanScroll] = useState(false);
@@ -135,15 +137,6 @@ export default function ExplainCard({
       document.removeEventListener('mousedown', onMouseDown);
     };
   }, [onClose, pinned]);
-
-  // ═══════════════════════════════════════════
-  //  效果：子卡片出现时自动折叠父卡片
-  // ═══════════════════════════════════════════
-  useEffect(() => {
-    if (children.length > 0 && isDone) {
-      setCollapsed(true);
-    }
-  }, [children.length, isDone]);
 
   // ═══════════════════════════════════════════
   //  效果：检测 body 是否可滚动 + 滚动位置
@@ -369,7 +362,7 @@ export default function ExplainCard({
             {children.length > 0 && (
               <button
                 className="crow-collapse-badge"
-                onClick={(e) => { e.stopPropagation(); setCollapsed((v) => !v); }}
+                onClick={(e) => { e.stopPropagation(); setUserCollapsed(!collapsed); }}
                 title={collapsed ? '展开内容' : '折叠内容'}
               >
                 {collapsed ? '▶' : '▼'} {children.length} 条追问
