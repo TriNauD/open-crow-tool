@@ -15,8 +15,8 @@ import FloatingButton from './FloatingButton';
 import ExplainCard from './ExplainCard';
 import { extractSurroundingText } from './surrounding-text';
 
-// [DEBUG] 一次性版本标记：确认 content script 是否加载了新构建（排查「刷新扩展后仍走旧行为」）。确认后删除。
-console.info('[crow] content script loaded — follow-fix-rAF-loop 2026-09-03');
+// 版本标记：真机排查「刷新扩展后仍走旧行为」时先看这行是否更新。
+console.info('[crow] content script loaded — dom-anchor-follow 2026-09-03');
 
 const EMPTY_AUTH: CrowAuth = {
   apiBaseUrl: '',

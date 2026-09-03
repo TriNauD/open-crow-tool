@@ -108,7 +108,7 @@ async function clearCrowAuth(worker: Worker) {
   });
 }
 
-/** 在宿主页「这是啥？」划词浮标（锚点模式在亮 DOM body 直下，回退模式在开放 Shadow root 内） */
+/** 在宿主页「这是啥？」划词浮标（两种定位模式都 portal 到本 frame 的 `document.body` 亮 DOM 直下） */
 export async function expectCrowFabVisible(page: Page, timeout = 20_000) {
   const host = page.locator('#crow-ext-host');
   await expect(host).toBeAttached({ timeout });
@@ -174,7 +174,8 @@ export interface FabRect {
 
 /**
  * 浮标当前矩形（仅在其真正可见时返回）。
- * 锚点模式在亮 DOM body 直下，回退模式在开放 Shadow root 内。
+ * 浮标始终 portal 到本 frame 的 `document.body`（亮 DOM 直下，两种定位模式都一样）；
+ * 保留 shadow root 兜底查询仅为兼容历史实现。
  */
 export async function crowFabRect(page: Page): Promise<FabRect | null> {
   const host = page.locator('#crow-ext-host');

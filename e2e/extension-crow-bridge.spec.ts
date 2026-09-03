@@ -95,7 +95,7 @@ test.describe('Crow extension bridge', () => {
       .poll(
         async () =>
           host.evaluate((el: HTMLElement) => {
-            // 锚点定位模式在亮 DOM（本 frame 的 body），回退模式在 shadow root
+            // 浮标 portal 到本 frame 的 body（亮 DOM 直下），shadow 兜底仅兼容历史实现
             const light = document.body.querySelector(
               ':scope > button.crow-btn'
             ) as HTMLElement | null;
@@ -212,6 +212,75 @@ test.describe('Crow extension bridge', () => {
     expect(after).not.toBeNull();
     // 持续 rAF 不依赖 scroll 事件：文字上移 160，浮标也上移 160（间隙恒定）
     expect(Math.abs(before!.selTop - after!.selTop - 160)).toBeLessThan(2);
+    expect(Math.abs(after!.selTop - after!.fabTop - gapBefore)).toBeLessThan(2);
+  });
+
+  test('E2E-EXT-11 锚定模式：平滑滚动期间浮标零 JS 干预（根治合成器相位差）', async ({
+    page,
+    extensionWorker,
+  }) => {
+    test.slow();
+    await extensionSeed.seedCrowAuth(extensionWorker, e2eBaseURL);
+    await page.goto('/e2e-extension-host.html');
+    await expect(page.locator('#crow-ext-host')).toBeAttached({
+      timeout: 20_000,
+    });
+    await selectTopParagraphAndPointerUp(page);
+    await settledFabRect(page);
+
+    const before = await crowFabAndSelectionRect(page);
+    expect(before).not.toBeNull();
+    const gapBefore = before!.selTop - before!.fabTop;
+
+    // 平滑滚动制造一段持续滚动窗口，统计这期间浮标 style 被 JS 写入的次数。
+    // 锚定模式下气泡是文档内容的一部分，浏览器合成滚动时把它和文字一起搬走，
+    // JS 一次都不该写——这正是「合成器滚动 vs 主线程读坐标」相位差的根治点：
+    // 只要在滚动中写坐标，就会把滞后的坐标盖到已滚到位的内容上，晃动原样回来。
+    // （旧的 fixed + rAF 跟随方案在此处必然是每帧一次写入，约 60 次/秒。）
+    const probe = await page.evaluate(async () => {
+      const light = document.body.querySelector(
+        ':scope > button.crow-btn'
+      ) as HTMLElement | null;
+      const host = document.getElementById('crow-ext-host');
+      const btn =
+        light ??
+        (host?.shadowRoot?.querySelector('.crow-btn') as HTMLElement | null);
+      if (!btn) return null;
+
+      let writes = 0;
+      const obs = new MutationObserver(() => {
+        writes += 1;
+      });
+      obs.observe(btn, { attributes: true, attributeFilter: ['style'] });
+
+      let lastScrollAt = Date.now();
+      const onScroll = () => {
+        lastScrollAt = Date.now();
+      };
+      window.addEventListener('scroll', onScroll, { passive: true });
+
+      window.scrollBy({ top: 400, behavior: 'smooth' });
+      await new Promise((r) => setTimeout(r, 150));
+
+      // 采样时刻必须仍在滚动中，否则这次采样没有意义（静默期到了本就该校验）
+      const stillScrolling = Date.now() - lastScrollAt < 50;
+      obs.disconnect();
+      window.removeEventListener('scroll', onScroll);
+      return { writes, stillScrolling, position: getComputedStyle(btn).position };
+    });
+
+    expect(probe).not.toBeNull();
+    // 先自证这条用例确实跑在锚定模式上：若退回 fixed，每帧都要写坐标，
+    // 「零写入」断言必然失败——不会出现「回退了却恰好零写入」的假阳性。
+    expect(probe!.position).toBe('absolute');
+    expect(probe!.stillScrolling).toBe(true); // 再确认采样窗口确实落在滚动中
+    expect(probe!.writes).toBe(0); // 最后断言滚动期间零写入
+
+    // 滚停后位置仍然锁定：文字走了多少，气泡就走了多少
+    await page.waitForTimeout(500);
+    const after = await crowFabAndSelectionRect(page);
+    expect(after).not.toBeNull();
+    expect(after!.selTop).not.toBe(before!.selTop);
     expect(Math.abs(after!.selTop - after!.fabTop - gapBefore)).toBeLessThan(2);
   });
 
