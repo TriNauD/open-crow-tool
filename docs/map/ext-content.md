@@ -33,12 +33,17 @@
 - 浮标**必须**带 `data-crow-fab` 且 `isOwnUi()` 要认它：浮标是亮 DOM 里的 `position:fixed`/`absolute` + 最大 z-index，若避让检测不把它当自己人，会永远判定「上方被占 → 翻下方 → 下方被占 → 翻上方」每 400ms 横跳（普通网页上下跳动的根因）。换词靠 App 用新 `key` 重挂载。
 - **滚动晃动的根因是合成器（GPU）滚动与主线程读坐标的相位差，不是逻辑 bug**：x.com 这类超重 SPA 的滚动由合成器线程驱动，主线程 `getBoundingClientRect()` 读到的坐标**滞后于**视觉滚动，「每帧读坐标 → 写 transform」必然把滞后的坐标盖到**已滚到位**的内容上 → 气泡相对文字慢半帧＝晃。真机日志佐证过逻辑层没问题（`mountSeq` 恒 1、`gap` 恒 -38、`drift` 恒 0）。这是 JS 跟随方案的固有天花板，调 rAF 时序 / scroll 同步 / will-change 都跨不过去。
 - **根治 = DOM 锚定（`anchored` 模式）**：气泡 `position:absolute` 挂进 `document.body` 文档流、用**文档坐标**定位，滚动时浏览器把气泡和文字当同一份内容一起合成滚动，**JS 完全不参与** → 相位差归零。锚定模式下**滚动期间一律不写 DOM**（`scroll` 只打 `lastScrollAt`，静默 140ms 后才低频校验，纠 reflow 偏移）；滚动中一旦写坐标，根治效果立刻失效、晃动原样回来。
-- 锚定只在「文档结构纯净」时成立，否则回退 `fixed`：`body`/`html` 不能创建 containing block、祖先不能有 fixed / sticky / 内部可滚动容器 / 独立渲染层（transform · filter · perspective · backdrop-filter · will-change · contain: paint|layout|strict|content）、选区必须与浮标同文档（跨 frame 会 double-offset）。判定见 `floating-anchor.ts`，`reason` 打进 console（`[crow-anchor]`），真机排查先看它。
-- 判定只认**独立渲染层**，**不认** `position: relative`——现代页面大量 relative 祖先，误排除会让 DOM 锚定几乎永不生效。
+- 锚定只在「文档结构允许」时成立，否则回退 `fixed`：`body`/`html` 不能创建 containing block、祖先不能有 fixed / sticky / 内部可滚动容器、选区必须与浮标同文档（跨 frame 会 double-offset）。判定见 `floating-anchor.ts`，`reason` 打进 console（`[crow-anchor]`），真机排查先看它。
+- **祖先的 transform / filter / perspective / will-change / contain 一律不阻止锚定**（曾阻止过，结果 x.com 100% 回退、锚定形同虚设）。气泡 `absolute` 挂在 body 下，**不是这些祖先的后代**——它们的 containing block、裁剪、合成层效应统统管不到气泡；文字位置由 `getBoundingClientRect()` 给出（已含变换），与**静态**变换完全兼容。旧版 `will-change` 翻车是**气泡自己**被推上独立层 + fixed + 每帧 JS 写坐标三条件叠加，与此不同源，别再套用那条教训。
+- **动态变换（虚拟滚动 / transform 模拟滚动）靠运行时自检降级，不靠挂载时一刀切**：静止期低频比较「气泡−文字的相对偏移 gap」与「文字的**文档纵坐标** textDocY」。**判据是文字自己有没有挪窝**——`textDocY` 也变了是 reflow（图片懒加载撑开高度 / 折叠展开），重新落位即可、基准跟着更新；`textDocY` 没变而 gap 漂了，才是气泡没跟着文字走 → 降级 `fixed`。**绝不能按漂移大小判定**：x.com 滚动时懒加载图片能把文字顶下几百像素，按大小判会把正常 reflow 全误杀成脱钩。降级单向（anchored → fixed，不反向），逻辑在 `FloatingButton.tsx` 的 `verify()`。
 - 回退的 `fixed` 模式仍是 **rAF（兜底 transform 模拟滚动）＋ scroll 同步（优化真实滚动）双路**：大量 SPA / AI 对话站用 transform 或容器滚动模拟滚动、根本不派发 `window` 的 `scroll` 事件，纯 scroll 监听会完全失效、气泡冻结，必须靠每帧 rAF 兜底。
 - **不要加 `will-change: transform`**：它把气泡推上独立合成层，而选区文字在主文档层，两者连续滚动时亚像素栅格对齐差出零点几像素 → 反而**制造**「气泡相对文字轻微上下晃」。不强制合成层时两者同层、栅格化节奏一致，更稳。
 
 ## 相关测试 / E2E
 
 - 单测：`__tests__/normalize-note-input.test.ts`、`__tests__/floating-anchor.test.ts`（定位模式判定分支；Vitest 跑在 node 环境，用最小 DOM 桩驱动）
-- E2E：`e2e/extension-crow-bridge.spec.ts` + `e2e/extension-fixtures.ts`（跑前先构建扩展，见 `npm run test:e2e:ext`）。**EXT-11 是滚动晃动的回归闸门**：断言平滑滚动期间浮标 style **零写入**——谁把坐标写回「滚动中更新」，这条就会红。
+- E2E：`e2e/extension-crow-bridge.spec.ts` + `e2e/extension-fixtures.ts`（跑前先构建扩展，见 `npm run test:e2e:ext`）。**EXT-11 / 12 / 13 是浮标定位的回归闸门**：
+  - **EXT-11** 断言平滑滚动期间浮标 style **零写入**——谁把坐标写回「滚动中更新」，这条就红（根治合成器相位差的硬证据；先用 `position==='absolute'` 自证跑在锚定模式，排除「回退了却恰好零写入」的假阳性）。
+  - **EXT-12** 断言脱钩自动降级：只挪气泡不挪文字 → 必须降到 `fixed`。
+  - **EXT-13** 断言 reflow 不误判：内容上方撑开 180px 让文字真的移窝 → 必须**只纠偏不降级**，且气泡重新贴回文字。
+- E2E 输出目录别用默认的 `test-results/`——Playwright 启动会清空它，chromium profile 一次几千个文件，沙箱批量删除保护会直接把测试拦下。换 `--output=test-results-ext`（已加 `.gitignore` 通配 `/test-results*/`）。

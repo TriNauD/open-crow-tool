@@ -27,15 +27,25 @@
  * 3. 选区祖先链上不能有**内部可滚动容器**——文字随容器滚，气泡挂在 body 不跟。
  *    （`body` / `html` 自身是页面滚动容器，不在此列：气泡是它们的子元素，
  *    页面滚动时气泡本就跟着走。）
- * 4. 选区祖先链上不能有创建**独立渲染层**的 CSS（transform / filter /
- *    perspective / will-change / contain）——文字被推上独立合成层后，与
- *    主文档层的气泡在连续滚动时亚像素栅格对齐会错开，等于把刚治好的病
- *    （正是旧版 `will-change` 那一版）原样请回来。
- * 5. 选区必须与浮标同文档——跨 frame 取到的 range 坐标属于 iframe 文档，
+ * 4. 选区必须与浮标同文档——跨 frame 取到的 range 坐标属于 iframe 文档，
  *    换算成顶层文档坐标会 double-offset。
  *
- * 注意第 4 条只看「独立渲染层」，**不看** `position: relative`：现代页面
- * 大量 `relative` 祖先，把它们也排除会让 DOM 锚定几乎永不生效。
+ * ## 关键：祖先的 transform / filter / will-change **不阻止**锚定
+ *
+ * 曾经把「祖先创建独立渲染层」也列为回退条件，结果 x.com 这类站点 100% 回退、
+ * DOM 锚定形同虚设。那是把旧版 `will-change` 的教训过度外推了——两者不是一回事：
+ *
+ * - **旧版**：`will-change` 加在**气泡自己**身上，气泡被推上独立合成层，
+ *   而它又是 `fixed` + 每帧被 JS 写坐标。三个条件叠加才制造出层间亚像素错位。
+ * - **现在**：气泡 `absolute` 挂在 body 下，**不是那些祖先的后代**——它们的
+ *   containing block 效应、裁剪效应、层效应统统管不到气泡。而文字的视觉位置
+ *   由 `getBoundingClientRect()` 给出（已包含祖先变换的结果），加上滚动量换算
+ *   成文档坐标后，与**静态**变换完全兼容。
+ *
+ * 所以真正需要防的只剩一种：祖先的变换是**滚动中动态变化**的（虚拟滚动、
+ * transform 模拟滚动），此时文字随变换移动而气泡不动 → 脱钩。这个在挂载时
+ * 无法区分静态与动态，交给运行时自检：比较「气泡与文字的相对偏移」是否还等于
+ * 挂载时的基准值，持续对不上就自动降级到 `fixed` 模式（见 `FloatingButton`）。
  */
 
 export type AnchorMode = 'anchored' | 'fixed';
@@ -52,21 +62,6 @@ export interface AnchorDecision {
  */
 function createsContainingBlock(cs: CSSStyleDeclaration): boolean {
   if (cs.position && cs.position !== 'static') return true;
-  if (cs.transform && cs.transform !== 'none') return true;
-  if (cs.perspective && cs.perspective !== 'none') return true;
-  if (cs.filter && cs.filter !== 'none') return true;
-  if (cs.backdropFilter && cs.backdropFilter !== 'none') return true;
-  if (cs.contain && /(paint|layout|strict|content)/.test(cs.contain)) return true;
-  if (cs.willChange && /(transform|perspective|filter)/.test(cs.willChange)) return true;
-  return false;
-}
-
-/**
- * 是否把内容推上独立渲染层（合成层）。
- * 祖先命中 = 选区文字与挂在 body 的气泡不同层，连续滚动时亚像素栅格对齐会错开，
- * 表现为相对晃动——与旧版 `will-change: transform` 制造的问题同源。
- */
-function createsOwnLayer(cs: CSSStyleDeclaration): boolean {
   if (cs.transform && cs.transform !== 'none') return true;
   if (cs.perspective && cs.perspective !== 'none') return true;
   if (cs.filter && cs.filter !== 'none') return true;
@@ -128,7 +123,10 @@ export function resolveAnchorMode(range: Range, doc: Document): AnchorDecision {
     hops += 1;
     const cs = getComputedStyle(node);
     if (isPinned(cs)) return { mode: 'fixed', reason: `ancestor-${cs.position}` };
-    if (createsOwnLayer(cs)) return { mode: 'fixed', reason: 'ancestor-own-layer' };
+    // 注意：**不检查** transform / filter / will-change / contain。气泡 absolute
+    // 挂在 body 下，不是这些祖先的后代，它们的坐标系与层效应管不到气泡；
+    // 文字视觉位置由 getBoundingClientRect 给出（已含变换），与静态变换兼容。
+    // 动态变换（虚拟滚动）造成的脱钩交给运行时自检降级，不在此处一刀切拒绝。
     // body / html 是页面滚动容器本身：气泡是它们的子元素，页面滚动时本就跟着走
     if (node !== body && node !== root && isScrollableBox(node, cs)) {
       return { mode: 'fixed', reason: 'ancestor-scrollable' };
@@ -139,6 +137,13 @@ export function resolveAnchorMode(range: Range, doc: Document): AnchorDecision {
 
   return { mode: 'anchored', reason: 'ok' };
 }
+
+// —— 运行时自检阈值：锚定模式下「气泡与文字的相对偏移」不该变；变了要查清是谁变的 ——
+
+/** 小于此值视为浮点噪声 / 四舍五入，不处理 */
+export const DRIFT_NOISE_PX = 1.5;
+/** 静止期连续纠偏这么多次仍对不上 → 认输降级（防内容持续跳动时空转） */
+export const DRIFT_MAX_STRIKES = 3;
 
 /**
  * 视口坐标 → 锚定模式下的文档坐标。

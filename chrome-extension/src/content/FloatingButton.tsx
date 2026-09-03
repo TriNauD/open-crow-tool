@@ -2,6 +2,11 @@ import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from
 import { createPortal } from 'react-dom';
 import { clampButtonX, decidePlacement, type Placement } from './floating-placement';
 import { resolveAnchorMode, viewportToDocument } from './floating-anchor';
+import {
+  DRIFT_MAX_STRIKES,
+  DRIFT_NOISE_PX,
+  type AnchorMode,
+} from './floating-anchor';
 
 interface Props {
   /** 选区中心 x（视口坐标，初始落位用） */
@@ -106,19 +111,26 @@ function isRangeDetached(range: Range): boolean {
 }
 
 /**
- * 划词浮标。两种定位模式，二选一且在挂载时定死：
+ * 划词浮标。两种定位模式：
  *
  * - **anchored（DOM 锚定，默认优先）**：`position: absolute` 挂进 body 文档流，
  *   用文档坐标落位。滚动时气泡就是页面内容的一部分，浏览器合成滚动时把它和
  *   文字一起搬走，**JS 完全不参与** —— 这治的是「合成器滚动 vs 主线程读坐标」
  *   的相位差，即 x.com 这类站点上气泡相对文字轻微晃动的根因。JS 跟随无论多勤
  *   都跨不过这道坎，只能靠让浏览器自己搬。
- * - **fixed（回退）**：文档结构不干净（祖先 fixed/sticky/内部滚动容器/独立合成层，
- *   或 body/html 创建 containing block，或跨 frame 选区）时，气泡无法锚进文档流，
- *   退回「rAF 循环 + scroll 同步」每帧读选区屏幕坐标写 transform 的老方案。
+ *
+ *   锚定期间只做一件事：滚动停稳后低频测一次「气泡顶边 − 选区顶边」。这个值
+ *   锚定成立时必须恒定，漂了就说明气泡与文字脱钩（祖先变换在滚动中动态变化），
+ *   自动降级到 fixed。所以**锚定是带自检的乐观策略**：先赌能锚住，赌错自动退回，
+ *   不会比不锚定更差。
+ *
+ * - **fixed（回退）**：文档结构不允许锚定（祖先 fixed/sticky/内部滚动容器，
+ *   或 body/html 创建 containing block，或跨 frame 选区），或运行时自检判定
+ *   脱钩时，退回「rAF 循环 + scroll 同步」每帧读选区屏幕坐标写 transform 的老方案。
  *
  * 两种模式都不依赖 React state 更新位置（ref 直写 DOM，零重渲染＝零抖动）；
  * 换一段划词时父组件用新 key 重挂载本组件，range 换新、旧气泡消失、新气泡锁在新词。
+ * 模式只在挂载时定死 + 单向降级（anchored → fixed，不反向），不会来回横跳。
  */
 export default function FloatingButton({ x, y, bottom, range, onClick }: Props) {
   const btnRef = useRef<HTMLButtonElement>(null);
@@ -127,11 +139,24 @@ export default function FloatingButton({ x, y, bottom, range, onClick }: Props) 
   // 定位模式只判定一次：选区 DOM 结构在本组件生命周期内不变，
   // 真变了（换词）父组件会用新 key 重挂载。
   // 用 useState 惰性初始化而非 ref——ref.current 在 render 期读会踩 react-hooks/refs。
-  const [decision] = useState(() => resolveAnchorMode(range, document));
+  // mode 单独可降级：挂载判定允许 transform/filter 祖先（见 floating-anchor），
+  // 但祖先变换若在滚动中动态变化（虚拟滚动），文字动而气泡不动 → 运行时自检发现
+  // 偏移对不上基准，就把 mode 降到 fixed 走跟随兜底。
+  const [anchor, setAnchor] = useState(() => {
+    const d = resolveAnchorMode(range, document);
+    return { decision: d, mode: d.mode as AnchorMode };
+  });
+  const { decision } = anchor;
+  const mode = anchor.mode;
 
   const placementRef = useRef<Placement>('above');
   const flipsRef = useRef(0);
   const updateRef = useRef<() => void>(() => {});
+  /** 锚定自检基准：gap（气泡−文字的相对偏移）+ 文字的文档纵坐标 */
+  const baselineRef = useRef<{ gap: number; textDocY: number } | null>(null);
+  const strikesRef = useRef(0);
+  const degradedRef = useRef(false);
+  const firstRunRef = useRef(true);
   const [revealed, setRevealed] = useState(false);
 
   // render 期写 ref 同样踩 react-hooks/refs：放在所有定位 effect 之前同步最新 range，
@@ -144,11 +169,20 @@ export default function FloatingButton({ x, y, bottom, range, onClick }: Props) 
   useLayoutEffect(() => {
     const el = btnRef.current;
     if (!el) return;
-    const { mode, reason } = decision;
-
     // 真机可观测：x.com 上应看到 mode=anchored reason=ok。若回退 fixed，
-    // reason 会直接指出是哪位祖先不干净（fixed / sticky / scrollable / own-layer）。
-    console.info('[crow-anchor] mode=', mode, 'reason=', reason);
+    // reason 会直接指出是哪位祖先不干净（fixed / sticky / scrollable）。
+    console.info('[crow-anchor] mode=', mode, 'reason=', decision.reason);
+
+    // 锚定失效时降级：若祖先的变换在滚动中动态变化（虚拟滚动 / transform 模拟
+    // 滚动），文字随变换走而 absolute 气泡不动 → 脱钩。静态还是动态挂载时判不出，
+    // 只能运行时发现「气泡与文字的相对偏移对不上基准」后降级。
+    // 降级只是回到今天的行为，不会更差。
+    function degrade(why: string) {
+      if (degradedRef.current) return;
+      degradedRef.current = true;
+      console.warn('[crow-anchor] degrade → fixed:', why);
+      setAnchor((a) => (a.mode === 'fixed' ? a : { ...a, mode: 'fixed' }));
+    }
 
     function write(cx: number, top: number) {
       if (mode === 'anchored') {
@@ -159,7 +193,8 @@ export default function FloatingButton({ x, y, bottom, range, onClick }: Props) 
       }
     }
 
-    function update() {
+    /** 选区当前矩形；读不到（range 失效且无实时选区）返回 null */
+    function readRect() {
       try {
         const hostDoc = el.ownerDocument;
         let rect = readRangeRect(rangeRef.current, hostDoc);
@@ -173,20 +208,47 @@ export default function FloatingButton({ x, y, bottom, range, onClick }: Props) 
             if (!(live.cx === 0 && live.top === 0 && live.bottom === 0)) rect = live;
           }
         }
-        // 选区折叠/失效、且实时选区也读不到：保持上次落位，不跳角、不消失
-        if (rect.cx === 0 && rect.top === 0 && rect.bottom === 0) return;
-        write(
-          clampButtonX(rect.cx),
-          computeTop(placementRef.current, rect.top, rect.bottom)
-        );
+        // 选区折叠/失效、且实时选区也读不到
+        if (rect.cx === 0 && rect.top === 0 && rect.bottom === 0) return null;
+        return rect;
       } catch {
-        // range 完全失效（选区 DOM 被页面卸载）：保持上次位置，不跳到 (0,0)
+        // range 完全失效（选区 DOM 被页面卸载）
+        return null;
       }
+    }
+
+    function update() {
+      const rect = readRect();
+      // 读不到就保持上次落位，不跳角、不消失
+      if (!rect) return;
+      write(
+        clampButtonX(rect.cx),
+        computeTop(placementRef.current, rect.top, rect.bottom)
+      );
     }
     updateRef.current = update;
 
-    // 初始落位用 props 的固定坐标（兼容挂靠延迟 / 挂载时已是滚动态）
-    write(clampButtonX(x), computeTop(placementRef.current, y, bottom));
+    /**
+     * 自检探针。gap = 气泡顶边 − 选区顶边（都是视口坐标）；锚定成立时它必须恒定。
+     * textDocY = 选区在**文档坐标**里的纵向位置；它变了说明文字自己在文档里挪了窝。
+     */
+    function measure(): { gap: number; textDocY: number } | null {
+      const rect = readRect();
+      if (!rect) return null;
+      const win = el.ownerDocument.defaultView;
+      const sy = win ? win.scrollY : 0;
+      return { gap: el.getBoundingClientRect().top - rect.top, textDocY: rect.top + sy };
+    }
+
+    // 初始落位：挂载时用 props 的固定视口坐标（兼容挂靠延迟 / 挂载时已是滚动态）；
+    // 模式切换（anchored → fixed 降级）时 props 坐标早已过期，必须按实时坐标重算，
+    // 否则气泡会瞬间跳回挂载时的位置。
+    if (firstRunRef.current) {
+      firstRunRef.current = false;
+      write(clampButtonX(x), computeTop(placementRef.current, y, bottom));
+    } else {
+      update();
+    }
 
     let raf = 0;
     let lastScrollAt = 0;
@@ -199,13 +261,55 @@ export default function FloatingButton({ x, y, bottom, range, onClick }: Props) 
       const markScroll = () => {
         lastScrollAt = Date.now();
       };
+
+      /**
+       * 静止期校验：纠 reflow 偏移 + 自检锚定是否还成立。
+       *
+       * gap 漂了有两种截然不同的原因，判据是**文字自己有没有挪窝**：
+       * - 文字文档坐标也变了 → 纯 reflow（图片懒加载撑开高度 / 折叠展开 / 内容
+       *   高度变化）。文字确实换了地方，重新落位即可，锚定本身没坏，基准跟着更新。
+       *   x.com 滚动时疯狂懒加载图片，这种漂移量可能是几百 px，按大小判会把
+       *   正常 reflow 全误杀成脱钩。
+       * - 文字没挪、只有 gap 漂了 → 气泡没跟着文字走，即祖先变换在滚动中变化
+       *   （虚拟滚动 / transform 模拟滚动），锚定前提不成立，降级。
+       */
+      const verify = () => {
+        const m = measure();
+        if (!m) return;
+        const base = baselineRef.current;
+        if (base === null) {
+          baselineRef.current = m; // 首帧采基准
+          return;
+        }
+        const dGap = Math.abs(m.gap - base.gap);
+        if (dGap <= DRIFT_NOISE_PX) {
+          strikesRef.current = 0;
+          return;
+        }
+
+        const dText = Math.abs(m.textDocY - base.textDocY);
+        if (dText > DRIFT_NOISE_PX) {
+          // reflow：纠偏并重新采基准
+          update();
+          strikesRef.current += 1;
+          baselineRef.current = measure();
+          if (strikesRef.current >= DRIFT_MAX_STRIKES) {
+            degrade(`reflow strikes=${strikesRef.current} gap=${dGap.toFixed(1)}px`);
+          }
+          return;
+        }
+
+        // 文字原地不动，气泡却相对它漂了 → 气泡没被浏览器一起搬走
+        degrade(`gap drifted ${(m.gap - base.gap).toFixed(1)}px, text static`);
+      };
+
       const tick = () => {
         raf = requestAnimationFrame(tick);
         const now = Date.now();
         if (now - lastScrollAt < SCROLL_QUIET_MS) return;
         if (now - lastVerifyAt < VERIFY_INTERVAL_MS) return;
         lastVerifyAt = now;
-        update();
+        verify();
       };
       raf = requestAnimationFrame(tick);
       window.addEventListener('scroll', markScroll, { capture: true, passive: true });
@@ -240,7 +344,8 @@ export default function FloatingButton({ x, y, bottom, range, onClick }: Props) 
       window.removeEventListener('scroll', onScrollOrResize, true);
       window.removeEventListener('resize', onScrollOrResize);
     };
-  }, [x, y, bottom, decision]);
+    // mode 进依赖：降级（anchored → fixed）时本 effect 重跑，换成跟随模式
+  }, [x, y, bottom, decision, mode]);
 
   // 静默期等宿主气泡现身 + 有限次翻转避让；翻转只改 placementRef，位置由 update 实时跟随
   useEffect(() => {
@@ -260,6 +365,10 @@ export default function FloatingButton({ x, y, bottom, range, onClick }: Props) 
       if (next !== placementRef.current && flipsRef.current < MAX_FLIPS) {
         flipsRef.current += 1;
         placementRef.current = next;
+        // 上下侧一变，按钮与选区的相对偏移基准也变了，必须重采基准再自检，
+        // 否则会把正常的翻转误判成脱钩而降级
+        baselineRef.current = null;
+        strikesRef.current = 0;
         setRevealed(true);
         updateRef.current(); // 按新上下侧立即落位
       }
@@ -279,7 +388,7 @@ export default function FloatingButton({ x, y, bottom, range, onClick }: Props) 
       // 会被判定成「宿主浮动 UI」而反复上下翻转（普通网页上下跳动的根因）
       data-crow-fab="1"
       style={{
-        ...(decision.mode === 'anchored' ? STYLE_ANCHORED : STYLE_FIXED),
+        ...(mode === 'anchored' ? STYLE_ANCHORED : STYLE_FIXED),
         visibility: revealed ? 'visible' : 'hidden',
       }}
       onMouseDown={(e) => e.stopPropagation()}

@@ -284,6 +284,86 @@ test.describe('Crow extension bridge', () => {
     expect(Math.abs(after!.selTop - after!.fabTop - gapBefore)).toBeLessThan(2);
   });
 
+  test('E2E-EXT-12 锚定自检：气泡与文字脱钩时自动降级为 fixed 跟随', async ({
+    page,
+    extensionWorker,
+  }) => {
+    test.slow();
+    await extensionSeed.seedCrowAuth(extensionWorker, e2eBaseURL);
+    await page.goto('/e2e-extension-host.html');
+    await expect(page.locator('#crow-ext-host')).toBeAttached({
+      timeout: 20_000,
+    });
+    await selectTopParagraphAndPointerUp(page);
+    await settledFabRect(page);
+
+    const readPos = () =>
+      page.evaluate(() => {
+        const btn = document.body.querySelector(
+          ':scope > button.crow-btn'
+        ) as HTMLElement | null;
+        return btn ? getComputedStyle(btn).position : null;
+      });
+    expect(await readPos()).toBe('absolute'); // 自证起点在锚定模式
+
+    // 模拟脱钩：文字原地不动，只有气泡被挪走。等价于祖先变换在滚动中变化、
+    // 气泡没被浏览器一起搬走——自检必须认出「文字没挪窝、gap 却漂了」并降级。
+    await page.evaluate(() => {
+      const btn = document.body.querySelector(
+        ':scope > button.crow-btn'
+      ) as HTMLElement | null;
+      if (!btn) return;
+      const m = /translate\(([-\d.]+)px,\s*([-\d.]+)px\)/.exec(btn.style.transform);
+      if (!m) return;
+      btn.style.transform = `translate(${m[1]}px, ${Number(m[2]) + 60}px) translateX(-50%)`;
+    });
+
+    // 等过静默期（140ms）+ 校验间隔（200ms），自检才会跑
+    await page.waitForTimeout(800);
+    expect(await readPos()).toBe('fixed');
+  });
+
+  test('E2E-EXT-13 锚定自检：reflow 只纠偏、不误判成脱钩降级', async ({
+    page,
+    extensionWorker,
+  }) => {
+    test.slow();
+    await extensionSeed.seedCrowAuth(extensionWorker, e2eBaseURL);
+    await page.goto('/e2e-extension-host.html');
+    await expect(page.locator('#crow-ext-host')).toBeAttached({
+      timeout: 20_000,
+    });
+    await selectTopParagraphAndPointerUp(page);
+    await settledFabRect(page);
+
+    const before = await crowFabAndSelectionRect(page);
+    expect(before).not.toBeNull();
+    const gapBefore = before!.selTop - before!.fabTop;
+
+    // 模拟 reflow：内容上方撑开 180px（等价于 x.com 滚动时图片懒加载把文字顶下去）。
+    // 文字在文档坐标里**真的挪了窝**，所以这是正常重排，不是锚定失效——
+    // 按漂移大小判定会把这种几百像素的 reflow 全误杀成脱钩（x.com 上必然踩中）。
+    await page.evaluate(() => {
+      document.body.style.paddingTop = '180px';
+    });
+
+    await page.waitForTimeout(900);
+
+    const pos = await page.evaluate(() => {
+      const btn = document.body.querySelector(
+        ':scope > button.crow-btn'
+      ) as HTMLElement | null;
+      return btn ? getComputedStyle(btn).position : null;
+    });
+    expect(pos).toBe('absolute'); // 没降级
+
+    // 而且气泡应该已经纠偏、重新贴回文字
+    const after = await crowFabAndSelectionRect(page);
+    expect(after).not.toBeNull();
+    expect(after!.selTop).toBeGreaterThan(before!.selTop + 100); // 文字确实下移了
+    expect(Math.abs(after!.selTop - after!.fabTop - gapBefore)).toBeLessThan(2);
+  });
+
   test('E2E-EXT-09 Options 页显示已连接', async ({
     page,
     extensionWorker,

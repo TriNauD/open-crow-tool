@@ -128,7 +128,11 @@ describe('resolveAnchorMode', () => {
     expect(decide(selEl(dSticky, { position: 'sticky' }), dSticky).reason).toBe('ancestor-sticky');
   });
 
-  it('祖先推上独立渲染层 → 回退（层间亚像素错位会重现晃动）', () => {
+  it('祖先 transform / filter / will-change / contain → 仍锚定（管不到挂在 body 的气泡）', () => {
+    // 曾把这些当成回退条件，结果 x.com 这类站点 100% 回退、锚定形同虚设。
+    // 气泡 absolute 挂在 body 下，**不是这些祖先的后代**——它们的 containing block、
+    // 裁剪、合成层效应统统影响不到气泡；文字位置由 getBoundingClientRect 给出
+    // （已含变换），与静态变换兼容。动态变换的脱钩交给运行时自检降级。
     const cases: Style[] = [
       { transform: 'translateY(0)' },
       { perspective: '800px' },
@@ -137,10 +141,11 @@ describe('resolveAnchorMode', () => {
       { contain: 'paint' },
       { contain: 'layout' },
       { willChange: 'transform' },
+      { willChange: 'opacity, transform' },
     ];
     for (const style of cases) {
       const d = fakeDoc();
-      expect(decide(selEl(d, style), d).reason).toBe('ancestor-own-layer');
+      expect(decide(selEl(d, style), d)).toEqual({ mode: 'anchored', reason: 'ok' });
     }
   });
 
