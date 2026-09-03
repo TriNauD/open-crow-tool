@@ -108,7 +108,7 @@ async function clearCrowAuth(worker: Worker) {
   });
 }
 
-/** 在宿主页「这是啥？」划词浮标（开放 Shadow root 内 .crow-btn） */
+/** 在宿主页「这是啥？」划词浮标（锚点模式在亮 DOM body 直下，回退模式在开放 Shadow root 内） */
 export async function expectCrowFabVisible(page: Page, timeout = 20_000) {
   const host = page.locator('#crow-ext-host');
   await expect(host).toBeAttached({ timeout });
@@ -116,9 +116,11 @@ export async function expectCrowFabVisible(page: Page, timeout = 20_000) {
     .poll(
       async () =>
         host.evaluate((el: HTMLElement) => {
-          const btn = el.shadowRoot?.querySelector(
-            '.crow-btn'
+          const light = document.body.querySelector(
+            ':scope > button.crow-btn'
           ) as HTMLElement | null;
+          const btn =
+            light ?? (el.shadowRoot?.querySelector('.crow-btn') as HTMLElement | null);
           if (!btn) return false;
           const r = btn.getBoundingClientRect();
           return r.width > 0 && r.height > 0;
@@ -135,7 +137,10 @@ export async function expectNoCrowFab(page: Page, timeout = 12_000) {
     .poll(
       async () =>
         host.evaluate((el: HTMLElement) => {
-          return !el.shadowRoot?.querySelector('.crow-btn');
+          return (
+            !document.body.querySelector(':scope > button.crow-btn') &&
+            !el.shadowRoot?.querySelector('.crow-btn')
+          );
         }),
       { timeout }
     )
@@ -143,7 +148,12 @@ export async function expectNoCrowFab(page: Page, timeout = 12_000) {
 }
 
 export async function selectTopParagraphAndPointerUp(page: Page) {
-  await page.locator('#selectable').evaluate((el: HTMLElement) => {
+  await selectSelectorAndPointerUp(page, '#selectable');
+}
+
+/** 划选指定选择器内的全部内容并派发 pointerup（触发扩展的选区读取） */
+export async function selectSelectorAndPointerUp(page: Page, selector: string) {
+  await page.locator(selector).evaluate((el: HTMLElement) => {
     const range = document.createRange();
     range.selectNodeContents(el);
     const sel = window.getSelection();
@@ -154,6 +164,81 @@ export async function selectTopParagraphAndPointerUp(page: Page) {
     document.dispatchEvent(
       new PointerEvent('pointerup', { bubbles: true, cancelable: true })
     );
+  });
+}
+
+export interface FabRect {
+  top: number;
+  left: number;
+}
+
+/**
+ * 浮标当前矩形（仅在其真正可见时返回）。
+ * 锚点模式在亮 DOM body 直下，回退模式在开放 Shadow root 内。
+ */
+export async function crowFabRect(page: Page): Promise<FabRect | null> {
+  const host = page.locator('#crow-ext-host');
+  return host.evaluate((el: HTMLElement) => {
+    const light = document.body.querySelector(
+      ':scope > button.crow-btn'
+    ) as HTMLElement | null;
+    const btn =
+      light ?? (el.shadowRoot?.querySelector('.crow-btn') as HTMLElement | null);
+    if (!btn) return null;
+    if (getComputedStyle(btn).visibility !== 'visible') return null;
+    const r = btn.getBoundingClientRect();
+    if (r.width === 0 || r.height === 0) return null;
+    return { top: Math.round(r.top), left: Math.round(r.left) };
+  });
+}
+
+/** 连续采样浮标位置（返回每次采样的整数矩形） */
+export async function sampleCrowFabRect(
+  page: Page,
+  times: number,
+  intervalMs: number
+): Promise<FabRect[]> {
+  return page.evaluate(
+    async ({ times: n, intervalMs: gap }) => {
+      const out: { top: number; left: number }[] = [];
+      const read = () => {
+        const light = document.body.querySelector(
+          ':scope > button.crow-btn'
+        ) as HTMLElement | null;
+        const host = document.getElementById('crow-ext-host');
+        const btn =
+          light ??
+          (host?.shadowRoot?.querySelector('.crow-btn') as HTMLElement | null);
+        if (!btn) return null;
+        const r = btn.getBoundingClientRect();
+        return { top: Math.round(r.top), left: Math.round(r.left) };
+      };
+      for (let i = 0; i < n; i += 1) {
+        const r = read();
+        if (r) out.push(r);
+        await new Promise((res) => setTimeout(res, gap));
+      }
+      return out;
+    },
+    { times, intervalMs }
+  );
+}
+
+/** 浮标当前矩形 + 选区矩形（视口坐标），用于断言「浮标与词一起走」 */
+export async function crowFabAndSelectionRect(page: Page) {
+  return page.evaluate(() => {
+    const light = document.body.querySelector(
+      ':scope > button.crow-btn'
+    ) as HTMLElement | null;
+    const host = document.getElementById('crow-ext-host');
+    const btn =
+      light ??
+      (host?.shadowRoot?.querySelector('.crow-btn') as HTMLElement | null);
+    const sel = window.getSelection();
+    if (!btn || !sel || sel.isCollapsed || !sel.rangeCount) return null;
+    const b = btn.getBoundingClientRect();
+    const s = sel.getRangeAt(0).getBoundingClientRect();
+    return { fabTop: b.top, selTop: s.top };
   });
 }
 

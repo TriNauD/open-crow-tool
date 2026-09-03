@@ -1,5 +1,5 @@
 /**
- * 本地/CI 对齐的一次性校验：lint → test → Next build（占位 Supabase）→ 扩展 build。
+ * 本地/CI 对齐的一次性校验：地图同步（docs/map）→ lint → test → Next build（占位 Supabase）→ 扩展 build。
  * 环境变量与 .github/workflows/ci.yml 中 job 级 env 保持一致；若改这里请同步改 CI。
  *
  * 与 GitHub Actions 的差异（有意识保留）：
@@ -42,6 +42,7 @@ function run(cmd, args, { cwd = root, env } = {}) {
   }
 }
 
+run('node', ['scripts/check-map.mjs'], { cwd: root, env: { ...process.env } });
 run('npm', ['run', 'lint'], { cwd: root, env: { ...process.env } });
 run('npm', ['run', 'test'], { cwd: root, env: { ...process.env } });
 run('npm', ['run', 'build'], { cwd: root, env: { ...ciBuildEnv } });

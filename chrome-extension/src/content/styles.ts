@@ -20,6 +20,8 @@ export const STYLES = `
     pointer-events: auto;
   }
   .crow-btn:hover { background: #fb923c; }
+  /* 避让宿主划词气泡时的「选区下方」变体：去掉向上的位移 */
+  .crow-btn.below { transform: translateX(-50%); }
 
   /* ── 卡片主体 ── */
   .crow-card {

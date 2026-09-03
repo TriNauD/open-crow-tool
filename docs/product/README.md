@@ -27,6 +27,7 @@
 | Chrome 扩展内登录（C-3） | [Chrome扩展内登录](../../dev/active/Chrome扩展内登录/) | 已合 future：Options 邮箱密码（password grant） |
 | 链接内容抓取（D-1） | [链接内容抓取](../../dev/active/链接内容抓取/) | 已合 future：`POST /api/fetch-url` + SSRF |
 | 飞书等平台（D-2） | [飞书等平台](../../dev/active/飞书等平台/) | 已合 future：501 stub + No-Go 评估 |
+| 追问树形索引 | [追问树形索引](../../dev/active/追问树形索引/) | 深嵌套追问的主卡左侧树形大纲：阈值出现、可收成把手、点击定位+高亮；**文档先行，编码下轮** |
 
 **立项默认**：新需求在本表增一行（同一批 commit 含 `dev/active/…`）；结项迁至 `dev/done/` 后删除或改写本行。详见仓库根目录 `.cursor/rules/dev-workflow.mdc` 阶段 3。
 
