@@ -6,8 +6,8 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  anchorCoords,
   resolveAnchorMode,
-  viewportToDocument,
 } from '@/chrome-extension/src/content/floating-anchor';
 
 type Style = Partial<CSSStyleDeclaration>;
@@ -16,10 +16,16 @@ const styles = new WeakMap<object, Style>();
 
 interface FakeEl {
   nodeType: number;
+  tagName: string;
   parentElement: FakeEl | null;
   ownerDocument: FakeDoc | null;
   scrollHeight?: number;
   clientHeight?: number;
+  clientLeft: number;
+  clientTop: number;
+  scrollLeft: number;
+  scrollTop: number;
+  getBoundingClientRect: () => { left: number; top: number; width: number; height: number };
 }
 
 interface FakeDoc {
@@ -32,15 +38,26 @@ function el(opts: {
   style?: Style;
   parent?: FakeEl | null;
   doc?: FakeDoc | null;
+  tag?: string;
   scrollHeight?: number;
   clientHeight?: number;
+  clientLeft?: number;
+  clientTop?: number;
+  scrollLeft?: number;
+  scrollTop?: number;
 }): FakeEl {
   const node: FakeEl = {
     nodeType: 1,
+    tagName: opts.tag ?? 'div',
     parentElement: opts.parent ?? null,
     ownerDocument: opts.doc ?? null,
     scrollHeight: opts.scrollHeight,
     clientHeight: opts.clientHeight,
+    clientLeft: opts.clientLeft ?? 0,
+    clientTop: opts.clientTop ?? 0,
+    scrollLeft: opts.scrollLeft ?? 0,
+    scrollTop: opts.scrollTop ?? 0,
+    getBoundingClientRect: () => ({ left: 0, top: 0, width: 100, height: 100 }),
   };
   styles.set(node, opts.style ?? {});
   return node;
@@ -74,8 +91,8 @@ function fakeDoc(opts: DocOpts = {}): FakeDoc {
 }
 
 /** 选区所在元素，默认挂在 body 下 */
-function selEl(d: FakeDoc, style?: Style, parent?: FakeEl): FakeEl {
-  return el({ style, doc: d, parent: parent ?? d.body });
+function selEl(d: FakeDoc, style?: Style, parent?: FakeEl, tag?: string): FakeEl {
+  return el({ style, doc: d, parent: parent ?? d.body, tag });
 }
 
 function rangeAt(startContainer: unknown): Range {
@@ -102,35 +119,49 @@ afterEach(() => {
 describe('resolveAnchorMode', () => {
   it('纯净文档流 → 锚定（x.com 这类窗口滚动站点的目标路径）', () => {
     const d = fakeDoc();
-    expect(decide(selEl(d), d)).toEqual({ mode: 'anchored', reason: 'ok' });
+    expect(decide(selEl(d), d)).toEqual({ mode: 'anchored', reason: 'ok', host: d.body });
   });
 
   it('文本节点 startContainer 沿 parentElement 上溯', () => {
     const d = fakeDoc();
     const p = selEl(d, { position: 'fixed' });
-    expect(decide(textNode(p, d), d)).toEqual({ mode: 'fixed', reason: 'ancestor-fixed' });
+    expect(decide(textNode(p, d), d)).toEqual({
+      mode: 'fixed',
+      reason: 'ancestor-fixed',
+      host: d.body,
+    });
   });
 
   it('body 创建 containing block → 回退（文档坐标换算失效）', () => {
     const d = fakeDoc({ bodyStyle: { position: 'relative' } });
-    expect(decide(selEl(d), d)).toEqual({ mode: 'fixed', reason: 'body-creates-cb' });
+    expect(decide(selEl(d), d)).toEqual({
+      mode: 'fixed',
+      reason: 'body-creates-cb',
+      host: d.body,
+    });
   });
 
   it('html 创建 containing block → 回退', () => {
     const d = fakeDoc({ htmlStyle: { transform: 'matrix(1,0,0,1,0,0)' } });
-    expect(decide(selEl(d), d)).toEqual({ mode: 'fixed', reason: 'html-creates-cb' });
+    expect(decide(selEl(d), d)).toEqual({
+      mode: 'fixed',
+      reason: 'html-creates-cb',
+      host: d.body,
+    });
   });
 
   it('祖先 fixed / sticky → 回退（不随文档流滚动，会脱钩）', () => {
     const dFixed = fakeDoc();
     expect(decide(selEl(dFixed, { position: 'fixed' }), dFixed).reason).toBe('ancestor-fixed');
     const dSticky = fakeDoc();
-    expect(decide(selEl(dSticky, { position: 'sticky' }), dSticky).reason).toBe('ancestor-sticky');
+    expect(decide(selEl(dSticky, { position: 'sticky' }), dSticky).reason).toBe(
+      'ancestor-sticky'
+    );
   });
 
-  it('祖先 transform / filter / will-change / contain → 仍锚定（管不到挂在 body 的气泡）', () => {
+  it('祖先 transform / filter / will-change / contain → 仍锚定（管不到挂在宿主的气泡）', () => {
     // 曾把这些当成回退条件，结果 x.com 这类站点 100% 回退、锚定形同虚设。
-    // 气泡 absolute 挂在 body 下，**不是这些祖先的后代**——它们的 containing block、
+    // 气泡 absolute 挂在锚定宿主下，**不是这些祖先的后代**——它们的 containing block、
     // 裁剪、合成层效应统统影响不到气泡；文字位置由 getBoundingClientRect 给出
     // （已含变换），与静态变换兼容。动态变换的脱钩交给运行时自检降级。
     const cases: Style[] = [
@@ -145,16 +176,23 @@ describe('resolveAnchorMode', () => {
     ];
     for (const style of cases) {
       const d = fakeDoc();
-      expect(decide(selEl(d, style), d)).toEqual({ mode: 'anchored', reason: 'ok' });
+      expect(decide(selEl(d, style), d)).toEqual({
+        mode: 'anchored',
+        reason: 'ok',
+        host: d.body,
+      });
     }
   });
 
-  it('祖先内部可滚动容器 → 回退（文字随容器滚，气泡挂 body 不跟）', () => {
+  it('祖先内部可滚动容器 → 锚进该容器（container-anchored，ds/chatgpt 消息区的目标路径）', () => {
     const d = fakeDoc();
     const scroller = selEl(d, { overflowY: 'auto' }, d.body);
     Object.assign(scroller, { scrollHeight: 900, clientHeight: 400 });
     const p = selEl(d, undefined, scroller);
-    expect(decide(p, d)).toEqual({ mode: 'fixed', reason: 'ancestor-scrollable' });
+    const dec = decide(p, d);
+    expect(dec.mode).toBe('anchored');
+    expect(dec.host).toBe(scroller);
+    expect(dec.reason).toBe('scroll-host-div');
   });
 
   it('overflow:auto 但没溢出 → 仍锚定（不是真的滚动容器）', () => {
@@ -163,7 +201,7 @@ describe('resolveAnchorMode', () => {
     Object.assign(box, { scrollHeight: 400, clientHeight: 400 });
     // 内嵌一层：外层不滚动，选区在内层
     const p = selEl(d, undefined, box);
-    expect(decide(p, d).mode).toBe('anchored');
+    expect(decide(p, d)).toEqual({ mode: 'anchored', reason: 'ok', host: d.body });
   });
 
   it('body / html 自身滚动不算内部容器 → 仍锚定', () => {
@@ -172,36 +210,60 @@ describe('resolveAnchorMode', () => {
       bodyStyle: { overflowY: 'auto' },
       htmlStyle: { overflowY: 'auto' },
     });
-    expect(decide(selEl(d), d).mode).toBe('anchored');
+    expect(decide(selEl(d), d)).toEqual({ mode: 'anchored', reason: 'ok', host: d.body });
   });
 
   it('祖先 position:relative / absolute 不排除（否则锚定几乎永不生效）', () => {
     const d = fakeDoc();
     const outer = selEl(d, { position: 'relative' }, d.body);
     const inner = selEl(d, { position: 'absolute' }, outer);
-    expect(decide(inner, d).mode).toBe('anchored');
+    expect(decide(inner, d)).toEqual({ mode: 'anchored', reason: 'ok', host: d.body });
   });
 
   it('跨文档选区 → 回退（iframe 坐标换算会 double-offset）', () => {
     const host = fakeDoc();
     const other = fakeDoc();
-    expect(decide(selEl(other), host)).toEqual({ mode: 'fixed', reason: 'cross-document' });
+    expect(decide(selEl(other), host)).toEqual({
+      mode: 'fixed',
+      reason: 'cross-document',
+      host: host.body,
+    });
   });
 
   it('没有 body → 回退', () => {
     const d: FakeDoc = { body: null, documentElement: null, defaultView: null };
-    expect(decide(selEl(fakeDoc()), d)).toEqual({ mode: 'fixed', reason: 'no-body' });
+    const dec = decide(selEl(fakeDoc()), d);
+    expect(dec.mode).toBe('fixed');
+    expect(dec.reason).toBe('no-body');
+    expect(dec.host).toBe(d);
   });
 });
 
-describe('viewportToDocument', () => {
-  it('视口坐标加滚动量得到文档坐标', () => {
+describe('anchorCoords', () => {
+  it('页面级（host=body）加窗口滚动量得到文档坐标', () => {
     const d = fakeDoc({ scrollX: 0, scrollY: 240 });
-    expect(viewportToDocument(d as unknown as Document, 120, 300)).toEqual({ x: 120, y: 540 });
+    const win = d.defaultView!;
+    expect(anchorCoords(d.body!, 300, 120, win as unknown as Window)).toEqual({
+      x: 120,
+      y: 540,
+    });
   });
 
-  it('无 defaultView 时退化为原值（不抛错）', () => {
-    const d: FakeDoc = { body: null, documentElement: null, defaultView: null };
-    expect(viewportToDocument(d as unknown as Document, 12, 34)).toEqual({ x: 12, y: 34 });
+  it('容器级（host≠body）用相对宿主内容区坐标（含容器 scrollTop）', () => {
+    const d = fakeDoc();
+    const host = selEl(d, {}, d.body);
+    Object.assign(host, {
+      scrollLeft: 0,
+      scrollTop: 50,
+      clientLeft: 0,
+      clientTop: 0,
+      getBoundingClientRect: () => ({ left: 0, top: 0, width: 100, height: 100 }),
+    });
+    const win = d.defaultView!;
+    // host !== body → 容器公式：x=120-0-0+0=120, y=300-0-0+50=350
+    expect(anchorCoords(host, 300, 120, win as unknown as Window)).toEqual({
+      x: 120,
+      y: 350,
+    });
   });
 });

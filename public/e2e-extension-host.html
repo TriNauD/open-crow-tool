@@ -38,6 +38,17 @@
     <p id="selectable-2">
       这是页面下方的第二段划词目标，与首段拉开距离，便于断言浮标确实换到了新位置。
     </p>
+    <!-- 内部滚动容器：验证气泡锚进容器（而非 body）随其一起滚，根治 ds/chatgpt 类站点 -->
+    <div
+      id="scroll-box"
+      style="overflow-y: auto; height: 220px; border: 1px solid #cbd5e1; margin-top: 20px; padding: 8px"
+    >
+      <p id="selectable-in-box">
+        这是位于独立滚动容器内部的划词目标文字，用于验证气泡锚进容器随其一起滚动。This
+        sentence makes the range long enough to trigger selection.
+      </p>
+      <div style="height: 600px" aria-hidden="true"></div>
+    </div>
     <div style="height: 800px" aria-hidden="true"></div>
   </body>
 </html>

@@ -102,15 +102,23 @@ function readDomSelection(): SelectionBase | null {
   return null;
 }
 
-/** 同一段选区（文字相同、位置未变，亚像素差忽略） */
+/** 同一段选区：比较文字 + Range 边界（start/end 的节点与偏移）。
+ *  关键：不能用视口坐标 x/y/bottom 判等——滚动时视口坐标会变，会误判成「新选区」
+ *  导致气泡重挂载（每滚一下闪一下）。Range 边界是滚动不变的，才是「同一段选区」的真判据。 */
+function sameRange(a: Range, b: Range): boolean {
+  return (
+    a.startContainer === b.startContainer &&
+    a.startOffset === b.startOffset &&
+    a.endContainer === b.endContainer &&
+    a.endOffset === b.endOffset
+  );
+}
+
 function sameSelection(a: Selection | null, b: SelectionBase | null): boolean {
   if (!a || !b) return false;
-  return (
-    a.text === b.text &&
-    Math.round(a.x) === Math.round(b.x) &&
-    Math.round(a.y) === Math.round(b.y) &&
-    Math.round(a.bottom) === Math.round(b.bottom)
-  );
+  if (a.text !== b.text) return false;
+  if (!a.range || !b.range) return false;
+  return sameRange(a.range, b.range);
 }
 
 export default function App() {

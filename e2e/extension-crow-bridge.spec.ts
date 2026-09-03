@@ -364,6 +364,106 @@ test.describe('Crow extension bridge', () => {
     expect(Math.abs(after!.selTop - after!.fabTop - gapBefore)).toBeLessThan(2);
   });
 
+  test('E2E-EXT-14 容器级锚定：气泡锚进独立滚动容器、随其一起滚（根治 ds/chatgpt 类站点）', async ({
+    page,
+    extensionWorker,
+  }) => {
+    test.slow();
+    await extensionSeed.seedCrowAuth(extensionWorker, e2eBaseURL);
+    await page.goto('/e2e-extension-host.html');
+    await expect(page.locator('#crow-ext-host')).toBeAttached({
+      timeout: 20_000,
+    });
+    // 在「独立滚动容器」内部划词，验证气泡锚进容器而非 body，随容器一起滚
+    await selectSelectorAndPointerUp(page, '#selectable-in-box');
+    // 等气泡出现（body 直子或 #scroll-box 内部都认）
+    await page
+      .waitForFunction(
+        () => {
+          const box = document.getElementById('scroll-box');
+          return !!box?.querySelector('button.crow-btn') ||
+            !!document.body.querySelector(':scope > button.crow-btn');
+        },
+        { timeout: 15_000 }
+      )
+      .catch(() => {});
+
+    const probe = await page.evaluate(async () => {
+      const box = document.getElementById('scroll-box') as HTMLElement | null;
+      // 每次都重新查询「当前实时气泡」，避免持有被 React 协调重建过的陈旧引用
+      const liveFab = () =>
+        (box?.querySelector('button.crow-btn') as HTMLElement | null) ??
+        (document.body.querySelector(':scope > button.crow-btn') as HTMLElement | null);
+      const gapOf = () => {
+        const f = liveFab();
+        const sel = window.getSelection();
+        if (!f || !sel || sel.isCollapsed || !sel.rangeCount) return null;
+        const s = sel.getRangeAt(0).getBoundingClientRect();
+        return s.top - f.getBoundingClientRect().top;
+      };
+
+      const sel = window.getSelection();
+      if (!sel || sel.isCollapsed || !sel.rangeCount) return { error: 'no-sel' };
+
+      const fabBefore = liveFab();
+      const gapBefore = gapOf();
+      const inBoxBefore = !!box && !!fabBefore && box.contains(fabBefore);
+      const posBefore = fabBefore ? getComputedStyle(fabBefore).position : null;
+
+      // 多次滚动施压：验证气泡与文字一起走（gap 恒定），且组件不重挂
+      let writes = 0;
+      const obs = fabBefore
+        ? new MutationObserver(() => {
+            writes += 1;
+          })
+        : null;
+      if (fabBefore && obs) obs.observe(fabBefore, { attributes: true, attributeFilter: ['style'] });
+
+      const startTop = box ? box.scrollTop : 0;
+      for (const y of [120, 240, 80, 300]) {
+        if (box) box.scrollTo({ top: y, behavior: 'smooth' });
+        await new Promise((r) => setTimeout(r, 220));
+      }
+      await new Promise((r) => setTimeout(r, 600));
+      if (obs) obs.disconnect();
+
+      const fabAfter = liveFab();
+      const gapAfter = gapOf();
+      const inBoxAfter = !!box && !!fabAfter && box.contains(fabAfter);
+      const posAfter = fabAfter ? getComputedStyle(fabAfter).position : null;
+      const midTop = box ? box.scrollTop : 0;
+      const scrolled = Math.abs(midTop - startTop) > 20 || midTop > 20;
+
+      return {
+        fabSameNode: fabBefore === fabAfter,
+        inBoxBefore,
+        inBoxAfter,
+        posBefore,
+        posAfter,
+        scrolled,
+        writes,
+        gapBefore,
+        gapAfter,
+        gapDrift: gapBefore != null && gapAfter != null ? Math.abs(gapAfter - gapBefore) : -1,
+      };
+    });
+
+    expect(probe).not.toBeNull();
+    // 挂载时气泡锚进容器（而非 body 直子）
+    expect(probe!.inBoxBefore).toBe(true);
+    // 多次滚动施压后仍在容器内、仍是 anchored（position:absolute），证明未被降级/重挂
+    expect(probe!.inBoxAfter).toBe(true);
+    expect(probe!.posBefore).toBe('absolute');
+    expect(probe!.posAfter).toBe('absolute');
+    expect(probe!.scrolled).toBe(true); // 容器确实滚动了
+    expect(probe!.writes).toBeLessThanOrEqual(1); // 滚动期间 JS 近乎零干预
+    // 滚前滚后气泡相对文字的位置恒定 = 不随滚动抖动。ds/chatgpt 类站点正是靠这条根治。
+    expect(probe!.gapDrift).toBeLessThan(2);
+    // 滚动前后气泡是同一个 DOM 节点：证明组件不重挂（重建会闪烁、且让
+    // ds/chatgpt 类站点抖动复发）
+    expect(probe!.fabSameNode).toBe(true);
+  });
+
   test('E2E-EXT-09 Options 页显示已连接', async ({
     page,
     extensionWorker,

@@ -1,8 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { clampButtonX, decidePlacement, type Placement } from './floating-placement';
-import { resolveAnchorMode, viewportToDocument } from './floating-anchor';
 import {
+  anchorCoords,
+  resolveAnchorMode,
   DRIFT_MAX_STRIKES,
   DRIFT_NOISE_PX,
   type AnchorMode,
@@ -77,6 +78,18 @@ const STYLE_FIXED: CSSProperties = { ...COMMON_STYLE, position: 'fixed' };
 /** 按上下侧算按钮 top（above：词上方留 GAP；below：词下方）。
  *  不做垂直钳制：气泡与被划的词「锁在一起」，选区滚出视口顶部/底部时
  *  气泡也随之滚出（相对静止）；若在此钳制会破坏锁定、与词脱钩。 */
+/** 容器级锚定：气泡 absolute 挂进宿主内部，宿主必须是定位上下文；内部滚动容器通常
+ * 是 position:static，这里补一个 relative（不改动布局、只创建定位上下文）。返回
+ * 原始内联 position 以便卸载时还原；本来就是定位上下文则返回 null。 */
+function ensurePositioningContext(el: HTMLElement): string | null {
+  if (getComputedStyle(el).position === 'static') {
+    const prev = el.style.position;
+    el.style.position = 'relative';
+    return prev;
+  }
+  return null;
+}
+
 function computeTop(placement: Placement, topY: number, bottomY: number): number {
   return placement === 'above'
     ? topY - BTN_GAP - BTN_H
@@ -113,11 +126,13 @@ function isRangeDetached(range: Range): boolean {
 /**
  * 划词浮标。两种定位模式：
  *
- * - **anchored（DOM 锚定，默认优先）**：`position: absolute` 挂进 body 文档流，
- *   用文档坐标落位。滚动时气泡就是页面内容的一部分，浏览器合成滚动时把它和
- *   文字一起搬走，**JS 完全不参与** —— 这治的是「合成器滚动 vs 主线程读坐标」
- *   的相位差，即 x.com 这类站点上气泡相对文字轻微晃动的根因。JS 跟随无论多勤
- *   都跨不过这道坎，只能靠让浏览器自己搬。
+ * - **anchored（DOM 锚定，默认优先）**：`position: absolute` 挂进**选区所在的滚动
+ *   容器**（页面级场景退化为挂 `body`），用局部/文档坐标落位。滚动时气泡就是
+ *   内容的一部分，浏览器合成滚动时把它和文字一起搬走，**JS 完全不参与** —— 这治的
+ *   是「合成器滚动 vs 主线程读坐标」的相位差。这正是对症 ds / chatgpt 的修复：
+ *   它们的消息区是独立滚动容器，旧逻辑把气泡挂 `body` 不跟内容滚、退化 `fixed`
+ *   仍有相位差，现在锚进消息容器随它一起滚。JS 跟随无论多勤都跨不过这道坎，
+ *   只能靠让浏览器自己搬。
  *
  *   锚定期间只做一件事：滚动停稳后低频测一次「气泡顶边 − 选区顶边」。这个值
  *   锚定成立时必须恒定，漂了就说明气泡与文字脱钩（祖先变换在滚动中动态变化），
@@ -144,16 +159,16 @@ export default function FloatingButton({ x, y, bottom, range, onClick }: Props) 
   // 偏移对不上基准，就把 mode 降到 fixed 走跟随兜底。
   const [anchor, setAnchor] = useState(() => {
     const d = resolveAnchorMode(range, document);
-    return { decision: d, mode: d.mode as AnchorMode };
+    return { decision: d, mode: d.mode as AnchorMode, host: d.host };
   });
-  const { decision } = anchor;
+  const { decision, host } = anchor;
   const mode = anchor.mode;
 
   const placementRef = useRef<Placement>('above');
   const flipsRef = useRef(0);
   const updateRef = useRef<() => void>(() => {});
   /** 锚定自检基准：gap（气泡−文字的相对偏移）+ 文字的文档纵坐标 */
-  const baselineRef = useRef<{ gap: number; textDocY: number } | null>(null);
+  const baselineRef = useRef<{ gap: number; textLocalY: number } | null>(null);
   const strikesRef = useRef(0);
   const degradedRef = useRef(false);
   const firstRunRef = useRef(true);
@@ -169,9 +184,28 @@ export default function FloatingButton({ x, y, bottom, range, onClick }: Props) 
   useLayoutEffect(() => {
     const el = btnRef.current;
     if (!el) return;
-    // 真机可观测：x.com 上应看到 mode=anchored reason=ok。若回退 fixed，
-    // reason 会直接指出是哪位祖先不干净（fixed / sticky / scrollable）。
-    console.info('[crow-anchor] mode=', mode, 'reason=', decision.reason);
+    // hostEl 必须先声明（下方 console 与容器级逻辑都要用），否则会踩 TDZ
+    const hostEl = host as HTMLElement;
+    // 真机可观测：x.com 上应看到 mode=anchored reason=ok；AI 对话站消息区锚定时应
+    // 看到 reason=scroll-host-div（bubble 挂在消息滚动容器里随它滚）。若回退 fixed，
+    // reason 会直接指出是哪位祖先不干净（fixed / sticky）。
+    console.info(
+      '[crow-anchor] mode=',
+      mode,
+      'reason=',
+      decision.reason,
+      'host=',
+      host === el.ownerDocument.body ? 'body' : (hostEl.tagName || 'el').toLowerCase()
+    );
+
+    // 容器级锚定：气泡 absolute 挂进宿主内部，宿主必须是定位上下文，否则 absolute
+    // 会相对初始包含块而非宿主 → 锚定失效。内部滚动容器通常是 position:static，
+    // 这里补一个 relative（不改动布局，只创建定位上下文），卸载时还原。
+    // body 作为宿主时无需此处理（气泡本就相对初始包含块）。
+    let restoredHostPos: string | null = null;
+    if (mode === 'anchored' && host !== el.ownerDocument.body) {
+      restoredHostPos = ensurePositioningContext(hostEl);
+    }
 
     // 锚定失效时降级：若祖先的变换在滚动中动态变化（虚拟滚动 / transform 模拟
     // 滚动），文字随变换走而 absolute 气泡不动 → 脱钩。静态还是动态挂载时判不出，
@@ -186,7 +220,10 @@ export default function FloatingButton({ x, y, bottom, range, onClick }: Props) 
 
     function write(cx: number, top: number) {
       if (mode === 'anchored') {
-        const d = viewportToDocument(el.ownerDocument, cx, top);
+        const win = el.ownerDocument.defaultView;
+        if (!win) return;
+        // 容器级锚定用宿主局部坐标，页面级用文档坐标（anchorCoords 内部按 host 区分）
+        const d = anchorCoords(host, top, cx, win);
         el.style.transform = `translate(${d.x}px, ${d.y}px) translateX(-50%)`;
       } else {
         el.style.transform = `translate(${cx}px, ${top}px) translateX(-50%)`;
@@ -229,15 +266,23 @@ export default function FloatingButton({ x, y, bottom, range, onClick }: Props) 
     updateRef.current = update;
 
     /**
-     * 自检探针。gap = 气泡顶边 − 选区顶边（都是视口坐标）；锚定成立时它必须恒定。
-     * textDocY = 选区在**文档坐标**里的纵向位置；它变了说明文字自己在文档里挪了窝。
+     * 自检探针。gap = 气泡顶边 − 选区顶边（都是视口坐标）；锚定成立时它必须恒定
+     * （气泡和文字一起滚，视口坐标差不变）。textLocalY = 选区在**宿主内容坐标系**
+     * 里的纵向位置；它变了说明文字自己在文档里挪了窝（reflow），而非锚定脱钩。
      */
-    function measure(): { gap: number; textDocY: number } | null {
+    function measure(): { gap: number; textLocalY: number } | null {
       const rect = readRect();
       if (!rect) return null;
-      const win = el.ownerDocument.defaultView;
-      const sy = win ? win.scrollY : 0;
-      return { gap: el.getBoundingClientRect().top - rect.top, textDocY: rect.top + sy };
+      const gap = el.getBoundingClientRect().top - rect.top;
+      let textLocalY: number;
+      if (host === el.ownerDocument.body) {
+        const win = el.ownerDocument.defaultView;
+        textLocalY = rect.top + (win ? win.scrollY : 0);
+      } else {
+        const hr = hostEl.getBoundingClientRect();
+        textLocalY = rect.top - hr.top - hostEl.clientTop + hostEl.scrollTop;
+      }
+      return { gap, textLocalY };
     }
 
     // 初始落位：挂载时用 props 的固定视口坐标（兼容挂靠延迟 / 挂载时已是滚动态）；
@@ -287,7 +332,7 @@ export default function FloatingButton({ x, y, bottom, range, onClick }: Props) 
           return;
         }
 
-        const dText = Math.abs(m.textDocY - base.textDocY);
+        const dText = Math.abs(m.textLocalY - base.textLocalY);
         if (dText > DRIFT_NOISE_PX) {
           // reflow：纠偏并重新采基准
           update();
@@ -321,6 +366,7 @@ export default function FloatingButton({ x, y, bottom, range, onClick }: Props) 
       return () => {
         if (raf) cancelAnimationFrame(raf);
         window.removeEventListener('scroll', markScroll, true);
+        if (restoredHostPos !== null) hostEl.style.position = restoredHostPos;
       };
     }
 
@@ -345,7 +391,7 @@ export default function FloatingButton({ x, y, bottom, range, onClick }: Props) 
       window.removeEventListener('resize', onScrollOrResize);
     };
     // mode 进依赖：降级（anchored → fixed）时本 effect 重跑，换成跟随模式
-  }, [x, y, bottom, decision, mode]);
+  }, [x, y, bottom, decision, mode, host]);
 
   // 静默期等宿主气泡现身 + 有限次翻转避让；翻转只改 placementRef，位置由 update 实时跟随
   useEffect(() => {
@@ -399,6 +445,6 @@ export default function FloatingButton({ x, y, bottom, range, onClick }: Props) 
     >
       这是啥？
     </button>,
-    document.body
+    mode === 'anchored' ? host : document.body
   );
 }
