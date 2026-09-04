@@ -61,7 +61,7 @@ export default function ExplainCard({
   const [children, setChildren] = useState<{ id: string; text: string }[]>([]);
   const cardRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
-  const { text: explanation, isLoading, error, isDone, explain, quotaOut } = useStreamExplain(
+  const { text: explanation, isLoading, error, isDone, explain, quotaOut, tag } = useStreamExplain(
     config.apiBaseUrl
   );
 
@@ -249,11 +249,11 @@ export default function ExplainCard({
     return hit ? { id: hit.id, inputText: hit.inputText, explanation: hit.explanation } : null;
   }
 
-  async function postNote(baseUrl: string, token: string): Promise<Response> {
+  async function postNote(baseUrl: string, token: string, tags?: string[]): Promise<Response> {
     return fetch(`${baseUrl}/api/notes`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ inputText: text, explanation, source: 'chrome_extension' }),
+      body: JSON.stringify({ inputText: text, explanation, source: 'chrome_extension', tags: tags ?? [] }),
     });
   }
 
@@ -282,12 +282,14 @@ export default function ExplainCard({
         if (!(await deleteNote(baseUrl, workingToken, oldId))) { setSaveError('generic'); return false; }
       }
     }
-    let res = await postNote(baseUrl, workingToken);
+    // tag 由 useStreamExplain 在解释完成时自动生成；保存时自动带上（退化时为空数组 = 未分类）
+    const tags = tag ? [tag] : [];
+    let res = await postNote(baseUrl, workingToken, tags);
     if (res.status === 401 || res.status === 403) {
       const after = await ensureFreshAuth(await loadCrowAuth(), { force: true });
       if (!after?.accessToken) { setSaveError('expired'); return false; }
       onSessionUpdate?.(after);
-      res = await postNote(baseUrl, after.accessToken);
+      res = await postNote(baseUrl, after.accessToken, tags);
     }
     if (res.ok) {
       const data = await res.json();
@@ -623,6 +625,11 @@ export default function ExplainCard({
             >
               {isSaving ? '保存中…' : '存入笔记本'}
             </button>
+          )}
+          {tag && !savedId && (
+            <span className="crow-hint" style={{ fontSize: 12, color: '#34d399' }} title="保存时自动带上这个分类">
+              🏷 {tag}
+            </span>
           )}
           {isAuthenticated && (
             <>
