@@ -10,7 +10,8 @@
 | `chrome-extension/src/content/App.tsx` | 主组件：选区监听 → 浮标 / 卡片状态机；接入 auth 广播与开关；未连接时 fallback 公开 explain 端点（env `VITE_PUBLIC_SITE_URL` 或 dev.crowknows.tech） |
 | `chrome-extension/src/content/FloatingButton.tsx` | 划词后浮标按钮（CSS Anchor Positioning 锚定选区，滚动跟随不晃动） |
 | `chrome-extension/src/content/floating-placement.ts` | 浮标避让纯逻辑：宿主页 top-layer 弹层（ChatGPT 气泡等）压不住 z-index，检测选区上/下哪侧空旷来落位 |
-| `chrome-extension/src/content/ExplainCard.tsx` | 解释卡：流式渲染、保存笔记（查重）、内嵌登录入口、追问子卡片（递归 `depth`；图钉/拖拽仅主卡有效，子卡片无图钉但可折叠自身——折叠徽章对所有子卡常显；折叠仅手动；出子卡片后父卡 body 自动跟随滚到底，向上滚即停） |
+| `chrome-extension/src/content/ExplainCard.tsx` | 解释卡：流式渲染、保存笔记（查重）、内嵌登录入口、追问子卡片（递归 `depth`；图钉/拖拽仅主卡有效，子卡片无图钉但可折叠自身——折叠徽章对所有子卡常显；折叠仅手动；出子卡片后父卡 body 自动跟随滚到底，向上滚即停）、追问树形索引（根卡挂 `CardTreeProvider`，见 `card-tree.tsx`） |
+| `chrome-extension/src/content/card-tree.tsx` | 追问树注册表（`dev/active/追问树形索引`）：Context 只放稳定 API（register/unregister/jumpTo/subscribe），快照走 `useSyncExternalStore`（`useCardTreeSnapshot`）；纯逻辑 `shouldShowIndex`/`buildTree`/`collectAncestors` 被根目录 Vitest 直测 |
 | `chrome-extension/src/content/useStreamExplain.ts` | 扩展版流式 explain（Web 版 `hooks/useStreamExplain.ts` 的平行实现） |
 | `chrome-extension/src/content/normalize-note-input.ts` | 查重规范化（Web 版 `lib/notes/normalize-input.ts` 平行实现） |
 | `chrome-extension/src/content/surrounding-text.ts` | 选区前后文截取（B-2，各 ≤120 字符，中间【…】占位；失败静默降级） |
@@ -29,8 +30,10 @@
 - 初始化幂等靠 `chrome-extension/src/content/index.tsx` 的 window 标志位，别删。
 - 样式只能动 `chrome-extension/src/content/styles.ts`（Shadow DOM 隔离了页面全局 CSS）。
 - ExplainCard 父卡片 body 的滚动跟随（`followBottomRef`）必须用 ResizeObserver 观察子卡片包裹层 `.crow-child-card`——观察 body 自身感知不到内容增长（body 高度固定，只有 scrollHeight 在变）。Web 版 `components/ExplanationCard.tsx` 无折叠/跟随逻辑（页面自然流），改这块不用双侧同步。
+- 树形索引层（把手/浮层）渲染在 `.crow-card` **元素之外**（卡片兄弟节点）——卡片 `overflow: hidden` 会裁剪内部负偏移浮层，别挪回去；也因此外点关闭判定要额外检查 `indexLayerRef`，Esc 收起浮层用 document 捕获监听 + `stopPropagation` 抢在 App 的整卡关闭之前。
+- `card-tree.tsx` 的注册表读快照必须走 `useCardTreeSnapshot`（useSyncExternalStore）；Context value 是稳定身份，渲染期读写 ref 或把不稳定引用塞进注册 effect 依赖，会触发 react-hooks/refs 报错或「重渲染→反复注册」循环。
 
 ## 相关测试 / E2E
 
-- 单测：`__tests__/normalize-note-input.test.ts`
+- 单测：`__tests__/normalize-note-input.test.ts`、`__tests__/card-tree.test.ts`
 - E2E：`e2e/extension-crow-bridge.spec.ts` + `e2e/extension-fixtures.ts`（跑前先构建扩展，见 `npm run test:e2e:ext`）
