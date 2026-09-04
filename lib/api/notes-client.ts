@@ -34,12 +34,26 @@ export async function createNote(
     parentText?: string;
     source?: 'web' | 'chrome_extension';
     clientNoteId?: string;
+    tags?: string[];
   }
 ): Promise<NoteEntry> {
   const res = await fetch('/api/notes', {
     method: 'POST',
     headers: authHeaders(accessToken),
     body: JSON.stringify(payload),
+  });
+  return parseJsonOrThrow<NoteEntry>(res);
+}
+
+export async function patchNoteTags(
+  accessToken: string,
+  id: string,
+  tags: string[]
+): Promise<NoteEntry> {
+  const res = await fetch(`/api/notes/${id}`, {
+    method: 'PATCH',
+    headers: authHeaders(accessToken),
+    body: JSON.stringify({ tags }),
   });
   return parseJsonOrThrow<NoteEntry>(res);
 }
@@ -60,6 +74,7 @@ export async function replaceNote(
     explanation: string;
     parentText?: string;
     source?: 'web' | 'chrome_extension';
+    tags?: string[];
   }
 ): Promise<NoteEntry> {
   await deleteNoteById(accessToken, oldId);

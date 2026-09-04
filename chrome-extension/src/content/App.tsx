@@ -1,19 +1,22 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   extensionContextLikelyOk,
   ignoreIfContextInvalidated,
   isExtensionContextInvalidatedError,
 } from '../lib/extension-context';
 import type { CrowAuth } from '../lib/crow-session';
-import { CROW_AUTH_LOCAL_KEYS, loadCrowAuth } from '../lib/crow-session';
+import { loadCrowAuth } from '../lib/crow-session';
 import {
   CROW_AUTH_BROADCAST_EVENT,
   clearPendingCrowAuth,
   drainPendingCrowAuth,
 } from './crow-auth-broadcast';
-import { fabDebug } from './debug-fab-log';
 import FloatingButton from './FloatingButton';
 import ExplainCard from './ExplainCard';
+import { extractSurroundingText } from './surrounding-text';
+
+// 版本标记：真机排查「刷新扩展后仍走旧行为」时先看这行是否更新。
+console.info('[crow] content script loaded — dom-anchor-follow 2026-09-03');
 
 const EMPTY_AUTH: CrowAuth = {
   apiBaseUrl: '',
@@ -36,14 +39,33 @@ function openCrowOptionsPage(): void {
   });
 }
 
-interface Selection {
+interface SelectionBase {
   text: string;
   x: number;
   y: number;
+  /** 选区底边（视口坐标）；浮动按钮避让放下方时用 */
+  bottom: number;
+  /** 选区 Range 快照：浮标滚动/缩放时实时读它的屏幕坐标，让气泡和词锁在一起 */
+  range: Range;
+  /** 选区前后纯文本；取不到则为 undefined */
+  surroundingText?: string;
+}
+
+interface Selection extends SelectionBase {
+  /**
+   * 选区身份：只有「确实换了一段选区」才递增。
+   * 浮标用它做 key——重挂载即重新落位；而重复读取同一选区（鉴权就绪、
+   * microtask / 50ms 补读）必须复用旧对象，否则 range 换新会触发锚点重挂靠，
+   * 造成气泡闪一下再跳回去。
+   */
+  id: number;
 }
 
 /** 从某一 Window 读选区；rect 需相对顶层视口时再叠 iframe 偏移 */
-function selectionFromWindow(w: Window, iframeOffset?: { left: number; top: number }): Selection | null {
+function selectionFromWindow(
+  w: Window,
+  iframeOffset?: { left: number; top: number }
+): SelectionBase | null {
   const sel = w.getSelection();
   if (!sel || sel.isCollapsed || !sel.rangeCount) return null;
   const text = sel.toString().trim();
@@ -52,14 +74,18 @@ function selectionFromWindow(w: Window, iframeOffset?: { left: number; top: numb
   const rect = range.getBoundingClientRect();
   const ox = iframeOffset?.left ?? 0;
   const oy = iframeOffset?.top ?? 0;
+  const surrounding = extractSurroundingText(range);
   return {
     text,
     x: ox + rect.left + rect.width / 2,
     y: oy + rect.top,
+    bottom: oy + rect.bottom,
+    range: range.cloneRange(),
+    surroundingText: surrounding || undefined,
   };
 }
 
-function readDomSelection(): Selection | null {
+function readDomSelection(): SelectionBase | null {
   const top = selectionFromWindow(window);
   if (top) return top;
   const ae = document.activeElement;
@@ -76,75 +102,57 @@ function readDomSelection(): Selection | null {
   return null;
 }
 
-/** 会话刚就绪时读 DOM：瞬时读空则保留 React 内已有选区（常见于先划词、后「连接插件」时 hasApi 才变 true）。 */
-function pickSelectionAfterAuth(prev: Selection | null, phase: string): Selection | null {
-  const dom = readDomSelection();
-  const next = dom ?? prev;
-  // #region agent log
-  fabDebug({
-    hypothesisId: 'H4',
-    location: 'App.tsx:pickSelectionAfterAuth',
-    message: phase,
-    data: {
-      hasSel: !!next,
-      fromDom: !!dom,
-      keptPrev: !dom && !!prev,
-      prevLen: prev?.text?.length ?? 0,
-    },
-  });
-  // #endregion
-  return next;
+/** 同一段选区：比较文字 + Range 边界（start/end 的节点与偏移）。
+ *  关键：不能用视口坐标 x/y/bottom 判等——滚动时视口坐标会变，会误判成「新选区」
+ *  导致气泡重挂载（每滚一下闪一下）。Range 边界是滚动不变的，才是「同一段选区」的真判据。 */
+function sameRange(a: Range, b: Range): boolean {
+  return (
+    a.startContainer === b.startContainer &&
+    a.startOffset === b.startOffset &&
+    a.endContainer === b.endContainer &&
+    a.endOffset === b.endOffset
+  );
+}
+
+function sameSelection(a: Selection | null, b: SelectionBase | null): boolean {
+  if (!a || !b) return false;
+  if (a.text !== b.text) return false;
+  if (!a.range || !b.range) return false;
+  return sameRange(a.range, b.range);
 }
 
 export default function App() {
   const [config, setConfig] = useState<CrowAuth>(EMPTY_AUTH);
   const [selection, setSelection] = useState<Selection | null>(null);
-  const [explaining, setExplaining] = useState<Selection | null>(null);
-  const configRef = useRef(config);
-  useEffect(() => {
-    configRef.current = config;
-  }, [config]);
+  const [explaining, setExplaining] = useState<SelectionBase | null>(null);
 
-  useEffect(() => {
-    fabDebug({
-      hypothesisId: 'H3',
-      location: 'App.tsx:mount',
-      message: 'App component mounted',
-      data: {
-        isTop: window === window.top,
-        href: window.location.href.slice(0, 96),
-      },
+  /**
+   * 提交一次选区读取：等价选区沿原对象返回（连带保留原 range 引用，浮标不重挂靠）；
+   * 确实是新选区才递增 id，让浮标重新挂载落位。
+   */
+  const commitSelection = useCallback((draft: SelectionBase | null) => {
+    setSelection((prev) => {
+      if (!draft) return null;
+      if (sameSelection(prev, draft)) return prev;
+      return { ...draft, id: (prev?.id ?? 0) + 1 };
     });
   }, []);
 
-  useEffect(() => {
-    fabDebug({
-      hypothesisId: 'H1',
-      location: 'App.tsx:stateSnapshot',
-      message: 'config / selection / explaining',
-      data: {
-        hasApi: !!config.apiBaseUrl,
-        hasSelection: !!selection,
-        explaining: !!explaining,
-      },
-    });
-  }, [config.apiBaseUrl, selection, explaining]);
+  /** 会话就绪时的补读：读空保留 React 内已有选区（先划词、后「连接插件」的常见路径） */
+  const rereadSelection = useCallback(() => {
+    const draft = readDomSelection();
+    if (draft) commitSelection(draft);
+  }, [commitSelection]);
 
   const reloadAuth = useCallback(() => {
     if (!extensionContextLikelyOk()) return;
     void loadCrowAuth()
       .then((a) => {
         if (a) {
-          fabDebug({
-            hypothesisId: 'H1',
-            location: 'App.tsx:reloadAuth',
-            message: 'loadCrowAuth has session',
-            data: { hasApi: !!a.apiBaseUrl },
-          });
           setConfig(a);
-          setSelection((prev) => pickSelectionAfterAuth(prev, 'reloadAuth sync'));
-          queueMicrotask(() => setSelection((prev) => pickSelectionAfterAuth(prev, 'reloadAuth microtask')));
-          setTimeout(() => setSelection((prev) => pickSelectionAfterAuth(prev, 'reloadAuth 50ms')), 50);
+          rereadSelection();
+          queueMicrotask(() => rereadSelection());
+          setTimeout(() => rereadSelection(), 50);
         } else {
           setConfig(EMPTY_AUTH);
         }
@@ -152,7 +160,7 @@ export default function App() {
       .catch((err) => {
         if (!isExtensionContextInvalidatedError(err)) console.warn('[Crow ext] loadCrowAuth failed', err);
       });
-  }, []);
+  }, [rereadSelection]);
 
   useEffect(() => {
     if (!extensionContextLikelyOk()) return;
@@ -160,44 +168,15 @@ export default function App() {
     reloadAuth();
 
     function onStorageChanged(changes: Record<string, chrome.storage.StorageChange>, area: chrome.storage.AreaName) {
-      const hitCrow = CROW_AUTH_LOCAL_KEYS.some((k) => changes[k] !== undefined);
-      // #region agent log
-      fabDebug({
-        hypothesisId: 'H7',
-        location: 'App.tsx:onStorageChanged',
-        message: 'storage listener',
-        data: {
-          area,
-          hitCrow,
-          keys: Object.keys(changes).slice(0, 12),
-        },
-      });
-      // #endregion
       if (area === 'local' || area === 'sync') reloadAuth();
     }
 
     function onBecameVisible() {
       if (document.visibilityState !== 'visible') return;
-      // #region agent log
-      fabDebug({
-        hypothesisId: 'H6',
-        location: 'App.tsx:visibilitychange',
-        message: 'visible -> reloadAuth',
-        data: {},
-      });
-      // #endregion
       reloadAuth();
     }
 
     function onWindowFocus() {
-      // #region agent log
-      fabDebug({
-        hypothesisId: 'H6',
-        location: 'App.tsx:window-focus',
-        message: 'focus -> reloadAuth',
-        data: {},
-      });
-      // #endregion
       reloadAuth();
     }
 
@@ -228,26 +207,13 @@ export default function App() {
     function scheduleSelectionReadAfterPointer() {
       lastPointerUpAt = Date.now();
       if (readR != null) clearTimeout(readR);
-      function flushPointerSelection(phase: string) {
-        const s = readDomSelection();
-        // #region agent log
-        fabDebug({
-          hypothesisId: 'H2',
-          location: 'App.tsx:pointerRead',
-          message: phase,
-          data: {
-            hasSel: !!s,
-            textLen: s?.text?.length ?? 0,
-            hasApi: !!configRef.current.apiBaseUrl,
-          },
-        });
-        // #endregion
-        setSelection(s);
+      function flushPointerSelection() {
+        commitSelection(readDomSelection());
       }
-      queueMicrotask(() => flushPointerSelection('microtask'));
+      queueMicrotask(() => flushPointerSelection());
       readR = setTimeout(() => {
         readR = undefined;
-        flushPointerSelection('delayed-50ms');
+        flushPointerSelection();
       }, 50);
     }
 
@@ -262,20 +228,10 @@ export default function App() {
       if (selT != null) clearTimeout(selT);
       selT = setTimeout(() => {
         const s = readDomSelection();
+        // 读空不清空：站点常在划词后短暂清空再重建选区
         if (!s) return;
-        // #region agent log
-        fabDebug({
-          hypothesisId: 'H5',
-          location: 'App.tsx:selectionchange',
-          message: 'debounced selectionchange',
-          data: {
-            hasSel: true,
-            textLen: s.text.length,
-            hasApi: !!configRef.current.apiBaseUrl,
-          },
-        });
-        // #endregion
-        setSelection(s);
+        // 等价选区由 commitSelection 复用旧对象（含原 range），浮标不会重挂靠
+        commitSelection(s);
       }, 90);
     }
 
@@ -296,22 +252,16 @@ export default function App() {
       document.removeEventListener('selectionchange', onSelectionChange);
       document.removeEventListener('keydown', onKeyDown);
     };
-  }, []);
+  }, [commitSelection]);
 
   useEffect(() => {
     function applyFromBroadcast(auth: CrowAuth | undefined) {
       const direct = !!(auth?.apiBaseUrl && auth?.accessToken);
-      fabDebug({
-        hypothesisId: 'H4',
-        location: 'App.tsx:applyFromBroadcast',
-        message: direct ? 'direct setConfig' : 'fallback reloadAuth',
-        data: { direct },
-      });
       if (direct) {
         setConfig(auth!);
-        setSelection((prev) => pickSelectionAfterAuth(prev, 'broadcast sync'));
-        queueMicrotask(() => setSelection((prev) => pickSelectionAfterAuth(prev, 'broadcast microtask')));
-        setTimeout(() => setSelection((prev) => pickSelectionAfterAuth(prev, 'broadcast 50ms')), 50);
+        rereadSelection();
+        queueMicrotask(() => rereadSelection());
+        setTimeout(() => rereadSelection(), 50);
       } else reloadAuth();
     }
 
@@ -327,7 +277,7 @@ export default function App() {
     return () => {
       window.removeEventListener(CROW_AUTH_BROADCAST_EVENT, onBroadcast);
     };
-  }, [reloadAuth]);
+  }, [reloadAuth, rereadSelection]);
 
   // Alt+W from background service worker
   useEffect(() => {
@@ -354,8 +304,16 @@ export default function App() {
       if (!text) return;
       const range = sel.getRangeAt(0);
       const rect = range.getBoundingClientRect();
+      const surrounding = extractSurroundingText(range);
       setSelection(null);
-      setExplaining({ text, x: rect.left + rect.width / 2, y: rect.top });
+      setExplaining({
+        text,
+        x: rect.left + rect.width / 2,
+        y: rect.top,
+        bottom: rect.bottom,
+        range: range.cloneRange(),
+        surroundingText: surrounding || undefined,
+      });
       sel.removeAllRanges();
     }
     chrome.runtime.onMessage.addListener(onMessage);
@@ -385,11 +343,21 @@ export default function App() {
   return (
     <>
       {selection && !explaining && (
-        <FloatingButton x={selection.x} y={selection.y} onClick={triggerExplain} />
+        // key 绑选区身份：换一段划词 = 卸载重挂，浮标必然消失并在新词处重新落位，
+        // 不会沿用它上一次的落位状态（上下侧、可见性、复查时刻表）
+        <FloatingButton
+          key={selection.id}
+          x={selection.x}
+          y={selection.y}
+          bottom={selection.bottom}
+          range={selection.range}
+          onClick={triggerExplain}
+        />
       )}
       {explaining && (
         <ExplainCard
           text={explaining.text}
+          surroundingText={explaining.surroundingText}
           anchorX={explaining.x}
           anchorY={explaining.y}
           config={effectiveConfig}

@@ -8,18 +8,25 @@ import { getBrowserSupabase, hasBrowserSupabaseEnv } from '@/lib/supabase/browse
 export default function RegisterPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [passwordConfirm, setPasswordConfirm] = useState('');
   const [state, setState] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [error, setError] = useState('');
   const authConfigured = hasBrowserSupabaseEnv();
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!email.trim() || !password.trim() || state === 'loading') return;
+    if (!email.trim() || !password.trim() || !passwordConfirm.trim() || state === 'loading') return;
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email.trim())) {
       setState('error');
       setError('请输入有效的邮箱地址');
+      return;
+    }
+
+    if (password !== passwordConfirm) {
+      setState('error');
+      setError('两次输入的密码不一致');
       return;
     }
 
@@ -91,6 +98,18 @@ export default function RegisterPage() {
             onChange={(e) => setPassword(e.target.value)}
             placeholder="密码（至少 6 位）"
             minLength={6}
+            autoComplete="new-password"
+            required
+            className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-4 py-2.5 text-base md:text-sm outline-none focus:border-orange-400"
+          />
+
+          <input
+            type="password"
+            value={passwordConfirm}
+            onChange={(e) => setPasswordConfirm(e.target.value)}
+            placeholder="再次输入密码"
+            minLength={6}
+            autoComplete="new-password"
             required
             className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-4 py-2.5 text-base md:text-sm outline-none focus:border-orange-400"
           />

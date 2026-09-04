@@ -62,24 +62,26 @@ async function openHomeWithInit(
   return { context, page };
 }
 
-// E2E-A1-01：对应 QA §0.2 — 未改写 navigator；文案须为 ⌘ 或 Ctrl 二选一之一（覆盖 Mac 本机与 Linux CI）。
-test('E2E-A1-01 首页宿主桌面环境显示 ⌘ 或 Ctrl 合法文案', async ({
+// E2E-A1-01：对应 QA §0.2 — 未改写 navigator；文案须为 Apple / Win 合法桌面文案之一（覆盖 Mac 本机与 Linux CI）。
+test('E2E-A1-01 首页宿主桌面环境显示 Enter 发送合法文案', async ({
   page,
 }) => {
   await page.goto('/');
   await expect(page.getByRole('button', { name: '这是啥？' }).first()).toBeVisible();
   const hint = page.getByTestId('home-send-shortcut-hint');
   await expect(hint).toBeVisible();
-  await expect(hint).toHaveText(/^(⌘↵ 发送|Ctrl\+Enter 发送)$/);
+  await expect(hint).toHaveText(
+    /^(↵ 发送 · ⌥↵ 换行|Enter 发送 · Alt\+Enter 换行)$/,
+  );
 });
 
 // E2E-A1-02：QA §0.2 — 对应「桌面 Windows/Linux」提示（伪 UA）
-test('E2E-A1-02 伪造 Windows → 文案为 Ctrl+Enter 发送', async ({ browser }) => {
+test('E2E-A1-02 伪造 Windows → 文案为 Enter 发送 · Alt+Enter 换行', async ({ browser }) => {
   const { context, page } = await openHomeWithInit(browser, scriptWinDesktop);
   try {
     await expect(page.getByRole('button', { name: '这是啥？' }).first()).toBeVisible();
     await expect(page.getByTestId('home-send-shortcut-hint')).toHaveText(
-      'Ctrl+Enter 发送',
+      'Enter 发送 · Alt+Enter 换行',
     );
   } finally {
     await context.close();
@@ -87,12 +89,12 @@ test('E2E-A1-02 伪造 Windows → 文案为 Ctrl+Enter 发送', async ({ browse
 });
 
 // E2E-A1-03：QA §0.2 — 对应「桌面 Mac」提示（伪 UA）
-test('E2E-A1-03 伪造 Mac → 文案为 ⌘↵ 发送', async ({ browser }) => {
+test('E2E-A1-03 伪造 Mac → 文案为 ↵ 发送 · ⌥↵ 换行', async ({ browser }) => {
   const { context, page } = await openHomeWithInit(browser, scriptMacSafariDesktop);
   try {
     await expect(page.getByRole('button', { name: '这是啥？' }).first()).toBeVisible();
     await expect(page.getByTestId('home-send-shortcut-hint')).toHaveText(
-      '⌘↵ 发送',
+      '↵ 发送 · ⌥↵ 换行',
     );
   } finally {
     await context.close();

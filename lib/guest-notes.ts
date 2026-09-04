@@ -5,6 +5,8 @@ export interface GuestNote {
   parentText?: string;
   source: 'web' | 'chrome_extension';
   savedAt: number;
+  /** MVP：主分类在 tags[0]；旧数据可能无此字段 */
+  tags?: string[];
 }
 
 const GUEST_NOTES_STORAGE_KEY = 'crow_guest_notes_v1';
@@ -37,6 +39,15 @@ export function saveGuestNote(note: GuestNote) {
 
 export function removeGuestNote(clientNoteId: string) {
   const next = getGuestNotes().filter((note) => note.clientNoteId !== clientNoteId);
+  if (canUseStorage()) {
+    window.localStorage.setItem(GUEST_NOTES_STORAGE_KEY, JSON.stringify(next));
+  }
+}
+
+export function updateGuestNoteTags(clientNoteId: string, tags: string[]) {
+  const next = getGuestNotes().map((note) =>
+    note.clientNoteId === clientNoteId ? { ...note, tags } : note
+  );
   if (canUseStorage()) {
     window.localStorage.setItem(GUEST_NOTES_STORAGE_KEY, JSON.stringify(next));
   }

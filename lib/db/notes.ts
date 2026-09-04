@@ -51,6 +51,7 @@ export interface SaveNoteInput {
   parentText?: string;
   source?: NoteEntry['source'];
   clientNoteId?: string;
+  tags?: string[];
 }
 
 export interface GuestMigrationEntry {
@@ -60,6 +61,7 @@ export interface GuestMigrationEntry {
   parentText?: string;
   source: NoteEntry['source'];
   savedAt: number;
+  tags?: string[];
 }
 
 export async function getNotes(ctx: NoteDbContext): Promise<NoteEntry[]> {
@@ -87,7 +89,25 @@ export async function saveNote(
       parent_id: entry.parentId ?? null,
       parent_text: entry.parentText ?? null,
       source: entry.source ?? 'web',
+      tags: entry.tags ?? [],
     })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return rowToEntry(data as DbRow);
+}
+
+export async function updateNoteTags(
+  ctx: NoteDbContext,
+  id: string,
+  tags: string[]
+): Promise<NoteEntry> {
+  const { data, error } = await ctx.db
+    .from('notes')
+    .update({ tags })
+    .eq('id', id)
+    .eq('user_id', ctx.userId)
     .select()
     .single();
 
@@ -156,6 +176,7 @@ export async function migrateGuestNotes(
     parent_text: entry.parentText ?? null,
     source: entry.source ?? 'web',
     saved_at: new Date(entry.savedAt).toISOString(),
+    tags: entry.tags ?? [],
   }));
 
   const { data, error } = await ctx.db

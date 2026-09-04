@@ -8,7 +8,7 @@
 - **这又是啥** — 在答案里选中任意词，递归追问
 - **这都是啥** — 笔记本（登录用户云端同步；未登录可用游客态本地暂存）
 
-更完整的产品见 **[`docs/PRD.md`](docs/PRD.md)**（总览）与分卷 **[`docs/product/`](docs/product/README.md)**；技术见 **[`docs/PLAN.md`](docs/PLAN.md)** 与分卷 **[`docs/tech/`](docs/tech/README.md)**；任务级清单见 **[`docs/CHECKLIST.md`](docs/CHECKLIST.md)**。
+更完整的产品见 **[`docs/PRD.md`](docs/PRD.md)**（总览）与分卷 **[`docs/product/`](docs/product/README.md)**；技术见 **[`docs/PLAN.md`](docs/PLAN.md)** 与分卷 **[`docs/tech/`](docs/tech/README.md)**；任务级清单见 **[`docs/CHECKLIST.md`](docs/CHECKLIST.md)**；**使用者手册**见 **[`docs/用户手册.md`](docs/用户手册.md)**。
 
 ---
 

@@ -1,7 +1,9 @@
 import type { CrowAuth } from '../lib/crow-session';
 import { CROW_AUTH_BROADCAST_EVENT } from '../lib/crow-auth-event';
 import { CROW_EXTENSION_ENABLED_KEY } from '../lib/crow-session';
+import { performSupabasePasswordLogin } from '../lib/supabase-password-login';
 import { performSupabaseRefreshExchange } from '../lib/supabase-refresh-exchange';
+import { CROW_USER_LLM_HEADER } from '../lib/user-llm-config';
 
 /**
  * 扩展安装或重载时，将 content script 主动注入到已开着的旧标签页。
@@ -88,29 +90,150 @@ chrome.commands.onCommand.addListener(async (command) => {
 });
 
 /** content / options 划词保存前 refresh：在 SW 内 fetch，避免第三方页面 Origin 拖累 Supabase token 端点 */
-chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse): boolean => {
-  const raw = message as { type?: string; payload?: Record<string, unknown> };
-  if (raw?.type === 'CROW_DEBUG_FAB') {
-    // #region agent log
-    fetch('http://127.0.0.1:7254/ingest/d81ae450-4ef0-4188-89ac-154a7304bd7d', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '821123' },
-      body: JSON.stringify({ sessionId: '821123', ...raw.payload }),
-    }).catch(() => {});
-    // #endregion
-    return false;
-  }
 
+/** 划词解释：content 经命名端口连接 SW，SW 内 fetch（Origin 为 chrome-extension://，被 isOriginAllowed 放行），流式分块经端口回传 */
+const EXPLAIN_STREAM_PORT = 'explain-stream';
+
+async function streamExplainViaPort(
+  msg: {
+    apiBaseUrl: string;
+    body: { text: string; context?: string; surroundingText?: string };
+    headers: Record<string, string>;
+  },
+  port: chrome.runtime.Port
+): Promise<void> {
+  const apiBaseUrl = (msg?.apiBaseUrl ?? '').replace(/\/+$/, '');
+  const decoder = new TextDecoder();
+  const controller = new AbortController();
+
+  try {
+    if (!apiBaseUrl) {
+      try {
+        port.postMessage({ error: '扩展未配置 API 地址，请在网站登录后点「连接插件」' });
+      } catch {
+        /* port closed */
+      }
+      return;
+    }
+
+    const res = await fetch(`${apiBaseUrl}/api/explain`, {
+      method: 'POST',
+      headers: msg.headers,
+      body: JSON.stringify(msg.body),
+      signal: controller.signal,
+    });
+
+    if (!res.ok) {
+      const detail = await res.text().catch(() => '请求失败');
+      try {
+        port.postMessage({ error: detail });
+      } catch {
+        /* port closed */
+      }
+      return;
+    }
+
+    // 预算降级标记透传给内容侧，卡片据此提示「额度已用完，本次免费模型」
+    if (res.headers.get('x-crow-quota-out') === '1') {
+      try {
+        port.postMessage({ meta: { quotaOut: true } });
+      } catch {
+        /* port closed */
+      }
+    }
+
+    const reader = res.body?.getReader();
+    if (!reader) {
+      controller.abort();
+      try {
+        port.postMessage({ error: '网炸了或者 AI 挂了，稍后再试' });
+      } catch {
+        /* port closed */
+      }
+      return;
+    }
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      try {
+        port.postMessage({ chunk: decoder.decode(value, { stream: true }) });
+      } catch {
+        /* content 侧断开（如重新点击）即中止 */
+        controller.abort();
+        return;
+      }
+    }
+    // 流结束：发 done 标记，使内容侧能区分「正常完成（含空流）」与「网络断开」；
+    // 空流时不发消息、仅靠端口断开会让内容侧误报「网炸了」。
+    try {
+      port.postMessage({ done: true });
+    } catch {
+      /* port closed */
+    }
+  } catch (err) {
+    if ((err as Error).name === 'AbortError') return;
+    try {
+      port.postMessage({ error: '网炸了或者 AI 挂了，稍后再试' });
+    } catch {
+      /* port closed */
+    }
+  } finally {
+    controller.abort();
+  }
+}
+
+chrome.runtime.onConnect.addListener((port) => {
+  if (port.name !== EXPLAIN_STREAM_PORT) return;
+
+  port.onMessage.addListener((message: unknown) => {
+    const msg = message as {
+      apiBaseUrl: string;
+      body: { text: string; context?: string; surroundingText?: string };
+      headers: Record<string, string>;
+    };
+    void streamExplainViaPort(msg, port);
+  });
+});
+
+chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse): boolean => {
   const msg = message as {
     type?: string;
     supabaseUrl?: string;
     supabaseAnonKey?: string;
     refreshToken?: string;
+    email?: string;
+    password?: string;
   };
+
   if (msg?.type === 'CROW_BROADCAST_AUTH_RELOAD') {
     const full = message as { type?: string; auth?: CrowAuth };
     void broadcastAuthUpdatedToAllTabs(full.auth);
     return false;
+  }
+  if (msg?.type === 'CROW_PASSWORD_LOGIN') {
+    void performSupabasePasswordLogin(
+      msg.supabaseUrl ?? '',
+      msg.supabaseAnonKey ?? '',
+      msg.email ?? '',
+      msg.password ?? ''
+    )
+      .then((r) => {
+        if (r.ok) {
+          sendResponse({
+            ok: true as const,
+            access_token: r.access_token,
+            refresh_token: r.refresh_token,
+            expires_at: r.expires_at,
+          });
+        } else {
+          sendResponse({ ok: false as const, message: r.message });
+        }
+      })
+      .catch(() => {
+        sendResponse({ ok: false as const, message: '登录失败，请稍后重试。' });
+      });
+    return true;
   }
   if (msg?.type !== 'CROW_EXCHANGE_REFRESH') {
     return false;
@@ -138,4 +261,94 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse): 
     });
 
   return true;
+});
+
+/**
+ * 划词解释经 SW 转发（流式 Port）。
+ * content script 在第三方页面直连 /api/explain 时 Origin 是网页 origin，
+ * 会被 dev 上 explain 的 Origin 护栏 403；SW 发起的 fetch Origin 为
+ * chrome-extension://，被护栏明确放行。流式 chunk 逐个经 port 回传。
+ */
+const EXPLAIN_PROXY_PORT = 'crow-explain-proxy';
+
+chrome.runtime.onConnect.addListener((port) => {
+  if (port.name !== EXPLAIN_PROXY_PORT) return;
+
+  // SW 流式等待首 token 期间可能超过 idle 阈值被回收；定时 ping 保活（Chrome 110+ 会因 port 消息重置 idle 计时）
+  const keepAlive = setInterval(() => {
+    try {
+      port.postMessage({ ping: true });
+    } catch {
+      clearInterval(keepAlive);
+    }
+  }, 20000);
+
+  port.onDisconnect.addListener(() => clearInterval(keepAlive));
+
+  port.onMessage.addListener((msg: unknown) => {
+    const { apiBaseUrl, body, userLlmHeader } = (msg ?? {}) as {
+      apiBaseUrl?: string;
+      body?: Record<string, unknown>;
+      userLlmHeader?: string;
+    };
+    if (!apiBaseUrl || !body) {
+      try {
+        port.postMessage({ error: '解释请求缺少参数' });
+      } catch {
+        /* port closed */
+      }
+      return;
+    }
+
+    void (async () => {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (userLlmHeader) headers[CROW_USER_LLM_HEADER] = userLlmHeader;
+
+      let res: Response;
+      try {
+        res = await fetch(`${apiBaseUrl.replace(/\/+$/, '')}/api/explain`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(body),
+        });
+      } catch {
+        try {
+          port.postMessage({ error: '网炸了或者 AI 挂了，稍后再试' });
+        } catch {
+          /* port closed */
+        }
+        return;
+      }
+
+      if (!res.ok || !res.body) {
+        const detail = await res.text().catch(() => '');
+        try {
+          port.postMessage({
+            error: detail.trim() ? detail.trim().slice(0, 300) : `请求失败（HTTP ${res.status}）`,
+          });
+        } catch {
+          /* port closed */
+        }
+        return;
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value, { stream: true });
+          if (chunk) port.postMessage({ chunk });
+        }
+        port.postMessage({ done: true });
+      } catch {
+        try {
+          port.postMessage({ error: '网炸了或者 AI 挂了，稍后再试' });
+        } catch {
+          /* port closed */
+        }
+      }
+    })();
+  });
 });

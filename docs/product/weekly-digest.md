@@ -29,7 +29,7 @@
 **外部订阅（Phase 4 已上线）：**
 - 任意用户访问 `/subscribe` 留邮箱，免费订阅周报
 - Cron 每周一群发所有 active 订阅者，每封邮件含退订链接
-- 退订后 status 改为 cancelled，下次 cron 不再发送
+- **退订两步化（2026-08-31）：** 点邮件里的退订链接先打开**只读确认页**（GET 不改状态，防 Apple Mail 隐私代理 / Outlook SafeLinks 等自动预取误退订）；用户在确认页点「确认退订」按钮 POST 后才改 `status=cancelled`，下次 cron 不再发送，并发退订确认邮件；同邮箱重新订阅即复活（换新 token + 欢迎回来邮件）
 - DB 预留 `stripe_customer_id` / `stripe_subscription_id` 字段，Phase 5 接付费
 
 **GitHub 日报（Phase 5 规划中）：**

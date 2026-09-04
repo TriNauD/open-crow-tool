@@ -30,6 +30,29 @@ async function clearCorruptLocalSession(supabase: SupabaseClient): Promise<void>
   }
 }
 
+const SESSION_CHECK_TIMEOUT_MS = 6000;
+
+/**
+ * auth-js 的 getSession() 在本地 token 快过期时会同步走网络刷新（__loadSession →
+ * _callRefreshToken）。网络/代理到 Supabase 不稳时页面会长时间卡在「会话检查中」，
+ * 这里竞速超时：先按未登录渲染，后台 onAuthStateChange 恢复会话后自动切回已登录。
+ */
+function withSessionCheckTimeout(p: Promise<Session | null>, ms = SESSION_CHECK_TIMEOUT_MS): Promise<Session | null> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('session check timeout')), ms);
+    p.then(
+      (v) => {
+        clearTimeout(timer);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(timer);
+        reject(e);
+      }
+    );
+  });
+}
+
 export function useAuthSession() {
   const authConfigured = hasBrowserSupabaseEnv();
   const supabaseRef = useRef<ReturnType<typeof getBrowserSupabase> | null>(null);
@@ -50,8 +73,9 @@ export function useAuthSession() {
       supabaseRef.current = supabase;
       let active = true;
 
-      supabase.auth
-        .getSession()
+      const getSessionPromise = supabase.auth.getSession();
+
+      getSessionPromise
         .then(({ data, error }) => {
           if (!active) return;
           if (error) {
@@ -74,6 +98,20 @@ export function useAuthSession() {
           }
           setSession(null);
           setUser(null);
+          setIsLoading(false);
+        });
+
+      // 超时兜底：与 getSession 竞速（token 过期时它会同步走网络刷新，网络/代理不稳会久卡）。
+      // 超时先解除「会话检查中」按未登录渲染；网络恢复后 onAuthStateChange 会把真实会话补上。
+      withSessionCheckTimeout(getSessionPromise.then(({ data }) => data.session))
+        .then((timedSession) => {
+          if (!active) return;
+          setSession((prev) => prev ?? timedSession);
+          setUser((prev) => prev ?? timedSession?.user ?? null);
+          setIsLoading(false);
+        })
+        .catch(() => {
+          if (!active) return;
           setIsLoading(false);
         });
 
