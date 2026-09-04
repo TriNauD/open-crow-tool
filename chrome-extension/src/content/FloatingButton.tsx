@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { clampButtonX, decidePlacement, type Placement } from './floating-placement';
 import {
   anchorCoords,
+  isClippedByHost,
   resolveAnchorMode,
   DRIFT_MAX_STRIKES,
   DRIFT_NOISE_PX,
@@ -165,6 +166,8 @@ export default function FloatingButton({ x, y, bottom, range, onClick }: Props) 
   const mode = anchor.mode;
 
   const placementRef = useRef<Placement>('above');
+  /** 被容器裁剪限定死的上下侧：非空时禁止避让逻辑再翻走（翻回去按钮又被切掉） */
+  const clipLockedRef = useRef<Placement | null>(null);
   const flipsRef = useRef(0);
   const updateRef = useRef<() => void>(() => {});
   /** 锚定自检基准：gap（气泡−文字的相对偏移）+ 文字的文档纵坐标 */
@@ -291,6 +294,20 @@ export default function FloatingButton({ x, y, bottom, range, onClick }: Props) 
     if (firstRunRef.current) {
       firstRunRef.current = false;
       write(clampButtonX(x), computeTop(placementRef.current, y, bottom));
+      // 容器级锚定把气泡变成了宿主的裁剪对象：默认放上方时，选区在容器顶部第一行
+      // 就会顶出容器上沿被切掉。先试翻到另一侧，两侧都放不下才降级——降级 = 回到挂
+      // body 的旧行为，至少气泡是完整可见的（宁可晃，不能看不见）。
+      if (mode === 'anchored' && hostEl !== el.ownerDocument.body && isClippedByHost(hostEl, el)) {
+        placementRef.current = placementRef.current === 'above' ? 'below' : 'above';
+        write(clampButtonX(x), computeTop(placementRef.current, y, bottom));
+        if (isClippedByHost(hostEl, el)) {
+          degrade('bubble clipped by scroll host');
+        } else {
+          // 这一侧是「不被裁」的唯一解，锁住：否则 50ms 后的避让复查会按视口
+          // 判定翻回被裁的那一侧，按钮又看不见了。
+          clipLockedRef.current = placementRef.current;
+        }
+      }
     } else {
       update();
     }
@@ -319,6 +336,16 @@ export default function FloatingButton({ x, y, bottom, range, onClick }: Props) 
        *   （虚拟滚动 / transform 模拟滚动），锚定前提不成立，降级。
        */
       const verify = () => {
+        // 宿主被站点整体换掉（虚拟列表回收 / 消息区重挂载）：气泡挂在 detached 节点上
+        // 等于永久消失，锚定前提没了 → 降级到跟随，至少还能看见。
+        if (!hostEl.isConnected) {
+          degrade('scroll host detached');
+          return;
+        }
+        // 宿主是 React 等框架托管的节点时，站点 re-render 可能把我们的 inline
+        // position 冲掉 → 气泡丢失定位上下文、absolute 退回相对初始包含块（位置乱飞）。
+        // 幂等补回，成本一次 getComputedStyle。
+        if (restoredHostPos !== null) ensurePositioningContext(hostEl);
         const m = measure();
         if (!m) return;
         const base = baselineRef.current;
@@ -356,17 +383,23 @@ export default function FloatingButton({ x, y, bottom, range, onClick }: Props) 
         lastVerifyAt = now;
         verify();
       };
-      raf = requestAnimationFrame(tick);
-      window.addEventListener('scroll', markScroll, { capture: true, passive: true });
-      window.addEventListener('resize', () => {
+      const onResize = () => {
         lastVerifyAt = 0; // 尺寸变了文字会重排，立即校验一次
         update();
-      });
+      };
+      raf = requestAnimationFrame(tick);
+      window.addEventListener('scroll', markScroll, { capture: true, passive: true });
+      window.addEventListener('resize', onResize);
 
       return () => {
         if (raf) cancelAnimationFrame(raf);
         window.removeEventListener('scroll', markScroll, true);
-        if (restoredHostPos !== null) hostEl.style.position = restoredHostPos;
+        window.removeEventListener('resize', onResize);
+        // 只在「宿主仍是我们注入的那个 relative」时还原：期间站点若自己改过 position
+        // （re-render / 状态切换），盲目还原会把站点的样式擦掉。
+        if (restoredHostPos !== null && getComputedStyle(hostEl).position === 'relative') {
+          hostEl.style.position = restoredHostPos;
+        }
       };
     }
 
@@ -407,6 +440,8 @@ export default function FloatingButton({ x, y, bottom, range, onClick }: Props) 
     function check() {
       if (stopped) return;
       if (Date.now() - mountedAt >= SETTLE_MS) setRevealed(true);
+      // 已被容器裁剪限定在这一侧（见挂载时的裁剪适配）：再翻走按钮就会被切掉
+      if (clipLockedRef.current && placementRef.current === clipLockedRef.current) return;
       const next = decidePlacement(x, y, bottom);
       if (next !== placementRef.current && flipsRef.current < MAX_FLIPS) {
         flipsRef.current += 1;

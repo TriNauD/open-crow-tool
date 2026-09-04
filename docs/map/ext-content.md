@@ -8,8 +8,8 @@
 |---|---|
 | `chrome-extension/src/content/index.tsx` | 注入入口：mount React root；window 标志位防重复初始化（Chrome 自动注入与 background 补注入可能叠加） |
 | `chrome-extension/src/content/App.tsx` | 主组件：选区监听 → 浮标 / 卡片状态机；接入 auth 广播与开关；未连接时 fallback 公开 explain 端点（env `VITE_PUBLIC_SITE_URL` 或 dev.crowknows.tech） |
-| `chrome-extension/src/content/FloatingButton.tsx` | 划词后浮标按钮，**双模式定位**（判据见下条）：`anchored` 优先（`position:absolute` 挂 body 文档流 + 文档坐标，滚动期零 JS 干预）/ `fixed` 回退（rAF 循环 + scroll 同步双路每帧跟随）；两种模式都用 ref 直写 DOM 的 `transform:translate`（亚像素对齐，零 React 重渲染＝零抖动）；`data-crow-fab` 让避让检测排除自身，避免自遮挡导致的上下横跳 |
-| `chrome-extension/src/content/floating-anchor.ts` | 浮标定位模式判定（纯逻辑，Vitest 直测）：`resolveAnchorMode()` 判断能否 DOM 锚定、`viewportToDocument()` 视口坐标转文档坐标 |
+| `chrome-extension/src/content/FloatingButton.tsx` | 划词后浮标按钮，**双模式定位**（判据见下条）：`anchored` 优先（`position:absolute` 挂进**选区所在的滚动容器**，页面级场景退化为挂 body + 文档坐标，滚动期零 JS 干预）/ `fixed` 回退（rAF 循环 + scroll 同步双路每帧跟随）；两种模式都用 ref 直写 DOM 的 `transform:translate`（亚像素对齐，零 React 重渲染＝零抖动）；`data-crow-fab` 让避让检测排除自身，避免自遮挡导致的上下横跳 |
+| `chrome-extension/src/content/floating-anchor.ts` | 浮标定位纯逻辑（Vitest 直测，无 jsdom）：`resolveAnchorMode()` 判能否 DOM 锚定 + 选锚定宿主、`anchorCoords()` 视口坐标转宿主坐标系（页面级叠窗口滚动量 / 容器级用宿主内容区局部坐标）、`isClippedByHost()` 按可见面积占比判气泡是否被宿主裁掉（阈值 `CLIP_VISIBLE_RATIO`） |
 | `chrome-extension/src/content/floating-placement.ts` | 浮标避让纯逻辑：宿主页 top-layer 弹层（ChatGPT 气泡等）压不住 z-index，检测选区上/下哪侧空旷来落位；`isOwnUi()` 必须认亮 DOM 的 `button[data-crow-fab]`，否则浮标会判定「自己挡住自己」 |
 | `chrome-extension/src/content/ExplainCard.tsx` | 解释卡：流式渲染、保存笔记（查重）、内嵌登录入口、追问子卡片（递归 `depth`；图钉/拖拽仅主卡有效，子卡片无图钉但可折叠自身——折叠徽章对所有子卡常显；折叠仅手动；出子卡片后父卡 body 自动跟随滚到底，向上滚即停） |
 | `chrome-extension/src/content/useStreamExplain.ts` | 扩展版流式 explain（Web 版 `hooks/useStreamExplain.ts` 的平行实现） |
@@ -48,4 +48,5 @@
   - **EXT-12** 断言脱钩自动降级：只挪气泡不挪文字 → 必须降到 `fixed`。
   - **EXT-13** 断言 reflow 不误判：内容上方撑开 180px 让文字真的移窝 → 必须**只纠偏不降级**，且气泡重新贴回文字。
   - **EXT-14** 断言**容器级锚定**：在 `#scroll-box` 独立滚动容器内划词，气泡必须是该容器的后代（而非 body 直子）、`position:absolute`、容器平滑滚动期间 JS 几乎零写入（≤1 次）、且滚前滚后气泡相对文字的位置恒定（gapDrift<2）。这是 ds / chatgpt 类「消息区是独立滚动容器」站点的根治证据——旧逻辑把「祖先有内部滚动容器」当拒绝条件直接回退 fixed，而 fixed 在合成器滚动站点仍有相位差。
+  - **EXT-15** 断言**容器裁剪兜底**：气泡锚进滚动容器后成了宿主的裁剪对象，`#scroll-box` 只有 8px padding 而气泡默认放选区上方 38px，选区在容器顶部第一行时会被切掉一半。必须**翻到下方**且仍保持 `position:absolute` + 在容器内（翻面而非降级成 fixed）；实测关掉该逻辑时可见面积占比掉到 0.48，这条会红。注意裁剪判定只在挂载/翻面落位后判一次——滚动中气泡随文字滚出容器是预期行为，据此降级会每次滚走都误判。
 - E2E 输出目录别用默认的 `test-results/`——Playwright 启动会清空它，chromium profile 一次几千个文件，沙箱批量删除保护会直接把测试拦下。换 `--output=test-results-ext`（已加 `.gitignore` 通配 `/test-results*/`）。

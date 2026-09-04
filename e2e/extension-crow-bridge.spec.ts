@@ -464,6 +464,71 @@ test.describe('Crow extension bridge', () => {
     expect(probe!.fabSameNode).toBe(true);
   });
 
+  test('E2E-EXT-15 容器级锚定：气泡被宿主裁到看不见时翻到另一侧（不降级）', async ({
+    page,
+    extensionWorker,
+  }) => {
+    test.slow();
+    // 容器级锚定把气泡变成了宿主的裁剪对象：#scroll-box 只有 8px padding，而气泡默认
+    // 放选区上方 38px——选区在容器顶部第一行时气泡会顶出上沿、32px 只露 2px。
+    // 期望：翻到下方（仍锚在容器内，position 保持 absolute），而不是降级成 fixed。
+    await extensionSeed.seedCrowAuth(extensionWorker, e2eBaseURL);
+    await page.goto('/e2e-extension-host.html');
+    await expect(page.locator('#crow-ext-host')).toBeAttached({
+      timeout: 20_000,
+    });
+    await page.evaluate(() => {
+      document.getElementById('scroll-box')?.scrollTo({ top: 0 });
+    });
+    await selectSelectorAndPointerUp(page, '#selectable-in-box');
+    await page
+      .waitForFunction(
+        () => !!document.querySelector('#scroll-box button.crow-btn, body > button.crow-btn'),
+        { timeout: 15_000 }
+      )
+      .catch(() => {});
+    // 越过静默期 + 兜底复检窗口，取最终落位
+    await page.waitForTimeout(1250);
+
+    const probe = await page.evaluate(() => {
+      const box = document.getElementById('scroll-box') as HTMLElement | null;
+      const fab =
+        (box?.querySelector('button.crow-btn') as HTMLElement | null) ??
+        (document.body.querySelector(':scope > button.crow-btn') as HTMLElement | null);
+      if (!box || !fab) return { error: 'no-fab' };
+      const b = fab.getBoundingClientRect();
+      const h = box.getBoundingClientRect();
+      // 与 isClippedByHost 同一坐标系：宿主 padding box 才是可视区
+      const padLeft = h.left + box.clientLeft;
+      const padTop = h.top + box.clientTop;
+      const ow = Math.min(b.right, padLeft + box.clientWidth) - Math.max(b.left, padLeft);
+      const oh = Math.min(b.bottom, padTop + box.clientHeight) - Math.max(b.top, padTop);
+      const sel = window.getSelection();
+      const s =
+        sel && !sel.isCollapsed && sel.rangeCount
+          ? sel.getRangeAt(0).getBoundingClientRect()
+          : null;
+      return {
+        inBox: box.contains(fab),
+        position: getComputedStyle(fab).position,
+        visible: ow > 0 && oh > 0 ? (ow * oh) / Math.max(1, b.width * b.height) : 0,
+        // 气泡在选区下方时 gap 为负；翻面成功的直接证据
+        gap: s ? s.top - b.top : null,
+        boxScrollTop: box.scrollTop,
+      };
+    });
+
+    expect(probe).not.toHaveProperty('error');
+    expect(probe!.boxScrollTop).toBe(0); // 选区确实在容器顶部第一行
+    // 没被裁：可见面积占比过半（旧行为下这里 ≈0.06，只剩一条边）
+    expect(probe!.visible).toBeGreaterThan(0.6);
+    // 翻面而非降级：仍锚在容器内、仍是 absolute
+    expect(probe!.inBox).toBe(true);
+    expect(probe!.position).toBe('absolute');
+    // 气泡落到了选区下方（默认上方会被裁）
+    expect(probe!.gap!).toBeLessThan(0);
+  });
+
   test('E2E-EXT-09 Options 页显示已连接', async ({
     page,
     extensionWorker,

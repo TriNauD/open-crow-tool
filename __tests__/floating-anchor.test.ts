@@ -7,6 +7,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   anchorCoords,
+  isClippedByHost,
   resolveAnchorMode,
 } from '@/chrome-extension/src/content/floating-anchor';
 
@@ -21,6 +22,7 @@ interface FakeEl {
   ownerDocument: FakeDoc | null;
   scrollHeight?: number;
   clientHeight?: number;
+  clientWidth?: number;
   clientLeft: number;
   clientTop: number;
   scrollLeft: number;
@@ -41,11 +43,14 @@ function el(opts: {
   tag?: string;
   scrollHeight?: number;
   clientHeight?: number;
+  clientWidth?: number;
   clientLeft?: number;
   clientTop?: number;
   scrollLeft?: number;
   scrollTop?: number;
+  rect?: { left: number; top: number; width: number; height: number };
 }): FakeEl {
+  const r = opts.rect ?? { left: 0, top: 0, width: 100, height: 100 };
   const node: FakeEl = {
     nodeType: 1,
     tagName: opts.tag ?? 'div',
@@ -53,11 +58,19 @@ function el(opts: {
     ownerDocument: opts.doc ?? null,
     scrollHeight: opts.scrollHeight,
     clientHeight: opts.clientHeight,
+    clientWidth: opts.clientWidth,
     clientLeft: opts.clientLeft ?? 0,
     clientTop: opts.clientTop ?? 0,
     scrollLeft: opts.scrollLeft ?? 0,
     scrollTop: opts.scrollTop ?? 0,
-    getBoundingClientRect: () => ({ left: 0, top: 0, width: 100, height: 100 }),
+    getBoundingClientRect: () => ({
+      left: r.left,
+      top: r.top,
+      width: r.width,
+      height: r.height,
+      right: r.left + r.width,
+      bottom: r.top + r.height,
+    }),
   };
   styles.set(node, opts.style ?? {});
   return node;
@@ -265,5 +278,57 @@ describe('anchorCoords', () => {
       x: 120,
       y: 350,
     });
+  });
+});
+
+describe('isClippedByHost', () => {
+  /** 宿主可视区（padding box）：x 0..400，y 100..400 */
+  function scroller(opts: { clientTop?: number } = {}) {
+    const d = fakeDoc();
+    const host = el({
+      doc: d,
+      parent: d.body,
+      clientWidth: 400,
+      clientHeight: 300,
+      clientTop: opts.clientTop ?? 0,
+      rect: { left: 0, top: 100, width: 400, height: 300 },
+    });
+    return host;
+  }
+
+  function bubbleRect(left: number, top: number, w = 100, h = 32): FakeEl {
+    return el({ rect: { left, top, width: w, height: h } });
+  }
+
+  const clip = (host: FakeEl, b: FakeEl) =>
+    isClippedByHost(host as unknown as Element, b as unknown as Element);
+
+  it('气泡完整落在宿主可视区内 → 不裁', () => {
+    expect(clip(scroller(), bubbleRect(50, 200))).toBe(false);
+  });
+
+  it('选区在容器第一行（气泡顶出上沿、32px 只露 2px）→ 裁', () => {
+    // 气泡 70..102，宿主可视区 100..400 → 只重叠 2px，可见占比 ≈0.06
+    expect(clip(scroller(), bubbleRect(50, 70))).toBe(true);
+  });
+
+  it('边缘压线几 px（大部分仍可见）→ 不裁，不为此放弃锚定', () => {
+    // 气泡 94..126 → 重叠 26px，占比 ≈0.81
+    expect(clip(scroller(), bubbleRect(50, 94))).toBe(false);
+  });
+
+  it('横向贴边被切（贴右缘划词）→ 裁', () => {
+    // 气泡 370..470，宿主可视区 0..400 → 只重叠 30px，占比 0.3
+    expect(clip(scroller(), bubbleRect(370, 200))).toBe(true);
+  });
+
+  it('完全滚到宿主可视区之外 → 裁', () => {
+    expect(clip(scroller(), bubbleRect(50, 500))).toBe(true);
+  });
+
+  it('按 padding box 判定：host 有 border 时边框区也算裁剪区', () => {
+    // 同一几何：无 border 重叠 20px（0.625，不裁）；clientTop=4 后重叠 16px（0.5，裁）
+    expect(clip(scroller(), bubbleRect(50, 88))).toBe(false);
+    expect(clip(scroller({ clientTop: 4 }), bubbleRect(50, 88))).toBe(true);
   });
 });

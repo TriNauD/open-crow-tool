@@ -156,6 +156,45 @@ export function resolveAnchorMode(range: Range, doc: Document): AnchorDecision {
   return { mode: 'anchored', reason, host };
 }
 
+/**
+ * 容器级锚定的副作用：宿主会裁剪溢出内容。
+ *
+ * 气泡 `absolute` 挂进 `overflow-y:auto` 的容器后，就成了容器的**裁剪对象**：
+ * 超出宿主 padding box 的部分会被切掉。最常踩到的是「选区在容器顶部第一行」——
+ * 气泡默认放上方 38px，正好顶出容器上沿，用户看到的是半个按钮甚至没有按钮。
+ * 另外按 CSS 规范，`overflow-y:auto` 配 `overflow-x:visible` 时后者**计算值变成
+ * auto**，横向同样会裁（贴着左右边缘划词时气泡被切）。
+ *
+ * 判定用**可见面积占比**而非「是否完全在外」：最典型的坏情况不是全裁，而是
+ * 「选区在容器顶部第一行 → 气泡上方 38px 顶出上沿 → 32px 只露 2px」，按完全在外
+ * 判不出来。而边缘只压线几 px 属可接受，不该为此降级。
+ *
+ * 只在**落位后判一次**（挂载 / 翻转后）：
+ * 滚动中气泡随文字滚出容器是**预期行为**（与词锁在一起），据此降级会每次滚走都误判。
+ *
+ * @param host 锚定宿主（容器级锚定才有意义）
+ * @param bubble 气泡元素
+ */
+/**
+ * 气泡被宿主裁到只剩这个比例以下，就认为「看不见了」，需要翻面或降级。
+ * 取 0.6：容器第一行划词时气泡 32px 只露 2px（≈0.06）必须翻；
+ * 边缘压线几 px（≈0.9）属可接受，不该为此放弃锚定。
+ */
+export const CLIP_VISIBLE_RATIO = 0.6;
+
+export function isClippedByHost(host: Element, bubble: Element): boolean {
+  const box = host as HTMLElement;
+  const h = box.getBoundingClientRect();
+  const b = bubble.getBoundingClientRect();
+  // 与 anchorCoords 同一坐标系：绝对定位子元素相对宿主的 padding box
+  const padLeft = h.left + box.clientLeft;
+  const padTop = h.top + box.clientTop;
+  const overlapW = Math.min(b.right, padLeft + box.clientWidth) - Math.max(b.left, padLeft);
+  const overlapH = Math.min(b.bottom, padTop + box.clientHeight) - Math.max(b.top, padTop);
+  if (overlapW <= 0 || overlapH <= 0) return true; // 完全在宿主可视区之外
+  return (overlapW * overlapH) / Math.max(1, b.width * b.height) < CLIP_VISIBLE_RATIO;
+}
+
 // —— 运行时自检阈值：锚定模式下「气泡与文字的相对偏移」不该变；变了要查清是谁变的 ——
 
 /** 小于此值视为浮点噪声 / 四舍五入，不处理 */
