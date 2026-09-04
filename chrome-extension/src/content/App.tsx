@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from 'react';
-import { flushSync } from 'react-dom';
 import {
   extensionContextLikelyOk,
   ignoreIfContextInvalidated,
@@ -15,7 +14,9 @@ import {
 import FloatingButton from './FloatingButton';
 import ExplainCard from './ExplainCard';
 import { extractSurroundingText } from './surrounding-text';
-import { ANCHOR_OK } from './floating-placement';
+
+// 版本标记：真机排查「刷新扩展后仍走旧行为」时先看这行是否更新。
+console.info('[crow] content script loaded — dom-anchor-follow 2026-09-03');
 
 const EMPTY_AUTH: CrowAuth = {
   apiBaseUrl: '',
@@ -38,20 +39,33 @@ function openCrowOptionsPage(): void {
   });
 }
 
-interface Selection {
+interface SelectionBase {
   text: string;
   x: number;
   y: number;
   /** 选区底边（视口坐标）；浮动按钮避让放下方时用 */
   bottom: number;
-  /** 划词 Range 快照：锚点定位模式插入锚点用 */
-  range?: Range;
+  /** 选区 Range 快照：浮标滚动/缩放时实时读它的屏幕坐标，让气泡和词锁在一起 */
+  range: Range;
   /** 选区前后纯文本；取不到则为 undefined */
   surroundingText?: string;
 }
 
+interface Selection extends SelectionBase {
+  /**
+   * 选区身份：只有「确实换了一段选区」才递增。
+   * 浮标用它做 key——重挂载即重新落位；而重复读取同一选区（鉴权就绪、
+   * microtask / 50ms 补读）必须复用旧对象，否则 range 换新会触发锚点重挂靠，
+   * 造成气泡闪一下再跳回去。
+   */
+  id: number;
+}
+
 /** 从某一 Window 读选区；rect 需相对顶层视口时再叠 iframe 偏移 */
-function selectionFromWindow(w: Window, iframeOffset?: { left: number; top: number }): Selection | null {
+function selectionFromWindow(
+  w: Window,
+  iframeOffset?: { left: number; top: number }
+): SelectionBase | null {
   const sel = w.getSelection();
   if (!sel || sel.isCollapsed || !sel.rangeCount) return null;
   const text = sel.toString().trim();
@@ -71,7 +85,7 @@ function selectionFromWindow(w: Window, iframeOffset?: { left: number; top: numb
   };
 }
 
-function readDomSelection(): Selection | null {
+function readDomSelection(): SelectionBase | null {
   const top = selectionFromWindow(window);
   if (top) return top;
   const ae = document.activeElement;
@@ -88,15 +102,47 @@ function readDomSelection(): Selection | null {
   return null;
 }
 
-/** 会话刚就绪时读 DOM：瞬时读空则保留 React 内已有选区（常见于先划词、后「连接插件」时 hasApi 才变 true）。 */
-function pickSelectionAfterAuth(prev: Selection | null): Selection | null {
-  return readDomSelection() ?? prev;
+/** 同一段选区：比较文字 + Range 边界（start/end 的节点与偏移）。
+ *  关键：不能用视口坐标 x/y/bottom 判等——滚动时视口坐标会变，会误判成「新选区」
+ *  导致气泡重挂载（每滚一下闪一下）。Range 边界是滚动不变的，才是「同一段选区」的真判据。 */
+function sameRange(a: Range, b: Range): boolean {
+  return (
+    a.startContainer === b.startContainer &&
+    a.startOffset === b.startOffset &&
+    a.endContainer === b.endContainer &&
+    a.endOffset === b.endOffset
+  );
+}
+
+function sameSelection(a: Selection | null, b: SelectionBase | null): boolean {
+  if (!a || !b) return false;
+  if (a.text !== b.text) return false;
+  if (!a.range || !b.range) return false;
+  return sameRange(a.range, b.range);
 }
 
 export default function App() {
   const [config, setConfig] = useState<CrowAuth>(EMPTY_AUTH);
   const [selection, setSelection] = useState<Selection | null>(null);
-  const [explaining, setExplaining] = useState<Selection | null>(null);
+  const [explaining, setExplaining] = useState<SelectionBase | null>(null);
+
+  /**
+   * 提交一次选区读取：等价选区沿原对象返回（连带保留原 range 引用，浮标不重挂靠）；
+   * 确实是新选区才递增 id，让浮标重新挂载落位。
+   */
+  const commitSelection = useCallback((draft: SelectionBase | null) => {
+    setSelection((prev) => {
+      if (!draft) return null;
+      if (sameSelection(prev, draft)) return prev;
+      return { ...draft, id: (prev?.id ?? 0) + 1 };
+    });
+  }, []);
+
+  /** 会话就绪时的补读：读空保留 React 内已有选区（先划词、后「连接插件」的常见路径） */
+  const rereadSelection = useCallback(() => {
+    const draft = readDomSelection();
+    if (draft) commitSelection(draft);
+  }, [commitSelection]);
 
   const reloadAuth = useCallback(() => {
     if (!extensionContextLikelyOk()) return;
@@ -104,9 +150,9 @@ export default function App() {
       .then((a) => {
         if (a) {
           setConfig(a);
-          setSelection((prev) => pickSelectionAfterAuth(prev));
-          queueMicrotask(() => setSelection((prev) => pickSelectionAfterAuth(prev)));
-          setTimeout(() => setSelection((prev) => pickSelectionAfterAuth(prev)), 50);
+          rereadSelection();
+          queueMicrotask(() => rereadSelection());
+          setTimeout(() => rereadSelection(), 50);
         } else {
           setConfig(EMPTY_AUTH);
         }
@@ -114,7 +160,7 @@ export default function App() {
       .catch((err) => {
         if (!isExtensionContextInvalidatedError(err)) console.warn('[Crow ext] loadCrowAuth failed', err);
       });
-  }, []);
+  }, [rereadSelection]);
 
   useEffect(() => {
     if (!extensionContextLikelyOk()) return;
@@ -162,7 +208,7 @@ export default function App() {
       lastPointerUpAt = Date.now();
       if (readR != null) clearTimeout(readR);
       function flushPointerSelection() {
-        setSelection(readDomSelection());
+        commitSelection(readDomSelection());
       }
       queueMicrotask(() => flushPointerSelection());
       readR = setTimeout(() => {
@@ -182,18 +228,10 @@ export default function App() {
       if (selT != null) clearTimeout(selT);
       selT = setTimeout(() => {
         const s = readDomSelection();
+        // 读空不清空：站点常在划词后短暂清空再重建选区
         if (!s) return;
-        // 无实际变化时保留旧对象：避免锚点插入引发的 selectionchange 反复重建
-        // Selection（新 Range 会触发锚点 effect 重跑）
-        setSelection((prev) =>
-          prev &&
-          prev.text === s.text &&
-          prev.x === s.x &&
-          prev.y === s.y &&
-          prev.bottom === s.bottom
-            ? prev
-            : s
-        );
+        // 等价选区由 commitSelection 复用旧对象（含原 range），浮标不会重挂靠
+        commitSelection(s);
       }, 90);
     }
 
@@ -214,50 +252,16 @@ export default function App() {
       document.removeEventListener('selectionchange', onSelectionChange);
       document.removeEventListener('keydown', onKeyDown);
     };
-  }, []);
-
-  // ═══════════════════════════════════════════
-  //  效果：滚动/视口变化时按钮跟随选区文字（仅回退路径需要；
-  //  锚点定位模式下按钮在内容流里被原生滚动跟随，JS 参与反而造成一帧滞后）
-  // ═══════════════════════════════════════════
-  const hasSelection = selection !== null;
-  useEffect(() => {
-    if (!hasSelection || ANCHOR_OK) return;
-    let raf = 0;
-    function sync() {
-      raf = 0;
-      // flushSync 保证坐标与本次滚动同一帧上屏；否则按钮落后文字一帧，滚动时微微晃动
-      flushSync(() => {
-        setSelection((prev) => {
-          if (!prev) return prev;
-          // 跟随读用轻量版：只取矩形坐标，不做 toString / 前后文提取，避免长任务拖慢滚动帧
-          const sel = window.getSelection();
-          if (!sel || sel.isCollapsed || !sel.rangeCount) return prev;
-          const rect = sel.getRangeAt(0).getBoundingClientRect();
-          return { ...prev, x: rect.left + rect.width / 2, y: rect.top, bottom: rect.bottom };
-        });
-      });
-    }
-    function onScrollOrResize() {
-      if (!raf) raf = requestAnimationFrame(sync);
-    }
-    window.addEventListener('scroll', onScrollOrResize, true);
-    window.addEventListener('resize', onScrollOrResize);
-    return () => {
-      if (raf) cancelAnimationFrame(raf);
-      window.removeEventListener('scroll', onScrollOrResize, true);
-      window.removeEventListener('resize', onScrollOrResize);
-    };
-  }, [hasSelection]);
+  }, [commitSelection]);
 
   useEffect(() => {
     function applyFromBroadcast(auth: CrowAuth | undefined) {
       const direct = !!(auth?.apiBaseUrl && auth?.accessToken);
       if (direct) {
         setConfig(auth!);
-        setSelection((prev) => pickSelectionAfterAuth(prev));
-        queueMicrotask(() => setSelection((prev) => pickSelectionAfterAuth(prev)));
-        setTimeout(() => setSelection((prev) => pickSelectionAfterAuth(prev)), 50);
+        rereadSelection();
+        queueMicrotask(() => rereadSelection());
+        setTimeout(() => rereadSelection(), 50);
       } else reloadAuth();
     }
 
@@ -273,7 +277,7 @@ export default function App() {
     return () => {
       window.removeEventListener(CROW_AUTH_BROADCAST_EVENT, onBroadcast);
     };
-  }, [reloadAuth]);
+  }, [reloadAuth, rereadSelection]);
 
   // Alt+W from background service worker
   useEffect(() => {
@@ -339,7 +343,10 @@ export default function App() {
   return (
     <>
       {selection && !explaining && (
+        // key 绑选区身份：换一段划词 = 卸载重挂，浮标必然消失并在新词处重新落位，
+        // 不会沿用它上一次的落位状态（上下侧、可见性、复查时刻表）
         <FloatingButton
+          key={selection.id}
           x={selection.x}
           y={selection.y}
           bottom={selection.bottom}

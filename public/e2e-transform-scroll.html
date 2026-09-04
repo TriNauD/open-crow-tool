@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="zh">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>E2E — transform 模拟滚动（无 scroll 事件）</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden; /* 关闭原生滚动：不派发任何 scroll 事件 */
+      }
+      #viewport {
+        position: relative;
+        height: 100%;
+        overflow: hidden;
+      }
+      #content {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        will-change: transform;
+      }
+      #p {
+        margin: 160px 24px;
+        font-size: 20px;
+        line-height: 1.7;
+      }
+      .spacer {
+        height: 2400px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="viewport">
+      <div id="content">
+        <p id="p">
+          这是用于测试 transform 模拟滚动的划词文本：站点用 translateY 移动内容，根本不派发
+          scroll 事件，原生 scroll 监听会完全失效。
+        </p>
+        <div class="spacer"></div>
+      </div>
+    </div>
+    <script>
+      // 用 transform 模拟「滚动」：仅更新 translateY，不派发 scroll 事件。
+      // 这正是很多 SPA / AI 对话站点的真实滚动方式，也是此前气泡冻结的根因场景。
+      let y = 0;
+      const MAX = -2400;
+      window.addEventListener(
+        'wheel',
+        (e) => {
+          y = Math.max(MAX, Math.min(0, y - e.deltaY));
+          document.getElementById('content').style.transform = `translateY(${y}px)`;
+          e.preventDefault();
+        },
+        { passive: false }
+      );
+    </script>
+  </body>
+</html>
