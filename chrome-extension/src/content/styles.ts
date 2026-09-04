@@ -354,4 +354,130 @@ export const STYLES = `
     background: #1a1a1e;
     overflow: hidden;
   }
+
+  /* ── 追问树形索引（把手 + 左缘浮层；渲染在卡片元素之外，勿挪进 .crow-card） ── */
+  .crow-tree-handle {
+    position: fixed;
+    z-index: 2147483647;
+    background: #27272a;
+    color: #a1a1aa;
+    border: 1px solid #3f3f46;
+    border-right: none;
+    border-radius: 10px 0 0 10px;
+    padding: 8px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    white-space: nowrap;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.5);
+    transition: background 0.15s, color 0.15s;
+    pointer-events: auto;
+  }
+  .crow-tree-handle:hover {
+    background: #3f3f46;
+    color: #f4f4f5;
+  }
+
+  .crow-tree-panel {
+    position: fixed;
+    z-index: 2147483647;
+    width: 224px;
+    display: flex;
+    flex-direction: column;
+    background: #18181b;
+    border: 1px solid #3f3f46;
+    border-radius: 12px;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.7);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    color: #f4f4f5;
+    overflow: hidden;
+    pointer-events: auto;
+  }
+
+  .crow-tree-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    border-bottom: 1px solid #27272a;
+    font-size: 11px;
+    font-weight: 700;
+    color: #fb923c;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    flex-shrink: 0;
+  }
+
+  .crow-tree-panel-close {
+    background: none;
+    border: none;
+    color: #71717a;
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+    padding: 0 2px;
+    transition: color 0.15s;
+  }
+  .crow-tree-panel-close:hover { color: #f4f4f5; }
+
+  .crow-tree-panel-body {
+    overflow-y: auto;
+    padding: 6px;
+    scrollbar-width: thin;
+    scrollbar-color: #3f3f46 transparent;
+  }
+  .crow-tree-panel-body::-webkit-scrollbar { width: 6px; }
+  .crow-tree-panel-body::-webkit-scrollbar-track { background: transparent; }
+  .crow-tree-panel-body::-webkit-scrollbar-thumb {
+    background: #3f3f46;
+    border-radius: 3px;
+  }
+
+  .crow-tree-node {
+    display: block;
+    width: 100%;
+    background: none;
+    border: none;
+    border-radius: 6px;
+    color: #d4d4d8;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 12px;
+    line-height: 1.45;
+    text-align: left;
+    padding: 5px 8px;
+    transition: background 0.15s, color 0.15s;
+  }
+  .crow-tree-node:hover {
+    background: #27272a;
+    color: #fafafa;
+  }
+
+  .crow-tree-node-text {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    word-break: break-word;
+  }
+
+  /* 跳转定位后的橙色高亮一瞬（outline 不影响布局，暗底/透明底通用） */
+  @keyframes crow-index-flash-kf {
+    0% {
+      outline: 3px solid rgba(249, 115, 22, 0.95);
+      outline-offset: -1px;
+    }
+    100% {
+      outline: 3px solid rgba(249, 115, 22, 0);
+      outline-offset: -1px;
+    }
+  }
+  .crow-card.crow-index-flash {
+    animation: crow-index-flash-kf 1.2s ease;
+  }
+  /* 子卡的 .crow-card 被重置为直角透明，高亮时补圆角让 outline 跟随包裹层视觉 */
+  .crow-child-card .crow-card.crow-index-flash {
+    border-radius: 12px;
+  }
 `;
