@@ -14,6 +14,30 @@ export interface ExplainState {
   isDone: boolean;
   /** 今日免费额度已用完，本次使用免费模型（服务端 x-crow-quota-out 头） */
   quotaOut?: boolean;
+  /** 解释完成时自动生成的总结 tag（如 TCP → 计算机网络）；未分类为 null */
+  tag: string | null;
+}
+
+/** 解释完成后自动生成总结 tag；失败返回 null，保存时退化为未分类 */
+async function fetchWebCategoryTag(
+  inputText: string,
+  explanation: string
+): Promise<string | null> {
+  try {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const userCfg = loadStoredUserLLMConfig();
+    if (userCfg) headers[USER_LLM_CONFIG_HEADER] = encodeUserLLMConfigHeader(userCfg);
+    const res = await fetch('/api/explain/tag', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ inputText, explanation }),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { data?: { tag?: string | null } };
+    return data.data?.tag ?? null;
+  } catch {
+    return null;
+  }
 }
 
 export type ExplainImage = {
@@ -32,9 +56,12 @@ export function useStreamExplain() {
     isLoading: false,
     error: null,
     isDone: false,
+    tag: null,
   });
 
   const abortRef = useRef<AbortController | null>(null);
+  /** 最近一次请求的入参，供失败后「重试」原样重发 */
+  const lastRequestRef = useRef<{ input: string; options?: ExplainRequestOptions } | null>(null);
 
   const explain = useCallback(
     async (input: string, contextOrOptions?: string | ExplainRequestOptions) => {
@@ -42,12 +69,13 @@ export function useStreamExplain() {
       const controller = new AbortController();
       abortRef.current = controller;
 
-      setState({ text: '', isLoading: true, error: null, isDone: false });
+      setState({ text: '', isLoading: true, error: null, isDone: false, tag: null });
 
       const options: ExplainRequestOptions =
         typeof contextOrOptions === 'string'
           ? { context: contextOrOptions }
           : (contextOrOptions ?? {});
+      lastRequestRef.current = { input, options };
 
       try {
         const body: {
@@ -81,15 +109,25 @@ export function useStreamExplain() {
 
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
+        let full = '';
 
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
           const chunk = decoder.decode(value, { stream: true });
+          full += chunk;
           setState((s) => ({ ...s, text: s.text + chunk }));
         }
 
         setState((s) => ({ ...s, isLoading: false, isDone: true }));
+
+        // 解释完成：自动生成总结 tag（如 TCP → 计算机网络），失败不影响主流程
+        try {
+          const t = await fetchWebCategoryTag(input, full);
+          if (t) setState((s) => ({ ...s, tag: t }));
+        } catch {
+          /* 分类失败：退化为未分类 */
+        }
       } catch (err) {
         if ((err as Error).name === 'AbortError') return;
         setState((s) => ({
@@ -104,8 +142,15 @@ export function useStreamExplain() {
 
   const reset = useCallback(() => {
     abortRef.current?.abort();
-    setState({ text: '', isLoading: false, error: null, isDone: false });
+    setState({ text: '', isLoading: false, error: null, isDone: false, tag: null });
   }, []);
 
-  return { ...state, explain, reset };
+  /** 失败后原样重发最近一次请求 */
+  const retry = useCallback(() => {
+    const last = lastRequestRef.current;
+    if (!last) return;
+    return explain(last.input, last.options);
+  }, [explain]);
+
+  return { ...state, explain, retry, reset };
 }

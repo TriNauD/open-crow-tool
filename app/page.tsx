@@ -6,7 +6,7 @@ import ExplanationCard from '@/components/ExplanationCard';
 import { AuthNav } from '@/components/AuthNav';
 import { GuestMigrationModal } from '@/components/GuestMigrationModal';
 import { useAuthSession } from '@/hooks/useAuthSession';
-import { getKeyboardSendShortcutHintLabel } from '@/lib/keyboard-send-hint';
+import { getKeyboardSendShortcutHintLabel, isCoarsePointerDevice } from '@/lib/keyboard-send-hint';
 import { compressImageFile, type CompressedImage } from '@/lib/client/compress-image';
 import type { ExplainImage } from '@/hooks/useStreamExplain';
 
@@ -94,6 +94,8 @@ export default function HomePage() {
     if (e.key !== 'Enter') return;
     if (e.nativeEvent.isComposing) return;
     if (e.altKey || e.shiftKey) return;
+    // 触屏（手机/平板）没有物理 Alt/Shift：Enter 一律换行，发送仅靠按钮
+    if (isCoarsePointerDevice()) return;
     e.preventDefault();
     submitQuery(input);
   }

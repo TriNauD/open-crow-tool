@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { fetchTrending, type TrendingRepo } from '@/lib/github-trending';
+import { fetchTrending, sanitizeGithubRepoUrl, type TrendingRepo } from '@/lib/github-trending';
+import { loadTrendingCache, saveTrendingCache } from '@/lib/trending-cache';
 import {
   sendWeeklyDigest,
   sendDigestOpsReportComplete,
@@ -8,10 +9,19 @@ import {
   type Tier,
 } from '@/lib/email';
 import { getActiveSubscribers } from '@/lib/db/subscribers';
-import { getProviderChain } from '@/lib/ai/providers';
+import {
+  getProviderChain,
+  getProviderTimeoutMs,
+  isProviderTimeoutError,
+  runProviderChain,
+  withProviderTimeout,
+} from '@/lib/ai/providers';
 
 // Vercel hobby: 60s max, pro: 300s
 export const maxDuration = 60;
+
+/** AI 评审阶段的整体预算：为抓取与逐个发信（600ms/人）留出余量，避免 60s 被 AI 挂起吃光 */
+const AI_PHASE_BUDGET_MS = 40_000;
 
 const VALID_TIERS: Tier[] = ['夯', '顶级', '人上人', 'NPC', '拉完了'];
 
@@ -58,7 +68,7 @@ function parseReviewedRepos(raw: string): ReviewedRepo[] {
 
   return parsed.map((item) => ({
     name: item.name ?? '',
-    url: item.url ?? `https://github.com/${item.name}`,
+    url: sanitizeGithubRepoUrl(item.url, item.name ?? ''),
     summary: item.summary ?? '',
     tech_score: Math.min(5, Math.max(1, Number(item.tech_score) || 3)),
     scene_score: Math.min(5, Math.max(1, Number(item.scene_score) || 3)),
@@ -90,18 +100,34 @@ export async function GET(req: NextRequest) {
   const langFilter = process.env.DIGEST_LANGUAGE_FILTER ?? '';
   const log: Record<string, unknown> = {};
 
-  // 1. Fetch trending
+  // 1. Fetch trending（失败或为空时尝试用上次成功结果降级——R15）
   let trending: TrendingRepo[] = [];
   try {
     trending = await fetchTrending(langFilter || undefined);
     log.fetched = trending.length;
+    if (trending.length > 0) {
+      await saveTrendingCache(trending);
+    }
   } catch (err) {
     log.fetchError = String(err);
+  }
+
+  if (trending.length === 0) {
+    const cached = await loadTrendingCache();
+    if (cached) {
+      trending = cached.repos;
+      log.degradedFromCache = cached.savedAtIso;
+      log.fetched = cached.repos.length;
+      console.warn(`[weekly-digest] trending fetch degraded, using cache from ${cached.savedAtIso}`);
+    }
+  }
+
+  if (trending.length === 0) {
     try {
       await sendDigestOpsReportAborted({
         ranAtIso: new Date().toISOString(),
         stage: 'fetch-trending',
-        message: '抓取 GitHub Trending 失败，未进入 AI 与发信。',
+        message: '抓取 GitHub Trending 失败且无可用缓存，未进入 AI 与发信。',
         extra: { log },
       });
     } catch (notifyErr) {
@@ -110,56 +136,52 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to fetch trending', log }, { status: 500 });
   }
 
-  if (trending.length === 0) {
-    try {
-      await sendDigestOpsReportAborted({
-        ranAtIso: new Date().toISOString(),
-        stage: 'fetch-trending',
-        message: 'Trending 列表为空，未发送任何订阅邮件。',
-        extra: { log },
-      });
-    } catch (notifyErr) {
-      console.error('[weekly-digest] ops notify failed:', notifyErr);
-    }
-    return NextResponse.json({ error: 'No trending repos found', log }, { status: 500 });
-  }
-
   // 2. AI batch review (with provider chain fallback)
   let reviewed: ReviewedRepo[] | undefined;
   let aiUsed = true;
   const chain = getProviderChain();
-  let lastErr: unknown;
+  const aiDeadline = Date.now() + AI_PHASE_BUDGET_MS;
 
-  for (const { name, client, model } of chain) {
-    try {
-      const completion = await client.chat.completions.create({
-        model,
-        messages: [{ role: 'user', content: buildReviewPrompt(trending) }],
-        temperature: 0.3,
-      });
+  try {
+    const { value, providerName } = await runProviderChain(
+      chain,
+      ({ client, model }) => {
+        // 单次调用超时取「配置值」与「AI 阶段剩余预算」的较小者，预算耗尽后快速失败
+        const remaining = aiDeadline - Date.now();
+        const timeoutMs = Math.max(3_000, Math.min(getProviderTimeoutMs(), remaining));
+        return withProviderTimeout(timeoutMs, async (signal) => {
+          const completion = await client.chat.completions.create(
+            {
+              model,
+              messages: [{ role: 'user', content: buildReviewPrompt(trending) }],
+              temperature: 0.3,
+            },
+            { signal }
+          );
 
-      const raw = completion.choices[0]?.message?.content ?? '';
-      reviewed = parseReviewedRepos(raw);
-      console.log(`[weekly-digest] using provider="${name}", model="${model}"`);
-      log.aiProvider = name;
-      log.aiReviewed = reviewed.length;
+          const raw = completion.choices[0]?.message?.content ?? '';
+          return parseReviewedRepos(raw);
+        });
+      },
+      (name, err) => {
+        const kind = isProviderTimeoutError(err) ? 'timeout' : 'error';
+        console.warn(`[weekly-digest] provider "${name}" ${kind}: ${String(err)}, trying next...`);
+      }
+    );
 
-      const tierCount: Record<string, number> = {};
-      for (const r of reviewed) tierCount[r.tier] = (tierCount[r.tier] ?? 0) + 1;
-      log.tierDistribution = tierCount;
+    reviewed = value;
+    console.log(`[weekly-digest] using provider="${providerName}"`);
+    log.aiProvider = providerName;
+    log.aiReviewed = reviewed.length;
 
-      break;
-    } catch (err) {
-      lastErr = err;
-      console.warn(`[weekly-digest] provider "${name}" failed, trying next...`);
-    }
-  }
-
-  if (!reviewed) {
-    console.error('[weekly-digest] all AI providers failed, using fallback:', lastErr);
+    const tierCount: Record<string, number> = {};
+    for (const r of reviewed) tierCount[r.tier] = (tierCount[r.tier] ?? 0) + 1;
+    log.tierDistribution = tierCount;
+  } catch (err) {
+    console.error('[weekly-digest] all AI providers failed, using fallback:', err);
     reviewed = fallbackRepos(trending);
     aiUsed = false;
-    log.aiError = String(lastErr);
+    log.aiError = String(err);
     log.fallback = true;
   }
 
@@ -223,6 +245,7 @@ export async function GET(req: NextRequest) {
       aiError: typeof log.aiError === 'string' ? log.aiError : undefined,
       fetchError: typeof log.fetchError === 'string' ? log.fetchError : undefined,
       fallback: log.fallback === true,
+      degradedFromCacheIso: typeof log.degradedFromCache === 'string' ? log.degradedFromCache : undefined,
     });
   } catch (notifyErr) {
     console.error('[weekly-digest] ops notify failed:', notifyErr);
