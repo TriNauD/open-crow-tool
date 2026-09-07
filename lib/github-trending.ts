@@ -9,6 +9,17 @@ export interface TrendingRepo {
   weeklyStars: number;
 }
 
+/**
+ * 校验 AI 产出的 repo URL（内容源自模型输出，不可信）：
+ * 必须是 https://github.com/ 前缀，否则回退到按 name 拼接的规范地址，
+ * 防止 javascript: / 跳转域等非法 URL 进入邮件链接。
+ */
+export function sanitizeGithubRepoUrl(raw: unknown, name: string): string {
+  const fallback = `https://github.com/${String(name ?? '').trim()}`;
+  const url = typeof raw === 'string' ? raw.trim() : '';
+  return url.toLowerCase().startsWith('https://github.com/') ? url : fallback;
+}
+
 function parseStarCount(text: string): number {
   const cleaned = text.replace(/,/g, '').replace(/\s/g, '');
   const match = cleaned.match(/(\d+)/);

@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   encodeUserLlmConfigHeader,
   loadUserLlmConfig,
+  CROW_USER_LLM_HEADER,
 } from '../lib/user-llm-config';
 
 export interface StreamState {
@@ -11,6 +12,31 @@ export interface StreamState {
   isDone: boolean;
   /** 今日免费额度已用完，本次使用免费模型（后台 SW 透传 x-crow-quota-out） */
   quotaOut?: boolean;
+  /** 解释完成时自动生成的总结 tag（如 TCP → 计算机网络）；未分类为 null */
+  tag: string | null;
+}
+
+/** 解释完成后自动生成总结 tag；失败返回 null，保存时退化为未分类 */
+async function fetchExtCategoryTag(
+  apiBaseUrl: string,
+  inputText: string,
+  explanation: string
+): Promise<string | null> {
+  try {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const userCfg = await loadUserLlmConfig();
+    if (userCfg) headers[CROW_USER_LLM_HEADER] = encodeUserLlmConfigHeader(userCfg);
+    const res = await fetch(`${apiBaseUrl.replace(/\/+$/, '')}/api/explain/tag`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ inputText, explanation }),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { data?: { tag?: string | null } };
+    return data.data?.tag ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -26,6 +52,7 @@ export function useStreamExplain(apiBaseUrl: string) {
     isLoading: false,
     error: null,
     isDone: false,
+    tag: null,
   });
 
   const portRef = useRef<chrome.runtime.Port | null>(null);
@@ -53,7 +80,7 @@ export function useStreamExplain(apiBaseUrl: string) {
       options?: { context?: string; surroundingText?: string }
     ) => {
       closeStream();
-      setState({ text: '', isLoading: true, error: null, isDone: false, quotaOut: false });
+      setState({ text: '', isLoading: true, error: null, isDone: false, quotaOut: false, tag: null });
 
       if (typeof chrome === 'undefined' || !chrome.runtime?.connect) {
         setState((s) => ({
@@ -106,6 +133,7 @@ export function useStreamExplain(apiBaseUrl: string) {
           const port = chrome.runtime.connect({ name: 'explain-stream' });
           portRef.current = port;
 
+          let full = '';
           port.onMessage.addListener(
             (msg: { chunk?: string; done?: boolean; error?: string; meta?: { quotaOut?: boolean } } | null) => {
               if (msg?.meta?.quotaOut) {
@@ -119,9 +147,14 @@ export function useStreamExplain(apiBaseUrl: string) {
               } else if (msg?.done) {
                 receivedAny = true;
                 setState((s) => ({ ...s, isLoading: false, isDone: true }));
+                // 解释完成：自动生成总结 tag（如 TCP → 计算机网络），失败不影响主流程
+                void fetchExtCategoryTag(apiBaseUrl, input, full).then((t) => {
+                  if (t) setState((s) => ({ ...s, tag: t }));
+                });
                 finish();
               } else if (msg?.chunk) {
                 receivedAny = true;
+                full += msg.chunk;
                 setState((s) => ({ ...s, text: s.text + msg.chunk }));
               }
           });

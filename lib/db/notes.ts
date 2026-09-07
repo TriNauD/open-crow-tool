@@ -125,17 +125,42 @@ export async function deleteNote(ctx: NoteDbContext, id: string): Promise<void> 
   if (error) throw error;
 }
 
-export async function searchNotes(ctx: NoteDbContext, query: string): Promise<NoteEntry[]> {
-  const q = query.toLowerCase();
-  const { data, error } = await ctx.db
-    .from('notes')
-    .select('*')
-    .eq('user_id', ctx.userId)
-    .or(`input_text.ilike.%${q}%,explanation.ilike.%${q}%`)
-    .order('saved_at', { ascending: false });
+/** 把用户输入转成字面量 ilike 模式：反斜杠转义自身，% 与 _ 不再当通配符 */
+function escapeIlikePattern(s: string): string {
+  return s.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+}
 
-  if (error) throw error;
-  return (data as DbRow[]).map(rowToEntry);
+export async function searchNotes(ctx: NoteDbContext, query: string): Promise<NoteEntry[]> {
+  const pattern = `%${escapeIlikePattern(query.trim().toLowerCase())}%`;
+
+  // 不用 PostgREST 的 or=()：关键词里的逗号/括号会破坏 or 语法导致 400，
+  // 拆成两条 ilike 查询后在内存按 id 去重合并
+  const [byInput, byExplanation] = await Promise.all([
+    ctx.db
+      .from('notes')
+      .select('*')
+      .eq('user_id', ctx.userId)
+      .ilike('input_text', pattern)
+      .order('saved_at', { ascending: false }),
+    ctx.db
+      .from('notes')
+      .select('*')
+      .eq('user_id', ctx.userId)
+      .ilike('explanation', pattern)
+      .order('saved_at', { ascending: false }),
+  ]);
+
+  if (byInput.error) throw byInput.error;
+  if (byExplanation.error) throw byExplanation.error;
+
+  const merged = new Map<string, DbRow>();
+  for (const row of [...(byInput.data as DbRow[]), ...(byExplanation.data as DbRow[])]) {
+    merged.set(row.id, row);
+  }
+
+  return [...merged.values()]
+    .sort((a, b) => new Date(b.saved_at).getTime() - new Date(a.saved_at).getTime())
+    .map(rowToEntry);
 }
 
 export async function migrateGuestNotes(

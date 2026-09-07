@@ -16,6 +16,7 @@ import {
   primaryCategory,
   type CategoryFilter,
 } from '@/lib/notes/tags';
+import { filterNotesByKeyword } from '@/lib/notes-search';
 
 function formatDate(ts: number): string {
   return new Intl.DateTimeFormat('zh-CN', {
@@ -34,17 +35,8 @@ export default function NotebookPage() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [isPending, startTransition] = useTransition();
 
-  function loadGuestNotes(q?: string): NoteEntry[] {
-    const keyword = q?.trim().toLowerCase() ?? '';
-    const data = getGuestNotes().filter((note) => {
-      if (!keyword) return true;
-      return (
-        note.inputText.toLowerCase().includes(keyword) ||
-        note.explanation.toLowerCase().includes(keyword)
-      );
-    });
-
-    return data.map(
+  function loadGuestNotes(): NoteEntry[] {
+    return getGuestNotes().map(
       (note): NoteEntry => ({
         id: note.clientNoteId,
         user_id: 'guest',
@@ -58,40 +50,39 @@ export default function NotebookPage() {
     );
   }
 
+  // 全量拉取一次（游客读本地），搜索在本地过滤——见 lib/notes-search.ts
   useEffect(() => {
     if (sessionLoading) return;
     let cancelled = false;
 
-    const timer = setTimeout(() => {
-      (async () => {
-        try {
-          const data = accessToken
-            ? await fetchNotes(accessToken, query)
-            : loadGuestNotes(query);
-          if (!cancelled) {
-            setNotes(data);
-          }
-        } catch (err) {
-          console.error(err);
-          if (!cancelled) {
-            setNotes([]);
-          }
+    (async () => {
+      try {
+        const data = accessToken ? await fetchNotes(accessToken) : loadGuestNotes();
+        if (!cancelled) {
+          setNotes(data);
         }
-      })();
-    }, query.trim() ? 300 : 0);
+      } catch (err) {
+        console.error(err);
+        if (!cancelled) {
+          setNotes([]);
+        }
+      }
+    })();
 
     return () => {
       cancelled = true;
-      clearTimeout(timer);
     };
-  }, [query, accessToken, sessionLoading]);
+  }, [accessToken, sessionLoading]);
+
+  // 先按分类筛，再按关键词本地过滤（关键词含特殊字符也安全）
+  const visibleNotes = useMemo(() => {
+    const byCategory = (notes ?? []).filter((n) =>
+      matchesCategoryFilter(n.tags, categoryFilter)
+    );
+    return filterNotesByKeyword(byCategory, query);
+  }, [notes, categoryFilter, query]);
 
   const categories = useMemo(() => collectCategories(notes ?? []), [notes]);
-
-  const visibleNotes = useMemo(() => {
-    const list = notes ?? [];
-    return list.filter((n) => matchesCategoryFilter(n.tags, categoryFilter));
-  }, [notes, categoryFilter]);
 
   function toggleExpand(id: string) {
     setExpanded((prev) => {

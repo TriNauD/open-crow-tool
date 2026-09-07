@@ -1,7 +1,7 @@
 import type { Stream } from 'openai/streaming';
 import type { ChatCompletionChunk } from 'openai/resources/chat/completions';
 import type { ChatCompletionContentPart } from 'openai/resources/chat/completions';
-import OpenAI from 'openai';
+import type OpenAI from 'openai';
 import { corsHeaders, handleOptions } from '@/lib/utils/cors';
 import {
   EFFECTIVE_PROVIDER_HEADER,
@@ -10,7 +10,11 @@ import {
   estimateCostCny,
   getModelForProvider,
   getProviderChain,
+  getProviderTimeoutMs,
+  isProviderTimeoutError,
   parseUserLLMConfig,
+  runProviderChain,
+  withProviderTimeout,
 } from '@/lib/ai/providers';
 import { SYSTEM_PROMPT, buildExplainPrompt } from '@/lib/ai/prompts';
 import { toDataUrl, validateExplainImage } from '@/lib/ai/image-limits';
@@ -33,9 +37,11 @@ const DAILY_BUDGET_CNY = Number(process.env.EXPLAIN_DAILY_BUDGET_CNY ?? 2);
 async function createChatStream(
   client: OpenAI,
   model: string,
-  userContent: UserContent
+  userContent: UserContent,
+  signal: AbortSignal
 ): Promise<Stream<ChatCompletionChunk>> {
-return client.chat.completions.create({
+  return client.chat.completions.create(
+    {
       model,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
@@ -46,7 +52,9 @@ return client.chat.completions.create({
       stream: true,
       // 最后一块带 usage，用于预算按真实 token 结算
       stream_options: { include_usage: true },
-    });
+    },
+    { signal }
+  );
 }
 
 export function OPTIONS() {
@@ -60,7 +68,7 @@ export async function POST(req: Request) {
   }
 
   // 用户自配模型烧用户自己的额度，不参与预算；服务器默认模型走「单日 ¥2/人」预算路由
-  const userCfg = parseUserLLMConfig(req.headers.get(USER_LLM_CONFIG_HEADER));
+  const userCfg = await parseUserLLMConfig(req.headers.get(USER_LLM_CONFIG_HEADER));
   let budgetOk = true;
   let reservedCostCny = 0;
   let premiumModel = '';
@@ -138,31 +146,34 @@ export async function POST(req: Request) {
       return new Response('未配置可用的 AI Provider', { status: 500 });
     }
 
-    let stream: Stream<ChatCompletionChunk> | undefined;
-    let usedProvider = '';
-    let usedModel = '';
-    let lastErr: unknown;
-
-    for (const { name, client, model } of chain) {
-      try {
-        stream = await createChatStream(client, model, userContent);
-        usedProvider = name;
-        usedModel = model;
-        console.log(`[explain] using provider="${name}", model="${model}", hasImage=${hasImage}`);
-        break;
-      } catch (err) {
-        lastErr = err;
-        console.warn(`[explain] provider "${name}" failed, trying next...`, err);
+    // 超时只约束「发起调用到开始返回」；拿到流后不再计时，慢流式不受影响
+    const chainResult = await runProviderChain(
+      chain,
+      ({ client, model }) =>
+        withProviderTimeout(getProviderTimeoutMs(), (signal) =>
+          createChatStream(client, model, userContent, signal)
+        ),
+      (name, err) => {
+        const kind = isProviderTimeoutError(err) ? 'timeout' : 'error';
+        console.warn(`[explain] provider "${name}" ${kind}: ${String(err)}, trying next...`);
       }
-    }
+    ).catch((lastErr: unknown) => ({ error: lastErr }));
 
-    if (!stream) {
+    if ('error' in chainResult) {
       const hint = hasImage
         ? '（截图解释需要支持视觉的模型，请在 .env 将 AI_MODEL 设为 vision 模型，如 gpt-4o）'
         : '';
-      const msg = lastErr instanceof Error ? lastErr.message : String(lastErr ?? 'All AI providers failed');
+      const msg = chainResult.error instanceof Error
+        ? chainResult.error.message
+        : String(chainResult.error ?? 'All AI providers failed');
       return new Response(`AI 炸了：${msg}${hint}`, { status: 500 });
     }
+
+    const stream = chainResult.value;
+    const usedProvider = chainResult.providerName;
+    // runProviderChain 只回 providerName，预算结算还要 model —— 从链里反查
+    const usedModel = chain.find((e) => e.name === usedProvider)?.model ?? '';
+    console.log(`[explain] using provider="${usedProvider}", model="${usedModel}", hasImage=${hasImage}`);
 
     const encoder = new TextEncoder();
     let streamUsage: { promptTokens?: number; completionTokens?: number } | undefined;

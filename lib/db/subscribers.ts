@@ -59,6 +59,18 @@ export async function getActiveSubscribers(): Promise<Subscriber[]> {
   return (data as Subscriber[]) ?? [];
 }
 
+/** 按 token 只读查询订阅者（不改动状态）：供退订确认页展示，预取/误触 GET 不会退订 */
+export async function getSubscriberByToken(token: string): Promise<Subscriber | null> {
+  const { data, error } = await db
+    .from('subscribers')
+    .select('*')
+    .eq('unsubscribe_token', token)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return data as Subscriber;
+}
+
 export async function cancelByToken(token: string): Promise<{ email: string } | null> {
   const { data, error } = await db
     .from('subscribers')

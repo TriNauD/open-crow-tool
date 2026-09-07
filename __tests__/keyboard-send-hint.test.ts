@@ -90,3 +90,20 @@ describe('getKeyboardSendShortcutHintLabel', () => {
     expect(getKeyboardSendShortcutHintLabel()).toBe('');
   });
 });
+
+describe('shouldEnterSendOnDevice（R7：触屏 Enter 换行）', () => {
+  it('触屏（pointer: coarse）不发送——Enter 一律换行，仅按钮发送', async () => {
+    const { shouldEnterSendOnDevice } = await import('@/lib/keyboard-send-hint');
+    expect(shouldEnterSendOnDevice(true)).toBe(false);
+  });
+
+  it('鼠标/精确指针设备 Enter 发送', async () => {
+    const { shouldEnterSendOnDevice } = await import('@/lib/keyboard-send-hint');
+    expect(shouldEnterSendOnDevice(false)).toBe(true);
+  });
+
+  it('isCoarsePointerDevice 在非浏览器环境安全返回 false（SSR/单测）', async () => {
+    const { isCoarsePointerDevice } = await import('@/lib/keyboard-send-hint');
+    expect(isCoarsePointerDevice()).toBe(false);
+  });
+});

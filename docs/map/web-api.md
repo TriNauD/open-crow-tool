@@ -14,6 +14,7 @@
 | 路由文件 | 方法 | 职责 | 要点 |
 |---|---|---|---|
 | `app/api/explain/route.ts` | POST | **核心**：大白话流式解释（`text/plain` ReadableStream 分块，非 SSE） | provider 链与免费回退阶梯（预算结算 `budgetSettle`）；用户自配 LLM 经 `x-crow-llm-config` 头透传（base64url JSON）；`x-crow-provider` 回告实际生效方；免费预算用尽降级时带 `x-crow-quota-out: 1`；prompt 在 `lib/ai/prompts.ts` |
+| `app/api/explain/tag/route.ts` | POST | 总结 tag：入参「被解释内容 + 解释正文」→ 单个中文主题词 | 与 `/api/notes` 一致**不加 Origin 护栏**（扩展需直连），跨站滥用风险低；分类逻辑在 `lib/ai/classify.ts` |
 | `app/api/notes/route.ts` | GET / POST | 笔记列表 / 保存 | Bearer 鉴权；tags 走 `lib/notes/tags.ts`（MVP 单分类 tags[0]） |
 | `app/api/notes/[id]/route.ts` | PATCH / DELETE | 单笔记改 / 删 | PATCH 支持改分类（B-1） |
 | `app/api/notes/migrate-guest/route.ts` | POST | 游客笔记上云迁移 | 接收 localStorage 游客笔记（`lib/guest-notes.ts`）批量写入账号 |

@@ -41,7 +41,7 @@ export default function ExplanationCard({
   depth = 0,
   onSaved,
 }: ExplanationCardProps) {
-  const { text, isLoading, error, isDone, explain, quotaOut } = useStreamExplain();
+  const { text, isLoading, error, isDone, explain, quotaOut, tag, retry } = useStreamExplain();
   const { accessToken } = useAuthSession();
   const [popover, setPopover] = useState<SelectionPopoverState | null>(null);
   const [children, setChildren] = useState<{ id: string; text: string }[]>([]);
@@ -51,6 +51,8 @@ export default function ExplanationCard({
   const [savePending, setSavePending] = useState(false);
   const [followUpOpen, setFollowUpOpen] = useState(false);
   const [followUpText, setFollowUpText] = useState('');
+  const [copied, setCopied] = useState(false);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
 
   const noteInputText = image
@@ -73,6 +75,14 @@ export default function ExplanationCard({
   useEffect(() => {
     explain(inputText, transcriptContext ? { context: transcriptContext, image } : { image });
   }, [inputText, transcriptContext, image, explain]);
+
+  // 清理「已复制」提示的定时器
+  useEffect(
+    () => () => {
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    },
+    []
+  );
 
   // Track text selection inside this card (input text + result area both supported).
   // stopPropagation ensures only the innermost card reacts when cards are nested.
@@ -122,6 +132,19 @@ export default function ExplanationCard({
     setFollowUpOpen(false);
   }, [followUpText]);
 
+  /** 复制完整解释为纯文本；「已复制」提示 2 秒后复原 */
+  const handleCopy = useCallback(async () => {
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+      copyTimerRef.current = setTimeout(() => setCopied(false), 2_000);
+    } catch (err) {
+      console.error('Copy failed', err);
+    }
+  }, [text]);
+
   const normalizedInput = normalizeNoteInput(noteInputText);
 
   // Only check for duplicates on top-level notes (depth === 0, no parent context)
@@ -160,6 +183,8 @@ export default function ExplanationCard({
     if (!text) return;
     setSavePending(true);
     try {
+      // tag 由 useStreamExplain 在解释完成时自动生成；保存时自动带上（退化时为空数组 = 未分类）
+      const tags = tag ? [tag] : [];
       if (accessToken) {
         const existing = await findCloudDuplicate();
         if (existing) {
@@ -171,6 +196,7 @@ export default function ExplanationCard({
           explanation: text,
           parentText: context,
           source: 'web',
+          tags,
         });
         setSavedId(entry.id);
         setSavedMode('cloud');
@@ -188,6 +214,7 @@ export default function ExplanationCard({
           parentText: context,
           source: 'web',
           savedAt: Date.now(),
+          tags,
         });
         setSavedId(clientNoteId);
         setSavedMode('guest');
@@ -199,18 +226,20 @@ export default function ExplanationCard({
       setSavePending(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [text, accessToken, noteInputText, context, onSaved, normalizedInput, shouldCheckDuplicate]);
+  }, [text, accessToken, noteInputText, context, onSaved, normalizedInput, shouldCheckDuplicate, tag]);
 
   const handleKeepBoth = useCallback(async () => {
     if (!text) return;
     setSavePending(true);
     try {
+      const tags = tag ? [tag] : [];
       if (accessToken) {
         const entry = await createNote(accessToken, {
           inputText: noteInputText,
           explanation: text,
           parentText: context,
           source: 'web',
+          tags,
         });
         setSavedId(entry.id);
         setSavedMode('cloud');
@@ -223,6 +252,7 @@ export default function ExplanationCard({
           parentText: context,
           source: 'web',
           savedAt: Date.now(),
+          tags,
         });
         setSavedId(clientNoteId);
         setSavedMode('guest');
@@ -234,18 +264,20 @@ export default function ExplanationCard({
     } finally {
       setSavePending(false);
     }
-  }, [text, accessToken, noteInputText, context, onSaved]);
+  }, [text, accessToken, noteInputText, context, onSaved, tag]);
 
   const handleReplace = useCallback(async () => {
     if (!text || !duplicateNote) return;
     setSavePending(true);
     try {
+      const tags = tag ? [tag] : [];
       if (accessToken) {
         const entry = await replaceNote(accessToken, duplicateNote.id, {
           inputText: noteInputText,
           explanation: text,
           parentText: context,
           source: 'web',
+          tags,
         });
         setSavedId(entry.id);
         setSavedMode('cloud');
@@ -259,6 +291,7 @@ export default function ExplanationCard({
           parentText: context,
           source: 'web',
           savedAt: Date.now(),
+          tags,
         });
         setSavedId(clientNoteId);
         setSavedMode('guest');
@@ -270,7 +303,7 @@ export default function ExplanationCard({
     } finally {
       setSavePending(false);
     }
-  }, [text, accessToken, noteInputText, context, duplicateNote, onSaved]);
+  }, [text, accessToken, noteInputText, context, duplicateNote, onSaved, tag]);
 
   const depthColors = [
     'border-zinc-800 bg-zinc-950',
@@ -318,7 +351,15 @@ export default function ExplanationCard({
         )}
 
         {error && (
-          <p className="text-red-400 text-sm">{error}</p>
+          <div className="flex items-center gap-3">
+            <p className="text-red-400 text-sm">{error}</p>
+            <button
+              onClick={() => retry()}
+              className="text-xs text-zinc-400 hover:text-zinc-200 underline underline-offset-2 transition-colors shrink-0"
+            >
+              重试
+            </button>
+          </div>
         )}
 
         {text && (
@@ -367,6 +408,18 @@ export default function ExplanationCard({
               {savePending ? '检查中...' : '存到笔记本'}
             </button>
           )}
+          {tag && !savedId && (
+            <span className="text-xs text-emerald-400/80 shrink-0" title="保存时自动带上这个分类">
+              🏷 {tag}
+            </span>
+          )}
+          <span className="text-zinc-700 text-xs">·</span>
+          <button
+            onClick={handleCopy}
+            className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors underline underline-offset-2"
+          >
+            {copied ? '已复制' : '复制'}
+          </button>
           <span className="text-zinc-700 text-xs">·</span>
           <button
             onClick={() => setFollowUpOpen((v) => !v)}

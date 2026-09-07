@@ -68,7 +68,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...（仅 JWT 字符串）
 
 - **`apiBaseUrl` + `accessToken`** 来自网站「连接插件」；须与当前测的环境一致。  
 - **换环境**：从 Vercel Preview 换到生产域名（或相反）时，须在 **对应环境的网站** 上 **重新点「连接插件」**，扩展里的 `apiBaseUrl`/token 才会与目标一致。
-- Options 里「打开网站」的 fallback 默认 **`https://dev.crowknows.tech`**（团队 Preview）；若与当前环境不符可改扩展源码常量或仍以 **已连接成功** 时显示的 `apiBaseUrl` 为准。  
+- **站点兜底域统一（2026-08-31）**：`VITE_PUBLIC_SITE_ORIGIN` 不设置时，构建产物默认指向生产域 **`https://www.crowknows.tech`**——覆盖未登录划词解释、扩展内登录默认 apiBaseUrl 与 Options 占位符；本地/团队联调构建在 `chrome-extension/.env` 里显式设 `VITE_PUBLIC_SITE_ORIGIN=https://dev.crowknows.tech`。以 **已连接成功** 时显示的 `apiBaseUrl` 为准。  
 - **CORS**：`/api/explain`、`/api/notes` 已带 `OPTIONS` 与跨域头；若仍失败，先排除 **401（部署保护）** 与 **环境变量错误**。
 
 ---
