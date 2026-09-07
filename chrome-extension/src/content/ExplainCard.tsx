@@ -1,9 +1,19 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo, type ReactNode, type RefObject } from 'react';
 import type { CrowAuth } from '../lib/crow-session';
 import { ensureFreshAuth, loadCrowAuth } from '../lib/crow-session';
 import { useStreamExplain } from './useStreamExplain';
 import { normalizeNoteInput } from './normalize-note-input';
 import CrowLoginForm from '../components/CrowLoginForm';
+import {
+  buildTree,
+  CardTreeProvider,
+  CardTreeRegistration,
+  computeStats,
+  shouldShowIndex,
+  useCardTree,
+  useCardTreeSnapshot,
+} from './card-tree';
+import type { CardTreeTreeNode } from './card-tree';
 
 /** 一轮历史：问题 + 当时的回答 */
 interface FollowUpTurn {
@@ -24,6 +34,10 @@ interface Props {
   context?: string;
   history?: FollowUpTurn[];
   depth?: number;
+  /** 本卡在追问树中的 id（父卡下发；根卡自行生成） */
+  cardId?: string;
+  /** 父卡 id；根卡为空 */
+  parentId?: string | null;
 }
 
 type DuplicateHit = {
@@ -35,6 +49,8 @@ type DuplicateHit = {
 const CARD_W = 360;
 const CARD_H = 320;
 const CARD_MARGIN = 12;
+/** 追问索引浮层宽度（左缘浮层，不挤压卡片） */
+const TREE_PANEL_W = 224;
 
 export default function ExplainCard({
   text,
@@ -49,6 +65,8 @@ export default function ExplainCard({
   context,
   history,
   depth = 0,
+  cardId,
+  parentId,
 }: Props) {
   // ── 基础状态 ──
   const [savedId, setSavedId] = useState<string | null>(null);
@@ -86,6 +104,15 @@ export default function ExplainCard({
   const followBottomRef = useRef(false);
   const childNodesRef = useRef(new Map<string, HTMLDivElement>());
 
+  // ── 追问树形索引：本卡在注册表中的身份与活引用 ──
+  const [selfId] = useState(() => cardId ?? crypto.randomUUID());
+  const indexLayerRef = useRef<HTMLDivElement | null>(null);
+  const getSelfEl = useCallback(() => cardRef.current, []);
+  const expandSelf = useCallback(() => setCollapsed(false), []);
+  // 仅根卡会把这两个传给 CardTreeProvider（jumpTo 用）
+  const stopFollow = useCallback(() => { followBottomRef.current = false; }, []);
+  const getScrollContainer = useCallback(() => bodyRef.current, []);
+
   // ── 滚动箭头状态 ──
   const [canScroll, setCanScroll] = useState(false);
   const [scrollAtTop, setScrollAtTop] = useState(true);
@@ -121,13 +148,16 @@ export default function ExplainCard({
   }, [text, transcriptContext, surroundingText, explain]);
 
   // ═══════════════════════════════════════════
-  //  效果：点击外部关闭（钉住时不关闭）
+  //  效果：点击外部关闭（钉住时不关闭）。
+  //  索引层（把手/浮层）渲染在卡片元素之外，点击它不算外部。
   // ═══════════════════════════════════════════
   useEffect(() => {
     if (pinned) return;
     function onMouseDown(e: MouseEvent) {
       const path = e.composedPath();
-      if (cardRef.current && !path.includes(cardRef.current)) {
+      const insideCard = cardRef.current ? path.includes(cardRef.current) : false;
+      const insideIndex = indexLayerRef.current ? path.includes(indexLayerRef.current) : false;
+      if (!insideCard && !insideIndex) {
         onClose();
       }
     }
@@ -370,10 +400,13 @@ export default function ExplainCard({
 
   // ═══════════════════════════════════════════
   //  渲染
+  //  根卡（depth 0）外包 CardTreeProvider 并附索引层（TreeIndexLayer，
+  //  与卡片同级渲染，避开 .crow-card 的 overflow:hidden 裁剪）；
+  //  子卡只渲染注册器 + 卡片本体。
   // ═══════════════════════════════════════════
   const cardClassName = `crow-card${pinned ? ' pinned' : ''}${collapsed ? ' collapsed' : ''}`;
 
-  return (
+  const cardNode = (
     <div
       ref={cardRef}
       className={cardClassName}
@@ -511,6 +544,8 @@ export default function ExplainCard({
                 { question: text, explanation: explanation ?? '' },
               ]}
               depth={depth + 1}
+              cardId={child.id}
+              parentId={selfId}
             />
           </div>
         ))}
@@ -677,6 +712,137 @@ export default function ExplainCard({
           </button>
         </div>
       )}
+    </div>
+  );
+
+  const registration = (
+    <CardTreeRegistration
+      id={selfId}
+      question={text}
+      parentId={depth === 0 ? null : parentId ?? null}
+      depth={depth}
+      getEl={getSelfEl}
+      expand={expandSelf}
+    />
+  );
+
+  if (depth === 0) {
+    return (
+      <CardTreeProvider stopFollow={stopFollow} getScrollContainer={getScrollContainer}>
+        {registration}
+        {cardNode}
+        <TreeIndexLayer layerRef={indexLayerRef} pos={pos} />
+      </CardTreeProvider>
+    );
+  }
+  return (
+    <>
+      {registration}
+      {cardNode}
+    </>
+  );
+}
+
+/** 追问树形索引层：达到阈值时先显示左缘把手，点开后为浮层树（收起/展开由本组件自持） */
+function TreeIndexLayer({
+  layerRef,
+  pos,
+}: {
+  layerRef: RefObject<HTMLDivElement | null>;
+  pos: { x: number; y: number };
+}) {
+  const tree = useCardTree();
+  const nodes = useCardTreeSnapshot();
+  const [open, setOpen] = useState(false);
+  const stats = useMemo(() => computeStats(nodes), [nodes]);
+  const treeRows = useMemo(() => buildTree(nodes), [nodes]);
+
+  // Esc 收起浮层：捕获阶段监听并 stopPropagation，抢先于 App 的 document 冒泡监听（后者会关整卡）
+  useEffect(() => {
+    if (!open) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== 'Escape') return;
+      e.stopPropagation();
+      setOpen(false);
+    }
+    document.addEventListener('keydown', onKey, true);
+    return () => document.removeEventListener('keydown', onKey, true);
+  }, [open]);
+
+  if (!tree || !shouldShowIndex(stats)) return null;
+
+  // 把手贴卡片左缘（右锚定，免去猜宽度）；卡片贴屏幕左缘时改为压在卡上，绝不越出视口
+  const innerWidth = window.innerWidth;
+  const handleRight = Math.min(innerWidth - pos.x + 2, innerWidth - 68);
+  // 浮层在卡片左侧，越界时 clamp；maxHeight 随 top 收缩，保证不出视口下缘
+  const panelLeft = Math.max(8, pos.x - TREE_PANEL_W - 10);
+  const panelTop = Math.max(8, pos.y - 40);
+
+  function renderTreeNodes(nodes: CardTreeTreeNode[], level: number): ReactNode {
+    return nodes.map((n) => (
+      <div key={n.id}>
+        <button
+          className="crow-tree-node"
+          style={{ paddingLeft: 8 + level * 14 }}
+          onClick={(e) => {
+            e.stopPropagation();
+            tree.jumpTo(n.id);
+          }}
+          title={n.question}
+          type="button"
+        >
+          <span className="crow-tree-node-text">{n.question}</span>
+        </button>
+        {n.children.length > 0 && renderTreeNodes(n.children, level + 1)}
+      </div>
+    ));
+  }
+
+  if (!open) {
+    return (
+      <div ref={layerRef} className="crow-index-layer">
+        <button
+          className="crow-tree-handle"
+          style={{ right: handleRight, top: pos.y + 64 }}
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpen(true);
+          }}
+          title="展开追问目录"
+          type="button"
+        >
+          ◀ 目录
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div ref={layerRef} className="crow-index-layer">
+      <div
+        className="crow-tree-panel"
+        style={{
+          left: panelLeft,
+          top: panelTop,
+          maxHeight: `calc(100vh - ${panelTop + 8}px)`,
+        }}
+      >
+        <div className="crow-tree-panel-header">
+          <span>追问目录</span>
+          <button
+            className="crow-tree-panel-close"
+            onClick={(e) => {
+              e.stopPropagation();
+              setOpen(false);
+            }}
+            title="收起目录"
+            type="button"
+          >
+            ×
+          </button>
+        </div>
+        <div className="crow-tree-panel-body">{renderTreeNodes(treeRows, 0)}</div>
+      </div>
     </div>
   );
 }

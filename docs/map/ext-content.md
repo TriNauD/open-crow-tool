@@ -11,7 +11,8 @@
 | `chrome-extension/src/content/FloatingButton.tsx` | 划词后浮标按钮，**双模式定位**（判据见下条）：`anchored` 优先（`position:absolute` 挂进**选区所在的滚动容器**，页面级场景退化为挂 body + 文档坐标，滚动期零 JS 干预）/ `fixed` 回退（rAF 循环 + scroll 同步双路每帧跟随）；两种模式都用 ref 直写 DOM 的 `transform:translate`（亚像素对齐，零 React 重渲染＝零抖动）；`data-crow-fab` 让避让检测排除自身，避免自遮挡导致的上下横跳 |
 | `chrome-extension/src/content/floating-anchor.ts` | 浮标定位纯逻辑（Vitest 直测，无 jsdom）：`resolveAnchorMode()` 判能否 DOM 锚定 + 选锚定宿主、`anchorCoords()` 视口坐标转宿主坐标系（页面级叠窗口滚动量 / 容器级用宿主内容区局部坐标）、`isClippedByHost()` 按可见面积占比判气泡是否被宿主裁掉（阈值 `CLIP_VISIBLE_RATIO`） |
 | `chrome-extension/src/content/floating-placement.ts` | 浮标避让纯逻辑：宿主页 top-layer 弹层（ChatGPT 气泡等）压不住 z-index，检测选区上/下哪侧空旷来落位；`isOwnUi()` 必须认亮 DOM 的 `button[data-crow-fab]`，否则浮标会判定「自己挡住自己」 |
-| `chrome-extension/src/content/ExplainCard.tsx` | 解释卡：流式渲染、保存笔记（查重）、内嵌登录入口、追问子卡片（递归 `depth`；图钉/拖拽仅主卡有效，子卡片无图钉但可折叠自身——折叠徽章对所有子卡常显；折叠仅手动；出子卡片后父卡 body 自动跟随滚到底，向上滚即停） |
+| `chrome-extension/src/content/ExplainCard.tsx` | 解释卡：流式渲染、保存笔记（查重）、内嵌登录入口、追问子卡片（递归 `depth`；图钉/拖拽仅主卡有效，子卡片无图钉但可折叠自身——折叠徽章对所有子卡常显；折叠仅手动；出子卡片后父卡 body 自动跟随滚到底，向上滚即停）、追问树形索引（根卡挂 `CardTreeProvider`，见 `card-tree.tsx`） |
+| `chrome-extension/src/content/card-tree.tsx` | 追问树注册表（`dev/active/追问树形索引`）：Context 只放稳定 API（register/unregister/jumpTo/subscribe），快照走 `useSyncExternalStore`（`useCardTreeSnapshot`）；纯逻辑 `shouldShowIndex`/`buildTree`/`collectAncestors` 被根目录 Vitest 直测 |
 | `chrome-extension/src/content/useStreamExplain.ts` | 扩展版流式 explain（Web 版 `hooks/useStreamExplain.ts` 的平行实现） |
 | `chrome-extension/src/content/normalize-note-input.ts` | 查重规范化（Web 版 `lib/notes/normalize-input.ts` 平行实现） |
 | `chrome-extension/src/content/surrounding-text.ts` | 选区前后文截取（B-2，各 ≤120 字符，中间【…】占位；失败静默降级） |
@@ -39,10 +40,12 @@
 - **动态变换（虚拟滚动 / transform 模拟滚动）靠运行时自检降级，不靠挂载时一刀切**：静止期低频比较「气泡−文字的相对偏移 gap」与「文字的**文档纵坐标** textDocY」。**判据是文字自己有没有挪窝**——`textDocY` 也变了是 reflow（图片懒加载撑开高度 / 折叠展开），重新落位即可、基准跟着更新；`textDocY` 没变而 gap 漂了，才是气泡没跟着文字走 → 降级 `fixed`。**绝不能按漂移大小判定**：x.com 滚动时懒加载图片能把文字顶下几百像素，按大小判会把正常 reflow 全误杀成脱钩。降级单向（anchored → fixed，不反向），逻辑在 `FloatingButton.tsx` 的 `verify()`。
 - 回退的 `fixed` 模式仍是 **rAF（兜底 transform 模拟滚动）＋ scroll 同步（优化真实滚动）双路**：大量 SPA / AI 对话站用 transform 或容器滚动模拟滚动、根本不派发 `window` 的 `scroll` 事件，纯 scroll 监听会完全失效、气泡冻结，必须靠每帧 rAF 兜底。
 - **不要加 `will-change: transform`**：它把气泡推上独立合成层，而选区文字在主文档层，两者连续滚动时亚像素栅格对齐差出零点几像素 → 反而**制造**「气泡相对文字轻微上下晃」。不强制合成层时两者同层、栅格化节奏一致，更稳。
+- 树形索引层（把手/浮层）渲染在 `.crow-card` **元素之外**（卡片兄弟节点）——卡片 `overflow: hidden` 会裁剪内部负偏移浮层，别挪回去；也因此外点关闭判定要额外检查 `indexLayerRef`，Esc 收起浮层用 document 捕获监听 + `stopPropagation` 抢在 App 的整卡关闭之前。
+- `card-tree.tsx` 的注册表读快照必须走 `useCardTreeSnapshot`（useSyncExternalStore）；Context value 是稳定身份，渲染期读写 ref 或把不稳定引用塞进注册 effect 依赖，会触发 react-hooks/refs 报错或「重渲染→反复注册」循环。
 
 ## 相关测试 / E2E
 
-- 单测：`__tests__/normalize-note-input.test.ts`、`__tests__/floating-anchor.test.ts`（定位模式判定分支；Vitest 跑在 node 环境，用最小 DOM 桩驱动）
+- 单测：`__tests__/normalize-note-input.test.ts`、`__tests__/floating-anchor.test.ts`（定位模式判定分支；Vitest 跑在 node 环境，用最小 DOM 桩驱动）、`__tests__/card-tree.test.ts`（树注册表纯逻辑）
 - E2E：`e2e/extension-crow-bridge.spec.ts` + `e2e/extension-fixtures.ts`（跑前先构建扩展，见 `npm run test:e2e:ext`）。**EXT-11 / 12 / 13 是浮标定位的回归闸门**：
   - **EXT-11** 断言平滑滚动期间浮标 style **零写入**——谁把坐标写回「滚动中更新」，这条就红（根治合成器相位差的硬证据；先用 `position==='absolute'` 自证跑在锚定模式，排除「回退了却恰好零写入」的假阳性）。
   - **EXT-12** 断言脱钩自动降级：只挪气泡不挪文字 → 必须降到 `fixed`。
