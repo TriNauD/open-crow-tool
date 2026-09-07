@@ -42,7 +42,7 @@ export async function classifyCategory(input: ClassifyInput): Promise<string | n
   const inputText = input.inputText?.trim();
   if (!inputText) return null;
 
-  const userCfg = parseUserLLMConfig(input.userLlmConfigHeader ?? null);
+  const userCfg = await parseUserLLMConfig(input.userLlmConfigHeader ?? null);
   const chain = getProviderChain(userCfg, { hasImage: false, budgetOk: true });
   if (chain.length === 0) return null;
 
