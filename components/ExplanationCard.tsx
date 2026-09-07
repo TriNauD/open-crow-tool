@@ -41,7 +41,7 @@ export default function ExplanationCard({
   depth = 0,
   onSaved,
 }: ExplanationCardProps) {
-  const { text, isLoading, error, isDone, explain, quotaOut } = useStreamExplain();
+  const { text, isLoading, error, isDone, explain, quotaOut, tag } = useStreamExplain();
   const { accessToken } = useAuthSession();
   const [popover, setPopover] = useState<SelectionPopoverState | null>(null);
   const [children, setChildren] = useState<{ id: string; text: string }[]>([]);
@@ -160,6 +160,8 @@ export default function ExplanationCard({
     if (!text) return;
     setSavePending(true);
     try {
+      // tag 由 useStreamExplain 在解释完成时自动生成；保存时自动带上（退化时为空数组 = 未分类）
+      const tags = tag ? [tag] : [];
       if (accessToken) {
         const existing = await findCloudDuplicate();
         if (existing) {
@@ -171,6 +173,7 @@ export default function ExplanationCard({
           explanation: text,
           parentText: context,
           source: 'web',
+          tags,
         });
         setSavedId(entry.id);
         setSavedMode('cloud');
@@ -188,6 +191,7 @@ export default function ExplanationCard({
           parentText: context,
           source: 'web',
           savedAt: Date.now(),
+          tags,
         });
         setSavedId(clientNoteId);
         setSavedMode('guest');
@@ -199,18 +203,20 @@ export default function ExplanationCard({
       setSavePending(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [text, accessToken, noteInputText, context, onSaved, normalizedInput, shouldCheckDuplicate]);
+  }, [text, accessToken, noteInputText, context, onSaved, normalizedInput, shouldCheckDuplicate, tag]);
 
   const handleKeepBoth = useCallback(async () => {
     if (!text) return;
     setSavePending(true);
     try {
+      const tags = tag ? [tag] : [];
       if (accessToken) {
         const entry = await createNote(accessToken, {
           inputText: noteInputText,
           explanation: text,
           parentText: context,
           source: 'web',
+          tags,
         });
         setSavedId(entry.id);
         setSavedMode('cloud');
@@ -223,6 +229,7 @@ export default function ExplanationCard({
           parentText: context,
           source: 'web',
           savedAt: Date.now(),
+          tags,
         });
         setSavedId(clientNoteId);
         setSavedMode('guest');
@@ -234,18 +241,20 @@ export default function ExplanationCard({
     } finally {
       setSavePending(false);
     }
-  }, [text, accessToken, noteInputText, context, onSaved]);
+  }, [text, accessToken, noteInputText, context, onSaved, tag]);
 
   const handleReplace = useCallback(async () => {
     if (!text || !duplicateNote) return;
     setSavePending(true);
     try {
+      const tags = tag ? [tag] : [];
       if (accessToken) {
         const entry = await replaceNote(accessToken, duplicateNote.id, {
           inputText: noteInputText,
           explanation: text,
           parentText: context,
           source: 'web',
+          tags,
         });
         setSavedId(entry.id);
         setSavedMode('cloud');
@@ -259,6 +268,7 @@ export default function ExplanationCard({
           parentText: context,
           source: 'web',
           savedAt: Date.now(),
+          tags,
         });
         setSavedId(clientNoteId);
         setSavedMode('guest');
@@ -270,7 +280,7 @@ export default function ExplanationCard({
     } finally {
       setSavePending(false);
     }
-  }, [text, accessToken, noteInputText, context, duplicateNote, onSaved]);
+  }, [text, accessToken, noteInputText, context, duplicateNote, onSaved, tag]);
 
   const depthColors = [
     'border-zinc-800 bg-zinc-950',
@@ -366,6 +376,11 @@ export default function ExplanationCard({
             >
               {savePending ? '检查中...' : '存到笔记本'}
             </button>
+          )}
+          {tag && !savedId && (
+            <span className="text-xs text-emerald-400/80 shrink-0" title="保存时自动带上这个分类">
+              🏷 {tag}
+            </span>
           )}
           <span className="text-zinc-700 text-xs">·</span>
           <button
