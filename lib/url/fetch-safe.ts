@@ -82,7 +82,11 @@ export function assertSafeHttpUrl(raw: string): URL {
   return url;
 }
 
-async function assertHostResolvesPublic(hostname: string): Promise<void> {
+/**
+ * DNS 解析级校验：域名必须解析为公网 IP（防「公网域名解析到内网 IP」绕过
+ * assertSafeHttpUrl 的字符串级检查）。IP 字面量直接判断；解析失败视为不通过。
+ */
+export async function assertHostResolvesPublic(hostname: string): Promise<void> {
   if (net.isIP(hostname)) {
     if (isPrivateOrReservedIp(hostname)) {
       throw new FetchSafeError('SSRF_BLOCKED', 'private ip blocked');

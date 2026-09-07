@@ -1,4 +1,7 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const dnsLookupMock = vi.hoisted(() => vi.fn());
+vi.mock('node:dns/promises', () => ({ default: { lookup: dnsLookupMock } }));
 import {
   USER_LLM_CONFIG_HEADER,
   getProviderChain,
@@ -23,38 +26,73 @@ const ENV_KEYS = ['AI_PROVIDER', 'AI_API_KEY', 'AI_BASE_URL', 'AI_MODEL'] as con
 let savedEnv: Record<string, string | undefined> = {};
 
 describe('parseUserLLMConfig（X-Crow-LLM-Config 解析与校验）', () => {
-  it('合法 https 配置可解析，去尾部斜杠', () => {
-    const parsed = parseUserLLMConfig(encodeCfg({ ...VALID_CFG, baseURL: 'https://api.deepseek.com/v1/' }));
+  beforeEach(() => {
+    dnsLookupMock.mockReset().mockResolvedValue([{ address: '93.184.216.34', family: 4 }]);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('合法 https 配置可解析，去尾部斜杠', async () => {
+    const parsed = await parseUserLLMConfig(encodeCfg({ ...VALID_CFG, baseURL: 'https://api.deepseek.com/v1/' }));
     expect(parsed).toEqual(VALID_CFG);
   });
 
-  it('空值 / 乱码 / 非对象 JSON 返回 null', () => {
-    expect(parseUserLLMConfig(null)).toBeNull();
-    expect(parseUserLLMConfig('')).toBeNull();
-    expect(parseUserLLMConfig('not-base64!!')).toBeNull();
-    expect(parseUserLLMConfig(encodeCfg('just a string'))).toBeNull();
-    expect(parseUserLLMConfig(encodeCfg({ baseURL: 'https://x.com/v1' }))).toBeNull();
+  it('空值 / 乱码 / 非对象 JSON 返回 null', async () => {
+    expect(await parseUserLLMConfig(null)).toBeNull();
+    expect(await parseUserLLMConfig('')).toBeNull();
+    expect(await parseUserLLMConfig('not-base64!!')).toBeNull();
+    expect(await parseUserLLMConfig(encodeCfg('just a string'))).toBeNull();
+    expect(await parseUserLLMConfig(encodeCfg({ baseURL: 'https://x.com/v1' }))).toBeNull();
   });
 
-  it('超长字段返回 null', () => {
+  it('超长字段返回 null', async () => {
     const long = { ...VALID_CFG, apiKey: 'k'.repeat(300) };
-    expect(parseUserLLMConfig(encodeCfg(long))).toBeNull();
+    expect(await parseUserLLMConfig(encodeCfg(long))).toBeNull();
   });
 
-  it('http（非本机）返回 null', () => {
-    const parsed = parseUserLLMConfig(encodeCfg({ ...VALID_CFG, baseURL: 'http://api.deepseek.com/v1' }));
+  it('http（非本机）返回 null', async () => {
+    const parsed = await parseUserLLMConfig(encodeCfg({ ...VALID_CFG, baseURL: 'http://api.deepseek.com/v1' }));
     expect(parsed).toBeNull();
   });
 
-  it('https 私网 / localhost 地址返回 null（SSRF 拦截）', () => {
-    expect(parseUserLLMConfig(encodeCfg({ ...VALID_CFG, baseURL: 'https://127.0.0.1/v1' }))).toBeNull();
-    expect(parseUserLLMConfig(encodeCfg({ ...VALID_CFG, baseURL: 'https://192.168.1.10/v1' }))).toBeNull();
-    expect(parseUserLLMConfig(encodeCfg({ ...VALID_CFG, baseURL: 'https://localhost/v1' }))).toBeNull();
+  it('https 私网 / localhost 地址返回 null（SSRF 拦截）', async () => {
+    expect(await parseUserLLMConfig(encodeCfg({ ...VALID_CFG, baseURL: 'https://127.0.0.1/v1' }))).toBeNull();
+    expect(await parseUserLLMConfig(encodeCfg({ ...VALID_CFG, baseURL: 'https://192.168.1.10/v1' }))).toBeNull();
+    expect(await parseUserLLMConfig(encodeCfg({ ...VALID_CFG, baseURL: 'https://localhost/v1' }))).toBeNull();
   });
 
-  it('开发环境放行 http://localhost（本地自托管联调）', () => {
-    const parsed = parseUserLLMConfig(encodeCfg({ ...VALID_CFG, baseURL: 'http://localhost:11434/v1' }));
+  it('公网域名解析到私网 IP 返回 null（DNS 级 SSRF 拦截）', async () => {
+    dnsLookupMock.mockResolvedValue([{ address: '10.0.0.5', family: 4 }]);
+    expect(
+      await parseUserLLMConfig(encodeCfg({ ...VALID_CFG, baseURL: 'https://api.deepseek.com/v1' }))
+    ).toBeNull();
+    expect(dnsLookupMock).toHaveBeenCalledWith('api.deepseek.com', { all: true, verbatim: true });
+  });
+
+  it('多解析记录中任一为私网/保留 IP 即拒绝', async () => {
+    dnsLookupMock.mockResolvedValue([
+      { address: '93.184.216.34', family: 4 },
+      { address: 'fd00::1', family: 6 },
+    ]);
+    expect(
+      await parseUserLLMConfig(encodeCfg({ ...VALID_CFG, baseURL: 'https://api.deepseek.com/v1' }))
+    ).toBeNull();
+  });
+
+  it('DNS 查询失败视为不通过', async () => {
+    dnsLookupMock.mockRejectedValue(new Error('ENOTFOUND'));
+    expect(
+      await parseUserLLMConfig(encodeCfg({ ...VALID_CFG, baseURL: 'https://api.deepseek.com/v1' }))
+    ).toBeNull();
+  });
+
+  it('开发环境放行 http://localhost（本地自托管联调），且不做 DNS 解析', async () => {
+    dnsLookupMock.mockRejectedValue(new Error('should not be called'));
+    const parsed = await parseUserLLMConfig(encodeCfg({ ...VALID_CFG, baseURL: 'http://localhost:11434/v1' }));
     expect(parsed?.baseURL).toBe('http://localhost:11434/v1');
+    expect(dnsLookupMock).not.toHaveBeenCalled();
   });
 });
 
@@ -74,14 +112,14 @@ describe('getProviderChain（用户配置优先 + 失败回退 env 链）', () =
     }
   });
 
-  it('无用户配置时行为不变：仅 env 有 key 的 provider 入链', () => {
+  it('无用户配置时行为不变：仅 env 有 key 的 provider 入链', async () => {
     process.env.AI_PROVIDER = 'siliconflow';
     process.env.AI_API_KEY = 'env-key';
     const chain = getProviderChain(null);
     expect(chain.map((p) => p.name)).toEqual(['siliconflow']);
   });
 
-  it('有用户配置时 custom 排最前，env 链兜底在后', () => {
+  it('有用户配置时 custom 排最前，env 链兜底在后', async () => {
     process.env.AI_PROVIDER = 'siliconflow';
     process.env.AI_API_KEY = 'env-key';
     const chain = getProviderChain(VALID_CFG);
@@ -90,7 +128,7 @@ describe('getProviderChain（用户配置优先 + 失败回退 env 链）', () =
     expect(chain[0].client.baseURL).toContain('api.deepseek.com');
   });
 
-  it('env 全空时只有 custom 可用；无用户配置且 env 全空则链为空', () => {
+  it('env 全空时只有 custom 可用；无用户配置且 env 全空则链为空', async () => {
     expect(getProviderChain(VALID_CFG).map((p) => p.name)).toEqual(['custom']);
     expect(getProviderChain(null)).toEqual([]);
   });

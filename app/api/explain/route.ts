@@ -68,7 +68,7 @@ export async function POST(req: Request) {
   }
 
   // 用户自配模型烧用户自己的额度，不参与预算；服务器默认模型走「单日 ¥2/人」预算路由
-  const userCfg = parseUserLLMConfig(req.headers.get(USER_LLM_CONFIG_HEADER));
+  const userCfg = await parseUserLLMConfig(req.headers.get(USER_LLM_CONFIG_HEADER));
   let budgetOk = true;
   let reservedCostCny = 0;
   let premiumModel = '';
