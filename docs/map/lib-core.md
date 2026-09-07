@@ -7,6 +7,7 @@
 | `lib/ai/providers.ts` | **provider 链**：多厂商路由与免费回退阶梯（siliconflow，单日 ¥2 预算）、用户自配 LLM 头 `x-crow-llm-config` 编解码与校验、`x-crow-provider`、成本估算 `MODEL_PRICING_CNY_PER_M` |
 | `lib/ai/prompts.ts` | 解释 prompt 模板：大白话风格、划词上下文（B-2 `surroundingText`）、名词消歧规则（C-1 `DISAMBIGUATION_RULES`） |
 | `lib/ai/image-limits.ts` | 截图上传限制（mime 白名单 / 尺寸），配合 vision 多模态 |
+| `lib/ai/classify.ts` | **总结 tag 分类器**：把「被解释的词 + 解释正文」归总成 2~6 字中文主题词（划 TCP → 计算机网络）；复用 provider 链，`max_tokens` 极小 / temperature 0，成本可忽略；`normalizeTag()` 去引号与编号并按 `MAX_TAG_LENGTH` 截断 |
 
 ## 数据访问（`lib/db/` + `db/migrations/`）
 
@@ -28,12 +29,14 @@
 | `lib/user-llm-config.ts` | 用户自配 LLM 的 localStorage 存储与请求头编码（扩展版是平行实现） |
 | `lib/email.ts` | 邮件发送：Resend 优先、SMTP（Gmail / Outlook）兜底；周报模板与分级（夯 / 顶级 / 人上人 / NPC / 拉完了）、运维通知 |
 | `lib/github-trending.ts` | cheerio 抓 GitHub Trending（周报数据源） |
+| `lib/trending-cache.ts` | Trending「上次成功结果」缓存（R15）：抓取失败 / 列表为空时降级发周报并在运维邮件标 `degraded`；存 Upstash Redis（与限流共用配置），未配置或读写失败 fail-open |
 | `lib/guest-notes.ts` | 游客笔记 localStorage（`crow_guest_notes_v1`）读写与清理 |
 | `lib/api/notes-client.ts` | 笔记 API 客户端封装（Bearer 头、统一错误解析） |
 | `lib/supabase/browser.ts` | 浏览器端 Supabase 单例（anon key） |
 | `lib/auth/email-confirm-redirect.ts` | 注册确认邮件回跳 URL（`EMAIL_CONFIRM_LANDING_PATH=/notebook`） |
 | `lib/client/compress-image.ts` | 截图客户端压缩（1280 边长 / JPEG 0.82） |
 | `lib/notes/normalize-input.ts` | 查重规范化：trim + lower + 折叠空白 |
+| `lib/notes-search.ts` | 笔记关键词过滤（登录用户与游客共用）：笔记本已全量拉取，搜索直接前端本地过滤，绕开后端 `.or()` 拼接被 `%` `_` 逗号打出 400 的问题 |
 | `lib/notes/tags.ts` | 分类校验 / 规范化（MVP 单分类 tags[0]，≤32 字） |
 | `lib/config/notebook.ts` | 多用户开关 `NOTEBOOK_MULTI_USER_ENABLED`（紧急回滚） |
 | `lib/observability/notebook.ts` | 结构化日志指标（scope=notebook_multi_user） |
