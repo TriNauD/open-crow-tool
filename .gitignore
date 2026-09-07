@@ -13,7 +13,9 @@
 # testing
 /coverage
 /playwright-report/
-/test-results/
+# 通配：Playwright 默认输出 test-results/，跑 E2E 时常用 --output=test-results-xxx
+# 换目录绕过沙箱对 test-results/ 的批量清理限制，故一并忽略
+/test-results*/
 
 # next.js
 /.next/
