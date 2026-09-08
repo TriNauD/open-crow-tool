@@ -31,6 +31,8 @@ interface Props {
   onConnectPlugin?: () => void;
   onSessionUpdate?: (next: CrowAuth) => void;
   onClose: () => void;
+  /** 子卡片点击 × 时由父卡调用，从父卡 children 中移除自己 */
+  onRemove?: (id: string) => void;
   context?: string;
   history?: FollowUpTurn[];
   depth?: number;
@@ -62,6 +64,7 @@ export default function ExplainCard({
   onConnectPlugin,
   onSessionUpdate,
   onClose,
+  onRemove,
   context,
   history,
   depth = 0,
@@ -449,7 +452,11 @@ export default function ExplainCard({
               {pinned ? '📍' : '📌'}
             </button>
           )}
-          <button className="crow-close" onClick={onClose} title="关闭 (Esc)">
+          <button
+            className="crow-close"
+            onClick={() => (depth > 0 && onRemove ? onRemove(selfId) : onClose())}
+            title={depth > 0 ? '删除此卡片' : '关闭 (Esc)'}
+          >
             ×
           </button>
         </div>
@@ -538,6 +545,7 @@ export default function ExplainCard({
               onConnectPlugin={onConnectPlugin}
               onSessionUpdate={onSessionUpdate}
               onClose={() => {}}
+              onRemove={(id) => setChildren((prev) => prev.filter((c) => c.id !== id))}
               context={explanation}
               history={[
                 ...(history ?? []),
@@ -682,8 +690,12 @@ export default function ExplainCard({
           >
             {followUpOpen ? '收起追问' : '追问'}
           </button>
-          <span className="crow-sep">·</span>
-          <span className="crow-hint">Esc 关闭</span>
+          {depth === 0 && (
+            <>
+              <span className="crow-sep">·</span>
+              <span className="crow-hint">Esc 关闭</span>
+            </>
+          )}
         </div>
       )}
 
