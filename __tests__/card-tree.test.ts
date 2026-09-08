@@ -3,6 +3,7 @@ import {
   buildTree,
   collectAncestors,
   computeStats,
+  flattenTree,
   shouldShowIndex,
   type CardTreeNodeData,
 } from '@/chrome-extension/src/content/card-tree';
@@ -86,5 +87,198 @@ describe('computeStats', () => {
       totalCards: 3,
       maxDepth: 2,
     });
+  });
+});
+
+describe('flattenTree（整树拍快照，BFS 序）', () => {
+  function mapExpls(entries: Array<[string, string]>): Map<string, string> {
+    return new Map(entries);
+  }
+
+  it('空树：返回空数组', () => {
+    const items = flattenTree([], mapExpls([]), '', 'cid-root');
+    expect(items).toEqual([]);
+  });
+
+  it('单层根 + 2 子：根 parentText=null，子卡 parentText=根 explanation', () => {
+    const nodes = [node('root', null, 0), node('a', 'root', 1), node('b', 'root', 1)];
+    const items = flattenTree(
+      nodes,
+      mapExpls([
+        ['a', 'a-expl'],
+        ['b', 'b-expl'],
+      ]),
+      'root-expl',
+      'cid-root'
+    );
+    expect(items.map((i) => i.cardId)).toEqual(['root', 'a', 'b']);
+    expect(items[0].depth).toBe(0);
+    expect(items[0].parentCardId).toBeNull();
+    expect(items[0].parentText).toBeNull();
+    expect(items[0].explanation).toBe('root-expl');
+    expect(items[0].clientNoteId).toBe('cid-root');
+    expect(items[1].parentCardId).toBe('root');
+    expect(items[1].parentText).toBe('root-expl');
+    expect(items[1].depth).toBe(1);
+    expect(items[2].parentCardId).toBe('root');
+    expect(items[2].parentText).toBe('root-expl');
+    expect(items[2].explanation).toBe('b-expl');
+  });
+
+  it('多层（根 → 子 → 孙）：BFS 序保证父子前后关系正确，孙的 parentText=子的 explanation', () => {
+    const nodes = [
+      node('root', null, 0),
+      node('a', 'root', 1),
+      node('a1', 'a', 2),
+      node('b', 'root', 1),
+    ];
+    const items = flattenTree(
+      nodes,
+      mapExpls([
+        ['a', 'a-expl'],
+        ['a1', 'a1-expl'],
+        ['b', 'b-expl'],
+      ]),
+      'root-expl',
+      'cid-root'
+    );
+    expect(items.map((i) => i.cardId)).toEqual(['root', 'a', 'b', 'a1']);
+    expect(items[3].cardId).toBe('a1');
+    expect(items[3].parentCardId).toBe('a');
+    expect(items[3].parentText).toBe('a-expl');
+    expect(items[3].depth).toBe(2);
+  });
+
+  it('BFS 顺序：根先、同层按注册序', () => {
+    // 子先注册的乱序也正确（buildTree 内部按 parentId 归位）
+    const nodes = [
+      node('b', 'root', 1),
+      node('a', 'root', 1),
+      node('root', null, 0),
+    ];
+    const items = flattenTree(
+      nodes,
+      mapExpls([
+        ['a', 'A'],
+        ['b', 'B'],
+      ]),
+      'ROOT',
+      'cid-root'
+    );
+    expect(items.map((i) => i.cardId)).toEqual(['root', 'b', 'a']);
+    expect(items[1].text).toBe('Q-b');
+    expect(items[2].text).toBe('Q-a');
+  });
+
+  // ─── 边界用例（QA 补充）───
+
+  it('边界1：4 层嵌套（根→子→孙→曾孙）depth 链路正确', () => {
+    const nodes = [
+      node('root', null, 0),
+      node('a', 'root', 1),
+      node('a1', 'a', 2),
+      node('a1x', 'a1', 3),
+    ];
+    const items = flattenTree(
+      nodes,
+      mapExpls([
+        ['a', 'a-expl'],
+        ['a1', 'a1-expl'],
+        ['a1x', 'a1x-expl'],
+      ]),
+      'root-expl',
+      'cid-root'
+    );
+    expect(items.map((i) => i.cardId)).toEqual(['root', 'a', 'a1', 'a1x']);
+    expect(items[3].depth).toBe(3);
+    expect(items[3].parentCardId).toBe('a1');
+    // 父 explanation 沿链路下传：曾孙的 parentText = 孙的 explanation
+    expect(items[3].parentText).toBe('a1-expl');
+  });
+
+  it('边界2：同一节点重复注册（seen 防重）→ 只产出 1 条', () => {
+    const nodes = [
+      node('root', null, 0),
+      node('a', 'root', 1),
+      // 同一节点在 nodes 里重复一次（防御性：React 渲染周期里偶发重复）
+      node('a', 'root', 1),
+    ];
+    const items = flattenTree(
+      nodes,
+      mapExpls([['a', 'a-expl']]),
+      'root-expl',
+      'cid-root'
+    );
+    expect(items.map((i) => i.cardId)).toEqual(['root', 'a']);
+    expect(items.length).toBe(2);
+  });
+
+  it('边界3：rootExplanation 为空字符串（防御性 + 不崩）', () => {
+    const nodes = [node('root', null, 0), node('a', 'root', 1)];
+    const items = flattenTree(
+      nodes,
+      mapExpls([['a', 'a-expl']]),
+      '', // 空字符串根 explanation
+      'cid-root'
+    );
+    expect(items[0].explanation).toBe('');
+    expect(items[1].parentText).toBe(''); // 子卡 parentText = ''（不是 null）
+    expect(items[0].parentText).toBeNull();
+  });
+
+  it('边界4：explanations Map 缺 key → 默认空串 + 不崩', () => {
+    const nodes = [
+      node('root', null, 0),
+      node('a', 'root', 1),
+      node('b', 'root', 1),
+    ];
+    // Map 故意不包含 'b'（注册表丢了某张卡的最 explanation）
+    const items = flattenTree(
+      nodes,
+      mapExpls([['a', 'a-expl']]), // 只 a 有 explanation
+      'root-expl',
+      'cid-root'
+    );
+    expect(items.length).toBe(3);
+    expect(items[0].explanation).toBe('root-expl');
+    expect(items[1].explanation).toBe('a-expl');
+    expect(items[2].explanation).toBe(''); // 缺 key 时默认 ''
+    expect(items[2].parentText).toBe('root-expl'); // 父 explanation 正常
+  });
+
+  it('边界5：整树共享 clientNoteId 一致性（每条 item 的 clientNoteId == 根 uuid）', () => {
+    const nodes = [
+      node('root', null, 0),
+      node('a', 'root', 1),
+      node('a1', 'a', 2),
+      node('b', 'root', 1),
+    ];
+    const rootUuid = '550e8400-e29b-41d4-a716-446655440000';
+    const items = flattenTree(
+      nodes,
+      mapExpls([
+        ['a', 'A'],
+        ['a1', 'A1'],
+        ['b', 'B'],
+      ]),
+      'R',
+      rootUuid
+    );
+    // 整树所有 item（含孙）共用根 uuid——便于「更新」按 clientNoteId 反查覆盖
+    for (const item of items) {
+      expect(item.clientNoteId).toBe(rootUuid);
+    }
+    expect(items.length).toBe(4);
+  });
+
+  it('边界6：children 为空数组（仅根，无追问）→ items 仅含根', () => {
+    const nodes = [node('root', null, 0)];
+    const items = flattenTree(nodes, mapExpls([]), 'only-root-expl', 'cid-root');
+    expect(items).toHaveLength(1);
+    expect(items[0].cardId).toBe('root');
+    expect(items[0].parentCardId).toBeNull();
+    expect(items[0].parentText).toBeNull();
+    expect(items[0].depth).toBe(0);
+    expect(items[0].text).toBe('Q-root');
   });
 });

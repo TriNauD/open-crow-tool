@@ -31,6 +31,12 @@ export interface CardNodeRecord {
   getEl: () => HTMLElement | null;
   /** 解除该卡自身折叠（body 的 collapsed state） */
   expand: () => void;
+  /**
+   * 当前 explanation 的 getter（ref 持锁，避免 React 闭包陈旧——见 architecture W1）。
+   * 异步保存（POST 循环）期间 React state 可能再变，POST 体必须读最新值而非点保存瞬间的快照。
+   * 调用方应通过 useRef 持锁：每次渲染 `ref.current = explanation`，getter 闭包读 ref。
+   */
+  getExplanation: () => string;
 }
 
 /** 扁平节点快照（构建树形索引用，无 DOM 引用） */
@@ -101,6 +107,94 @@ export function computeStats(nodes: CardTreeNodeData[]): CardTreeStats {
   let maxDepth = 0;
   for (const n of nodes) if (n.depth > maxDepth) maxDepth = n.depth;
   return { totalCards: nodes.length, maxDepth };
+}
+
+/**
+ * 整树保存用的不可变快照条目（BFS 序：根在前，同层按注册序，子卡按兄弟序递归）。
+ *
+ * 异步保存（POST 循环）期间 React state 可能再变；拍快照的语义是「保存发起瞬间的整张表」——
+ * `explanations` Map 持有每张卡的「拍下瞬间的 explanation」字符串快照，循环里用快照源。
+ *
+ * 父卡 explanation 用于 `parentText` 入参（API 要求 parentText 是父卡当时 explanation 的快照）；
+ * 根卡的 `parentText` 为 null（根没有父）。
+ */
+export interface TreeSnapshotItem {
+  cardId: string;
+  text: string;
+  explanation: string;
+  parentCardId: string | null;
+  depth: number;
+  /** 根用一次性 uuid，整树所有 note（含孙卡）共用——便于「更新」按 clientNoteId 反查覆盖 */
+  clientNoteId: string;
+  parentText: string | null;
+}
+
+export interface TreeSnapshot {
+  rootId: string;
+  items: TreeSnapshotItem[];
+  capturedAt: number;
+}
+
+/**
+ * 把注册表快照拍成 BFS 序的 TreeSnapshotItem[]。
+ *
+ * - `nodes`：注册表扁平快照（用 `useCardTreeSnapshot()` 读取）
+ * - `explanations`：cardId → 该卡拍快照瞬间的 explanation（ref 持锁读最新值）
+ * - `rootExplanation`：根的 explanation（与 explanations[rootId] 等价，但解耦更清楚）
+ *
+ * BFS 序保证：父卡的 TreeSnapshotItem 必先于其子卡——POST 循环只需维护一个
+ * `cardIdToNoteId: Map<string, string>`，按 items 顺序遍历即可保证子卡能拿到 parentNoteId。
+ */
+export function flattenTree(
+  nodes: CardTreeNodeData[],
+  explanations: Map<string, string>,
+  rootExplanation: string,
+  clientNoteId: string
+): TreeSnapshotItem[] {
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const rootId = findRootId(nodes);
+  const items: TreeSnapshotItem[] = [];
+  const seen = new Set<string>();
+
+  // BFS 用队列；用 buildTree 把 nodes 还原成树形结构更省事（保留注册序）
+  const roots = buildTree(nodes);
+  const queue: CardTreeTreeNode[] = [...roots];
+
+  while (queue.length > 0) {
+    const n = queue.shift()!;
+    if (seen.has(n.id)) continue;
+    seen.add(n.id);
+
+    const explanation = n.id === rootId ? rootExplanation : explanations.get(n.id) ?? '';
+    const parentNode = n.parentId ? byId.get(n.parentId) : null;
+    // 父的 explanation：优先从 explanations Map 读；缺则用 rootExplanation（兼容未把根入 map 的调用方）
+    const parentText = parentNode
+      ? parentNode.id === rootId
+        ? rootExplanation
+        : explanations.get(parentNode.id) ?? ''
+      : null;
+
+    items.push({
+      cardId: n.id,
+      text: n.question,
+      explanation,
+      parentCardId: n.parentId,
+      depth: n.depth,
+      clientNoteId,
+      parentText,
+    });
+
+    // 子卡按注册序入队（buildTree 已按注册序排好兄弟）
+    for (const child of n.children) queue.push(child);
+  }
+
+  return items;
+}
+
+/** 找到根卡 id（parentId 为 null 的节点；通常只有一个；多根时取第一个） */
+function findRootId(nodes: CardTreeNodeData[]): string | null {
+  for (const n of nodes) if (n.parentId === null) return n.id;
+  return null;
 }
 
 interface CardTreeContextValue {
@@ -248,15 +342,30 @@ interface RegistrationProps {
   depth: number;
   getEl: () => HTMLElement | null;
   expand: () => void;
+  /**
+   * 整树保存用（ref 持锁）。W1：不进 effect 依赖，避免 React state 变更触发重注册风暴；
+   * 只在挂载/卸载之间调一次 `tree.register(...)`，注册后取的是 ref getter（永远读最新值）。
+   */
+  getExplanation: () => string;
 }
 
 /** 每张卡渲染一个（渲染 null）：挂载注册、卸载注销。tree 身份稳定，effect 只跑一次 */
-export function CardTreeRegistration({ id, question, parentId, depth, getEl, expand }: RegistrationProps) {
+export function CardTreeRegistration({
+  id,
+  question,
+  parentId,
+  depth,
+  getEl,
+  expand,
+  getExplanation,
+}: RegistrationProps) {
   const tree = useCardTree();
   useEffect(() => {
     if (!tree) return;
-    tree.register({ id, question, parentId, depth, getEl, expand });
+    tree.register({ id, question, parentId, depth, getEl, expand, getExplanation });
     return () => tree.unregister(id);
+    // getExplanation 是 ref-getter（持锁），W1：故意不入依赖；入则每帧重注册。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tree, id, question, parentId, depth, getEl, expand]);
   return null;
 }

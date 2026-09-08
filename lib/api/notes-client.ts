@@ -31,6 +31,8 @@ export async function createNote(
   payload: {
     inputText: string;
     explanation: string;
+    /** 追问整树保存：父 note 的 id（无父=根，缺省 undefined） */
+    parentId?: string;
     parentText?: string;
     source?: 'web' | 'chrome_extension';
     clientNoteId?: string;
