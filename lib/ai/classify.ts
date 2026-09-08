@@ -1,4 +1,10 @@
-import { getProviderChain, parseUserLLMConfig, USER_LLM_CONFIG_HEADER } from './providers';
+import {
+  getProviderChain,
+  getProviderTimeoutMs,
+  parseUserLLMConfig,
+  USER_LLM_CONFIG_HEADER,
+  withProviderTimeout,
+} from './providers';
 import { MAX_TAG_LENGTH } from '@/lib/notes/tags';
 
 /**
@@ -16,6 +22,13 @@ const CLASSIFY_SYSTEM = `你是一个内容分类器。用户会给你一个"被
 - 如果用户问的具体术语明显属于上述某类，就直接用该类名；跨类或拿不准时，用最贴近的一个，
   必要时可自创一个不超过 6 字的中文短词（如「天文」「医学」「金融」）。
 - 只输出分类词本身，不要引号、不要标点、不要序号、不要解释，不要换行。`;
+
+/**
+ * 分类调用的独立超时上限（毫秒）。
+ * 输出只要 16 token，比通用 AI 调用短得多；不单独收敛的话，
+ * 3 家 provider 各挂满一次就能把 Vercel 函数的 maxDuration 吃穿。
+ */
+export const CLASSIFY_TIMEOUT_MS = 8_000;
 
 export interface ClassifyInput {
   inputText: string;
@@ -51,18 +64,25 @@ export async function classifyCategory(input: ClassifyInput): Promise<string | n
     explanation ? `对应的解释：${explanation}\n` : ''
   }\n请输出主题分类：`;
 
+  // 与 /api/explain 一致：超时即 abort 并切下一家，否则「挂起 provider」会让 fallback 链形同虚设
+  const timeoutMs = Math.min(getProviderTimeoutMs(), CLASSIFY_TIMEOUT_MS);
   for (const { client, model } of chain) {
     try {
-      const res = await client.chat.completions.create({
-        model,
-        messages: [
-          { role: 'system', content: CLASSIFY_SYSTEM },
-          { role: 'user', content: userContent },
-        ],
-        max_tokens: 16,
-        temperature: 0,
-        stream: false,
-      });
+      const res = await withProviderTimeout(timeoutMs, (signal) =>
+        client.chat.completions.create(
+          {
+            model,
+            messages: [
+              { role: 'system', content: CLASSIFY_SYSTEM },
+              { role: 'user', content: userContent },
+            ],
+            max_tokens: 16,
+            temperature: 0,
+            stream: false,
+          },
+          { signal }
+        )
+      );
       const raw = res.choices?.[0]?.message?.content ?? '';
       const tag = normalizeTag(raw);
       if (tag) return tag;

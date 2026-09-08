@@ -103,9 +103,6 @@ export function useStreamExplain(apiBaseUrl: string) {
       const userLlmHeader = userCfg ? encodeUserLlmConfigHeader(userCfg) : '';
 
       try {
-        const port = chrome.runtime.connect({ name: 'crow-explain-proxy' });
-        portRef.current = port;
-
         const headers: Record<string, string> = {
           'Content-Type': 'application/json',
           ...(userLlmHeader ? { [CROW_USER_LLM_HEADER]: userLlmHeader } : {}),
