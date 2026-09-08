@@ -24,7 +24,7 @@
 |---|---|
 | `lib/utils/cors.ts` | **CORS 统一头**：`*` origin；预检头含 Authorization / x-crow-llm-config；Expose `x-crow-provider` |
 | `lib/utils/auth.ts` | Bearer → `getRequestUser`（扩展 / 网页共用鉴权通道） |
-| `lib/request-guard.ts` | 按 IP 固定窗口限流（Upstash 可选、内存 fail-open 兜底）+ Origin 校验 |
+| `lib/request-guard.ts` | 按 IP 固定窗口限流（Upstash 可选、内存 fail-open 兜底）+ Origin 校验 + **单日预算** `budgetDecide`/`budgetReserve`/`budgetSettle`（`/api/explain` 用它取代限流，耗尽降级免费模型而非拒绝） |
 | `lib/url/fetch-safe.ts` | **SSRF 防护**：DNS 解析校验私网、超时 5s（`FETCH_TIMEOUT_MS`）、512KB、3 跳重定向、12k 字符截断 |
 | `lib/user-llm-config.ts` | 用户自配 LLM 的 localStorage 存储与请求头编码（扩展版是平行实现） |
 | `lib/email.ts` | 邮件发送：Resend 优先、SMTP（Gmail / Outlook）兜底；周报模板与分级（夯 / 顶级 / 人上人 / NPC / 拉完了）、运维通知 |

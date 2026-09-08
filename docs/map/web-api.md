@@ -6,7 +6,8 @@
 
 - 每个路由都导出 `OPTIONS` 返回 204 + CORS 头（`lib/utils/cors.ts`）；新增请求头要同步 `Access-Control-Allow-Headers`。
 - 鉴权：`lib/utils/auth.ts` 的 `getRequestUser(req)` 解 Bearer JWT（notes 系列路由使用；explain 公开、周报走 cron 调度）。
-- 限流/Origin 校验工具：`lib/request-guard.ts`（Upstash 可选，内存兜底 fail-open），目前 `app/api/explain/route.ts` 与 `app/api/fetch-url/route.ts` 在用。
+- 限流/Origin 校验工具：`lib/request-guard.ts`（Upstash 可选，内存兜底 fail-open），目前只有 `app/api/fetch-url/route.ts`（20 次/小时）与 `app/api/explain/tag/route.ts`（20 次/分钟）在用。
+- ⚠️ `app/api/explain/route.ts` **没有**按 IP 限流：537f0f0 起改成「单日免费预算 + 耗尽降级免费模型」（`budgetDecide`/`budgetReserve`/`budgetSettle`，默认 ¥2 / IP / 天，`EXPLAIN_DAILY_BUDGET_CNY`）。预算耗尽**不拒绝请求**，只回 `x-crow-quota-out: 1`，前端显示「今日免费额度已用完」。`.env.local.example` 早期留下的 `RATE_LIMIT_EXPLAIN_PER_HOUR` 是废变量，改它不生效。
 - 错误响应统一 `{ error: string }` JSON；explain 兜底为纯文本 `AI 炸了：…`。
 
 ## 路由清单
@@ -14,7 +15,7 @@
 | 路由文件 | 方法 | 职责 | 要点 |
 |---|---|---|---|
 | `app/api/explain/route.ts` | POST | **核心**：大白话流式解释（`text/plain` ReadableStream 分块，非 SSE） | provider 链与免费回退阶梯（预算结算 `budgetSettle`）；用户自配 LLM 经 `x-crow-llm-config` 头透传（base64url JSON）；`x-crow-provider` 回告实际生效方；免费预算用尽降级时带 `x-crow-quota-out: 1`；prompt 在 `lib/ai/prompts.ts` |
-| `app/api/explain/tag/route.ts` | POST | 总结 tag：入参「被解释内容 + 解释正文」→ 单个中文主题词 | 与 `/api/notes` 一致**不加 Origin 护栏**（扩展需直连），跨站滥用风险低；分类逻辑在 `lib/ai/classify.ts` |
+| `app/api/explain/tag/route.ts` | POST | 总结 tag：入参「被解释内容 + 解释正文」→ 单个中文主题词 | 与 `/api/notes` 一致**不加 Origin 护栏**（扩展需直连）；每次请求都真实调一次 AI，故按 IP 限流 20 次/分钟（`RATE_LIMIT_EXPLAIN_TAG_PER_MIN`），超限 429 且不进 provider 链；分类逻辑在 `lib/ai/classify.ts`（带 `withProviderTimeout` 超时切链） |
 | `app/api/notes/route.ts` | GET / POST | 笔记列表 / 保存 | Bearer 鉴权；tags 走 `lib/notes/tags.ts`（MVP 单分类 tags[0]） |
 | `app/api/notes/[id]/route.ts` | PATCH / DELETE | 单笔记改 / 删 | PATCH 支持改分类（B-1） |
 | `app/api/notes/migrate-guest/route.ts` | POST | 游客笔记上云迁移 | 接收 localStorage 游客笔记（`lib/guest-notes.ts`）批量写入账号 |

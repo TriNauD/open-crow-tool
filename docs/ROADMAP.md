@@ -32,6 +32,7 @@
   - 动作：文本上限 **16k 字符**（覆盖 `fetch-url` 12k 截断后的合成正文）；按 IP 限流，Vercel serverless 上用共享存储（如 Upstash Redis，约 20 次/分钟/IP），无共享存储时先落内存版并注明局限。
   - 涉及：`app/api/explain/route.ts`、新增 `lib/api/rate-limit.ts`、`__tests__`。
   - 验收：超长输入返回 4xx 且文案友好；同 IP 超频返回 429；正常链接解释（约 12k 正文）不受影响；Vitest 覆盖边界。
+  - **现状补充（2026-09-08）**：`/api/explain` 的按 IP 限流在 537f0f0 被替换为「单日 ¥2 / IP 免费预算，耗尽降级免费模型」（`lib/request-guard.ts` 的 budget 三件套），**不再返回 429**；`.env.local.example` 里 `RATE_LIMIT_EXPLAIN_PER_HOUR` 为残留废变量。仍按 IP 限流的只有 `fetch-url`（20/小时）与 `explain/tag`（20/分钟）。
 - **R2 provider 链加超时**
   - 问题：`client.chat.completions.create` 用 SDK 默认超时（约 10 分钟），主通道「挂起而非报错」时用户一直转圈，fallback 链形同虚设。
   - 动作：每次调用加 15～20s 超时（AbortSignal/SDK timeout），超时即切下一 provider；`weekly-digest` 同步处理（注意 60s 总预算）。
