@@ -43,6 +43,9 @@ Desktop.ini
 # Zcode local (session plans)
 .zcode/
 
+# WorkBuddy agent local (memory/skills data, not for repo; never commit)
+.workbuddy/
+
 # Editor local settings (personal, not for repo)
 # To share recommended extensions, un-ignore .vscode/extensions.json
 .vscode/
