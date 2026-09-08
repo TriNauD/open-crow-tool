@@ -68,3 +68,6 @@ next-env.d.ts
 
 # personal notes (local only — do not commit). 对外简明用户说明见 docs/notes/
 /notes/
+
+# WorkBuddy agent local (memory/skills data, not for repo; never commit)
+.workbuddy/
