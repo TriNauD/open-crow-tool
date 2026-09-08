@@ -690,12 +690,6 @@ export default function ExplainCard({
           >
             {followUpOpen ? '收起追问' : '追问'}
           </button>
-          {depth === 0 && (
-            <>
-              <span className="crow-sep">·</span>
-              <span className="crow-hint">Esc 关闭</span>
-            </>
-          )}
         </div>
       )}
 
