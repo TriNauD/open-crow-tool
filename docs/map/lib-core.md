@@ -30,8 +30,8 @@
 | `lib/email.ts` | 邮件发送：Resend 优先、SMTP（Gmail / Outlook）兜底；周报模板与分级（夯 / 顶级 / 人上人 / NPC / 拉完了）、运维通知 |
 | `lib/github-trending.ts` | cheerio 抓 GitHub Trending（周报数据源） |
 | `lib/trending-cache.ts` | Trending「上次成功结果」缓存（R15）：抓取失败 / 列表为空时降级发周报并在运维邮件标 `degraded`；存 Upstash Redis（与限流共用配置），未配置或读写失败 fail-open |
-| `lib/guest-notes.ts` | 游客笔记 localStorage（`crow_guest_notes_v1`）读写与清理 |
-| `lib/api/notes-client.ts` | 笔记 API 客户端封装（Bearer 头、统一错误解析） |
+| `lib/guest-notes.ts` | 游客笔记 localStorage（`crow_guest_notes_v1`）读写与清理；**追问整树保存**：`GuestNote.parentId?` + 批量 `saveGuestNotes`（整树拍下瞬间批量写）+ `removeGuestNotes`（级联删用）+ `updateGuestNotesTags`（整组 PATCH 用） |
+| `lib/api/notes-client.ts` | 笔记 API 客户端封装（Bearer 头、统一错误解析）；`createNote` 入参 `parentId?`（追问整树保存：父 note 的 id） |
 | `lib/supabase/browser.ts` | 浏览器端 Supabase 单例（anon key） |
 | `lib/auth/email-confirm-redirect.ts` | 注册确认邮件回跳 URL（`EMAIL_CONFIRM_LANDING_PATH=/notebook`） |
 | `lib/client/compress-image.ts` | 截图客户端压缩（1280 边长 / JPEG 0.82） |

@@ -9,9 +9,11 @@ import {
   CardTreeProvider,
   CardTreeRegistration,
   computeStats,
+  flattenTree,
   shouldShowIndex,
   useCardTree,
   useCardTreeSnapshot,
+  type TreeSnapshotItem,
 } from './card-tree';
 import type { CardTreeTreeNode } from './card-tree';
 
@@ -20,6 +22,26 @@ interface FollowUpTurn {
   question: string;
   explanation: string;
 }
+
+/**
+ * 追问整树保存用的上下文，由根卡创建，子卡通过 props 读取 + 写入。
+ * 整棵追问树所有 note 共用一个 rootClientNoteId（DB 唯一索引宽容多 note 同 clientNoteId）；
+ * 子卡「只存本条」独立 UUID 不进这棵树。
+ */
+export interface ParentSaveContext {
+  /** 根一次性 UUID，整树所有 note 共用——便于「更新」按 clientNoteId 反查覆盖 */
+  rootClientNoteId: string;
+  /** 子卡在整树循环里的保存状态：'saved' / 'failed' / 'parent-failed' */
+  childStatuses: Record<string, ChildTreeSaveStatus>;
+  /** 触发整树循环里某条子卡单独重试（不重整树）；仅根用 */
+  onRetryChild: (cardId: string) => void;
+}
+
+export type ChildTreeSaveStatus =
+  | { kind: 'idle' }
+  | { kind: 'saving' }
+  | { kind: 'saved'; noteId: string }
+  | { kind: 'failed'; error: string };
 
 interface Props {
   text: string;
@@ -33,13 +55,17 @@ interface Props {
   onClose: () => void;
   /** 子卡片点击 × 时由父卡调用，从父卡 children 中移除自己 */
   onRemove?: (id: string) => void;
-  context?: string;
   history?: FollowUpTurn[];
   depth?: number;
   /** 本卡在追问树中的 id（父卡下发；根卡自行生成） */
   cardId?: string;
   /** 父卡 id；根卡为空 */
   parentId?: string | null;
+  /** 追问整树保存的上下文（仅根卡 → 子卡传递）。根卡为 undefined。 */
+  parentSaveContext?: ParentSaveContext;
+  /** 根→子：子卡 mount 时把「自己的 explanation 持锁 getter」注册给根——根拍快照用。 */
+  registerExplanationGetter?: (cardId: string, getter: () => string) => void;
+  unregisterExplanationGetter?: (cardId: string) => void;
 }
 
 type DuplicateHit = {
@@ -47,6 +73,15 @@ type DuplicateHit = {
   inputText: string;
   explanation: string;
 };
+
+/**
+ * 「已存」状态的总览：
+ * - 'unsaved'：尚未保存 / 失败清空态
+ * - 'saving'：正在循环 POST
+ * - 'saved'：整树全部成功
+ * - 'partial'：整树部分成功，footer 提示 + 失败子卡标红
+ */
+type TreeSaveStatus = 'unsaved' | 'saving' | 'saved' | 'partial';
 
 const CARD_W = 360;
 const CARD_H = 320;
@@ -65,11 +100,13 @@ export default function ExplainCard({
   onSessionUpdate,
   onClose,
   onRemove,
-  context,
   history,
   depth = 0,
   cardId,
   parentId,
+  parentSaveContext,
+  registerExplanationGetter,
+  unregisterExplanationGetter,
 }: Props) {
   // ── 基础状态 ──
   const [savedId, setSavedId] = useState<string | null>(null);
@@ -120,6 +157,66 @@ export default function ExplainCard({
   const [canScroll, setCanScroll] = useState(false);
   const [scrollAtTop, setScrollAtTop] = useState(true);
   const [scrollAtBottom, setScrollAtBottom] = useState(false);
+
+  // ═══════════════════════════════════════════
+  //  追问整树保存（W1：ref 持锁避免 React state 闭包陈旧）
+  //  - explanationRef 在每次渲染同步当前 explanation，flattenTree 通过 getter 读最新值；
+  //  - 注册表 effect 不依赖 getExplanation，避免每帧重注册。
+  //  - ref 同步放在 useEffect（不在渲染期直接写 ref——eslint react-hooks/refs）
+  // ═══════════════════════════════════════════
+  const explanationRef = useRef<string>(explanation ?? '');
+  useEffect(() => {
+    explanationRef.current = explanation ?? '';
+  }, [explanation]);
+
+  // 把自己的 ref 暴露给父（仅子卡 depth>0 且有 register props）
+  useEffect(() => {
+    if (depth > 0 && registerExplanationGetter && unregisterExplanationGetter) {
+      registerExplanationGetter(selfId, () => explanationRef.current);
+      return () => unregisterExplanationGetter(selfId);
+    }
+  }, [depth, selfId, registerExplanationGetter, unregisterExplanationGetter]);
+
+  // ── 整树 clientNoteId：根一次性生成，整树共用（rootClientNoteId）；子卡单存走自己独立 UUID ──
+  const [rootClientNoteId] = useState(() => crypto.randomUUID());
+
+  // ── 整树保存循环的状态 ──
+  const [treeStatus, setTreeStatus] = useState<TreeSaveStatus>('unsaved');
+  const [treeSaveStats, setTreeSaveStats] = useState<{ savedCount: number; totalCount: number }>({
+    savedCount: 0,
+    totalCount: 0,
+  });
+  /** 整树循环里每张子卡的保存状态（按 cardId 索引；根自己不在表里） */
+  const [childStatuses, setChildStatuses] = useState<Record<string, ChildTreeSaveStatus>>({});
+
+  // ── 子卡 explanation getter 注册表（仅根用）：map<cardId, ()=>string> ──
+  const childExplanationGettersRef = useRef<Map<string, () => string>>(new Map());
+  const registerChildExplanationGetter = useCallback((cardId: string, getter: () => string) => {
+    childExplanationGettersRef.current.set(cardId, getter);
+  }, []);
+  const unregisterChildExplanationGetter = useCallback((cardId: string) => {
+    childExplanationGettersRef.current.delete(cardId);
+  }, []);
+
+  /** Provider 内的注册表扁平快照——根整树保存的 snapshot 来源 */
+  const liveNodes = useCardTreeSnapshot();
+
+  // ── 子卡视角的 parentSaveContext：把根的整树状态透给子卡 footer ──
+  // 根自创建并下发给每个子 ExplainCard；子卡的「整树」按钮不会触发（depth>0 走单存）。
+  const parentSaveContextValue = useMemo<ParentSaveContext | undefined>(() => {
+    if (depth !== 0) return undefined; // 子卡不创建 context（它读父下发的）
+    return {
+      rootClientNoteId,
+      childStatuses,
+      onRetryChild: (cardId: string) => {
+        setChildStatuses((prev) => {
+          const cur = prev[cardId];
+          if (!cur || cur.kind !== 'failed') return prev;
+          return { ...prev, [cardId]: { kind: 'saving' } };
+        });
+      },
+    };
+  }, [depth, rootClientNoteId, childStatuses]);
 
   const notebookUrl = `${config.apiBaseUrl.replace(/\/+$/, '')}/notebook`;
 
@@ -252,7 +349,7 @@ export default function ExplainCard({
   }, []);
 
   // ═══════════════════════════════════════════
-  //  保存相关逻辑（不变）
+  //  保存相关逻辑（追问整树保存 + 子卡单存 + 更新整树）
   // ═══════════════════════════════════════════
   async function resolveAuth(): Promise<{ token: string; baseUrl: string } | null> {
     const preHint = await loadCrowAuth();
@@ -282,14 +379,6 @@ export default function ExplainCard({
     return hit ? { id: hit.id, inputText: hit.inputText, explanation: hit.explanation } : null;
   }
 
-  async function postNote(baseUrl: string, token: string, tags?: string[]): Promise<Response> {
-    return fetch(`${baseUrl}/api/notes`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ inputText: text, explanation, source: 'chrome_extension', tags: tags ?? [] }),
-    });
-  }
-
   async function deleteNote(baseUrl: string, token: string, id: string): Promise<boolean> {
     const res = await fetch(`${baseUrl}/api/notes/${id}`, {
       method: 'DELETE',
@@ -298,40 +387,250 @@ export default function ExplainCard({
     return res.ok;
   }
 
-  async function saveWithToken(
+  /**
+   * 整树循环专用：把 item POST 出去——带 parentNoteId（账号版用 server id）
+   * 401/403 自动 ensureFreshAuth 换票重试一次（与 handleSave 一致）。
+   */
+  async function postItemWithParent(
     baseUrl: string,
     token: string,
-    mode: 'create' | 'replace',
-    oldId?: string
-  ): Promise<boolean> {
+    item: TreeSnapshotItem,
+    parentNoteId: string | undefined,
+    tags: string[]
+  ): Promise<{ ok: true; noteId: string } | { ok: false; error: string }> {
     let workingToken = token;
-    if (mode === 'replace' && oldId) {
-      const deleted = await deleteNote(baseUrl, workingToken, oldId);
-      if (!deleted) {
-        const after = await ensureFreshAuth(await loadCrowAuth(), { force: true });
-        if (!after?.accessToken) { setSaveError('expired'); return false; }
-        onSessionUpdate?.(after);
-        workingToken = after.accessToken;
-        if (!(await deleteNote(baseUrl, workingToken, oldId))) { setSaveError('generic'); return false; }
-      }
-    }
-    // tag 由 useStreamExplain 在解释完成时自动生成；保存时自动带上（退化时为空数组 = 未分类）
-    const tags = tag ? [tag] : [];
-    let res = await postNote(baseUrl, workingToken, tags);
+    const body = {
+      inputText: item.text,
+      explanation: item.explanation,
+      source: 'chrome_extension' as const,
+      tags,
+      clientNoteId: item.clientNoteId,
+      parentId: parentNoteId,
+      parentText: item.parentText ?? undefined,
+    };
+    let res = await fetch(`${baseUrl}/api/notes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${workingToken}` },
+      body: JSON.stringify(body),
+    });
     if (res.status === 401 || res.status === 403) {
       const after = await ensureFreshAuth(await loadCrowAuth(), { force: true });
-      if (!after?.accessToken) { setSaveError('expired'); return false; }
+      if (!after?.accessToken) return { ok: false, error: 'auth-expired' };
       onSessionUpdate?.(after);
-      res = await postNote(baseUrl, after.accessToken, tags);
+      workingToken = after.accessToken;
+      res = await fetch(`${baseUrl}/api/notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${workingToken}` },
+        body: JSON.stringify(body),
+      });
     }
-    if (res.ok) {
-      const data = await res.json();
-      setSavedId(data.data?.id ?? 'saved');
+    if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
+    const data = (await res.json()) as { data?: { id: string } };
+    const id = data.data?.id;
+    if (!id) return { ok: false, error: 'no-id-in-response' };
+    return { ok: true, noteId: id };
+  }
+
+  /**
+   * 根整树保存（W3：父失败 → 子整链失败；W8：允许部分成功）。
+   * 步骤：拍快照 → BFS 序 POST，缺 parentNoteId 标 parent-failed。
+   */
+  async function runTreeSave(
+    baseUrl: string,
+    token: string,
+    snapshot: TreeSnapshotItem[],
+    tags: string[]
+  ): Promise<{
+    cardIdToNoteId: Map<string, string>;
+    failedIds: Set<string>;
+  }> {
+    const cardIdToNoteId = new Map<string, string>();
+    const failedIds = new Set<string>();
+    for (const item of snapshot) {
+      const parentNoteId = item.parentCardId ? cardIdToNoteId.get(item.parentCardId) : undefined;
+      if (item.parentCardId && !parentNoteId) {
+        // 父失败（W3）→ 子链整链失败，不再重试
+        failedIds.add(item.cardId);
+        continue;
+      }
+      const result = await postItemWithParent(baseUrl, token, item, parentNoteId, tags);
+      if (result.ok) {
+        cardIdToNoteId.set(item.cardId, result.noteId);
+      } else {
+        failedIds.add(item.cardId);
+        if (result.error === 'auth-expired') setSaveError('expired');
+      }
+    }
+    return { cardIdToNoteId, failedIds };
+  }
+
+  /**
+   * 拍快照（W7：拍下后 children state 变化不污染已发起 POST）。
+   * 注册表快照 + 每个子卡的 ref-getter → flattenTree 拍出 BFS 序 items。
+   */
+  function captureTreeSnapshot(): TreeSnapshotItem[] {
+    const explanations = new Map<string, string>();
+    for (const [id, get] of childExplanationGettersRef.current) {
+      explanations.set(id, get());
+    }
+    return flattenTree(liveNodes, explanations, explanationRef.current, rootClientNoteId);
+  }
+
+  /**
+   * 整树保存主入口（W3+W7+W8）。仅根调用。
+   * 查重：先单查根命中；若命中 → 弹窗走 handleReplaceTree；否则 → 拍快照 + runTreeSave。
+   */
+  async function handleSaveTree() {
+    if (depth !== 0) return;
+    if (!hasExplainReady) return;
+    if (treeStatus === 'saving') return;
+    setSaveError(null);
+    setIsSaving(true);
+    setTreeStatus('saving');
+    try {
+      const auth = await resolveAuth();
+      if (!auth) {
+        setIsSaving(false);
+        setTreeStatus('unsaved');
+        return;
+      }
+      const dup = await findDuplicate(auth.baseUrl, auth.token);
+      if (dup) {
+        setDuplicate(dup);
+        setIsSaving(false);
+        setTreeStatus('unsaved');
+        return;
+      }
+
+      const snapshot = captureTreeSnapshot();
+      if (snapshot.length === 0) {
+        setIsSaving(false);
+        setTreeStatus('unsaved');
+        return;
+      }
+
+      const tags = tag ? [tag] : [];
+      const { cardIdToNoteId, failedIds } = await runTreeSave(auth.baseUrl, auth.token, snapshot, tags);
+
+      // 更新 childStatuses
+      const newStatuses: Record<string, ChildTreeSaveStatus> = {};
+      for (const item of snapshot) {
+        if (item.cardId === selfId) continue;
+        const noteId = cardIdToNoteId.get(item.cardId);
+        newStatuses[item.cardId] = noteId
+          ? { kind: 'saved', noteId }
+          : { kind: 'failed', error: 'http-error-or-parent-failed' };
+      }
+      setChildStatuses(newStatuses);
+
+      const rootNoteId = cardIdToNoteId.get(selfId);
+      const savedCount = cardIdToNoteId.size;
+      const totalCount = snapshot.length;
+      setTreeSaveStats({ savedCount, totalCount });
+
+      if (failedIds.size === 0 && rootNoteId) {
+        setTreeStatus('saved');
+        setSavedId(rootNoteId);
+        setDuplicate(null);
+      } else if (savedCount > 0) {
+        setTreeStatus('partial');
+        setSavedId(null);
+      } else {
+        setTreeStatus('unsaved');
+        setSaveError('generic');
+      }
+    } catch (e) {
+      console.error('[saveTree]', e);
+      setSaveError('generic');
+      setTreeStatus('unsaved');
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  /**
+   * 「更新到笔记本」按钮：GET /api/notes 全量 → 按 rootClientNoteId 过滤 → 循环 DELETE → 整树重存
+   */
+  async function handleUpdateTree() {
+    if (depth !== 0) return;
+    if (!hasExplainReady) return;
+    if (treeStatus === 'saving') return;
+    setSaveError(null);
+    setIsSaving(true);
+    try {
+      const auth = await resolveAuth();
+      if (!auth) {
+        setIsSaving(false);
+        return;
+      }
+      // GET 全量
+      const listRes = await fetch(`${auth.baseUrl}/api/notes`, {
+        headers: { Authorization: `Bearer ${auth.token}` },
+      });
+      if (!listRes.ok) {
+        setSaveError('generic');
+        setIsSaving(false);
+        return;
+      }
+      const body = (await listRes.json()) as {
+        data?: Array<{ id: string; clientNoteId?: string }>;
+      };
+      const oldIds = (body.data ?? [])
+        .filter((n) => n.clientNoteId === rootClientNoteId)
+        .map((n) => n.id);
+      // 先删旧（删除失败不阻塞——决策：DELETE 失败时继续）
+      for (const id of oldIds) await deleteNote(auth.baseUrl, auth.token, id).catch(() => undefined);
+      // 重存：复用 runTreeSave
+      setIsSaving(false); // 释放锁后让 handleSaveTree 自己锁
+      setTreeStatus('unsaved'); // 让 handleSaveTree 接受
+      await handleSaveTree();
+    } catch (e) {
+      console.error('[updateTree]', e);
+      setSaveError('generic');
+      setIsSaving(false);
+    }
+  }
+
+  /**
+   * 「覆盖旧的」（W4：整树查重命中时升级为整树覆盖语义）。
+   * 旧单条先删 + 同 clientNoteId 全删 → 拍快照 → 整树重存。
+   */
+  async function handleReplaceTree() {
+    if (depth !== 0) return;
+    if (!hasExplainReady) return;
+    if (!duplicate) return;
+    setSaveError(null);
+    setIsSaving(true);
+    try {
+      const auth = await resolveAuth();
+      if (!auth) {
+        setIsSaving(false);
+        return;
+      }
+      // 旧命中单条先删
+      await deleteNote(auth.baseUrl, auth.token, duplicate.id).catch(() => undefined);
+      // 全量查同 clientNoteId 的旧本树 note（如果有的话）
+      const listRes = await fetch(`${auth.baseUrl}/api/notes`, {
+        headers: { Authorization: `Bearer ${auth.token}` },
+      });
+      if (listRes.ok) {
+        const body = (await listRes.json()) as {
+          data?: Array<{ id: string; clientNoteId?: string }>;
+        };
+        const oldIds = (body.data ?? [])
+          .filter((n) => n.clientNoteId === rootClientNoteId)
+          .map((n) => n.id);
+        for (const id of oldIds) await deleteNote(auth.baseUrl, auth.token, id).catch(() => undefined);
+      }
       setDuplicate(null);
-      return true;
+      setIsSaving(false);
+      setTreeStatus('unsaved');
+      await handleSaveTree();
+    } catch (e) {
+      console.error('[replaceTree]', e);
+      setSaveError('generic');
+      setIsSaving(false);
     }
-    setSaveError(res.status === 401 || res.status === 403 ? 'expired' : 'generic');
-    return false;
   }
 
   async function handleSave() {
@@ -375,6 +674,110 @@ export default function ExplainCard({
     else await handleSave();
   }
 
+  async function saveWithToken(
+    baseUrl: string,
+    token: string,
+    mode: 'create' | 'replace',
+    oldId?: string
+  ): Promise<boolean> {
+    let workingToken = token;
+    if (mode === 'replace' && oldId) {
+      const deleted = await deleteNote(baseUrl, workingToken, oldId);
+      if (!deleted) {
+        const after = await ensureFreshAuth(await loadCrowAuth(), { force: true });
+        if (!after?.accessToken) { setSaveError('expired'); return false; }
+        onSessionUpdate?.(after);
+        workingToken = after.accessToken;
+        if (!(await deleteNote(baseUrl, workingToken, oldId))) { setSaveError('generic'); return false; }
+      }
+    }
+    const tags = tag ? [tag] : [];
+    let res = await fetch(`${baseUrl}/api/notes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${workingToken}` },
+      body: JSON.stringify({ inputText: text, explanation, source: 'chrome_extension', tags }),
+    });
+    if (res.status === 401 || res.status === 403) {
+      const after = await ensureFreshAuth(await loadCrowAuth(), { force: true });
+      if (!after?.accessToken) { setSaveError('expired'); return false; }
+      onSessionUpdate?.(after);
+      res = await fetch(`${baseUrl}/api/notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${after.accessToken}` },
+        body: JSON.stringify({ inputText: text, explanation, source: 'chrome_extension', tags }),
+      });
+    }
+    if (res.ok) {
+      const data = await res.json();
+      setSavedId(data.data?.id ?? 'saved');
+      setDuplicate(null);
+      return true;
+    }
+    setSaveError(res.status === 401 || res.status === 403 ? 'expired' : 'generic');
+    return false;
+  }
+
+  /**
+   * 子卡 footer「只存本条」入口（T05）：单存为独立 note（不传 parentId；clientNoteId 独立 UUID）。
+   * 与整树无关，不进整树 clientNoteId 集合。
+   */
+  async function handleSaveChildOnly() {
+    if (depth === 0) return;
+    if (!hasExplainReady) return;
+    setSaveError(null);
+    setIsSaving(true);
+    try {
+      const auth = await resolveAuth();
+      if (!auth) return;
+      const tags = tag ? [tag] : [];
+      const ownClientNoteId = crypto.randomUUID();
+      const body = {
+        inputText: text,
+        explanation,
+        source: 'chrome_extension' as const,
+        tags,
+        clientNoteId: ownClientNoteId,
+      };
+      let res = await fetch(`${auth.baseUrl}/api/notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${auth.token}` },
+        body: JSON.stringify(body),
+      });
+      if (res.status === 401 || res.status === 403) {
+        const after = await ensureFreshAuth(await loadCrowAuth(), { force: true });
+        if (!after?.accessToken) { setSaveError('expired'); return; }
+        onSessionUpdate?.(after);
+        res = await fetch(`${auth.baseUrl}/api/notes`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${after.accessToken}` },
+          body: JSON.stringify(body),
+        });
+      }
+      if (res.ok) {
+        const data = await res.json();
+        setSavedId(data.data?.id ?? 'saved');
+      } else {
+        setSaveError('generic');
+      }
+    } catch {
+      setSaveError('generic');
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  /**
+   * 子卡在整树循环里失败后的「重试」入口（仅子卡 footer 显示）。
+   * 重试只 POST 该子卡一条（独立 clientNoteId，不进整树集合）。
+   * 父已存的 clientNoteId 不可重建（已删或仍存在）；保守做法：直接走「单存」语义。
+   */
+  async function handleRetryChildTreePost() {
+    if (depth === 0) return;
+    if (savedId) return;
+    // 走「只存本条」语义；不再尝试把这一条绑回整树（clientNoteId 重建）
+    await handleSaveChildOnly();
+  }
+
   const handleFollowUpSubmit = useCallback(() => {
     const q = followUpText.trim();
     if (!q) return;
@@ -409,10 +812,14 @@ export default function ExplainCard({
   // ═══════════════════════════════════════════
   const cardClassName = `crow-card${pinned ? ' pinned' : ''}${collapsed ? ' collapsed' : ''}`;
 
+  // ── 子卡读自己的整树状态（深度 > 0）──
+  const myTreeStatus: ChildTreeSaveStatus | undefined =
+    depth > 0 ? parentSaveContext?.childStatuses[selfId] : undefined;
+
   const cardNode = (
     <div
       ref={cardRef}
-      className={cardClassName}
+      className={`${cardClassName}${myTreeStatus?.kind === 'failed' ? ' crow-card-failed' : ''}`}
       style={pinned ? { left: pos.x, top: pos.y } : { left: pos.x, top: pos.y }}
     >
       {/* ── 顶部拖拽把手 + 标题 ── */}
@@ -424,7 +831,6 @@ export default function ExplainCard({
         <div style={{ minWidth: 0, flex: 1 }}>
           <div className="crow-card-label">
             这是啥？
-            {/* 主卡有子卡时、以及所有子卡片：都可折叠自身内容 */}
             {(depth > 0 || children.length > 0) && (
               <button
                 className="crow-collapse-badge"
@@ -441,7 +847,6 @@ export default function ExplainCard({
           </div>
         </div>
         <div className="crow-header-actions">
-          {/* 图钉只对主卡有意义：子卡片内嵌在父卡 body 里，钉住/拖拽均无效 */}
           {depth === 0 && (
             <button
               className={`crow-pin-btn${pinned ? ' active' : ''}`}
@@ -546,7 +951,6 @@ export default function ExplainCard({
               onSessionUpdate={onSessionUpdate}
               onClose={() => {}}
               onRemove={(id) => setChildren((prev) => prev.filter((c) => c.id !== id))}
-              context={explanation}
               history={[
                 ...(history ?? []),
                 { question: text, explanation: explanation ?? '' },
@@ -554,6 +958,9 @@ export default function ExplainCard({
               depth={depth + 1}
               cardId={child.id}
               parentId={selfId}
+              parentSaveContext={depth === 0 ? parentSaveContextValue : parentSaveContext}
+              registerExplanationGetter={depth === 0 ? registerChildExplanationGetter : registerExplanationGetter}
+              unregisterExplanationGetter={depth === 0 ? unregisterChildExplanationGetter : unregisterExplanationGetter}
             />
           </div>
         ))}
@@ -607,89 +1014,40 @@ export default function ExplainCard({
                 登录后可保存
               </button>
             )
-          ) : savedId ? (
-            <button className="crow-save-btn saved" disabled>
-              ✓ 已存入笔记本
-            </button>
-          ) : saveError === 'expired' ? (
-            <span className="crow-error" style={{ fontSize: 12 }}>
-              ⚠️ 登录或连接已过期，
-              <button
-                type="button"
-                onClick={() => setLoginOpen(true)}
-                style={{
-                  background: 'none', border: 'none', color: '#fb923c',
-                  cursor: 'pointer', padding: 0, textDecoration: 'underline', fontSize: 12,
-                }}
-              >
-                重新登录
-              </button>
-              后自动继续保存，或
-              <a
-                href={config.apiBaseUrl}
-                target="_blank"
-                rel="noreferrer"
-                style={{ color: '#fb923c', marginLeft: 2 }}
-              >
-                回网站点「连接插件」
-              </a>
-            </span>
-          ) : saveError === 'generic' ? (
-            <span className="crow-error" style={{ fontSize: 12 }}>
-              保存失败，请稍后重试
-            </span>
-          ) : duplicate ? (
-            <>
-              <button
-                className="crow-save-btn"
-                onClick={handleKeepBoth}
-                disabled={isSaving}
-                type="button"
-              >
-                {isSaving ? '保存中…' : '都保留'}
-              </button>
-              <span className="crow-sep">·</span>
-              <button
-                className="crow-save-btn"
-                onClick={handleReplace}
-                disabled={isSaving}
-                type="button"
-                style={{ color: '#fb923c' }}
-              >
-                覆盖旧的
-              </button>
-            </>
+          ) : depth === 0 ? (
+            // 根卡 footer 三态
+            <RootFooter
+              status={treeStatus}
+              saveStats={treeSaveStats}
+              childrenCount={children.length}
+              hasExplainReady={hasExplainReady}
+              isSaving={isSaving}
+              saveError={saveError}
+              tag={tag}
+              duplicate={duplicate}
+              onSaveTree={handleSaveTree}
+              onSaveAlone={handleSave}
+              onUpdateTree={handleUpdateTree}
+              onKeepBoth={handleKeepBoth}
+              onReplace={handleReplaceTree}
+              notebookUrl={notebookUrl}
+              onFollowUpToggle={() => setFollowUpOpen((v) => !v)}
+              followUpOpen={followUpOpen}
+            />
           ) : (
-            <button
-              className="crow-save-btn"
-              onClick={handleSave}
-              disabled={isSaving}
-              type="button"
-            >
-              {isSaving ? '保存中…' : '存入笔记本'}
-            </button>
+            // 子卡 footer
+            <ChildFooter
+              status={myTreeStatus?.kind ?? 'idle'}
+              hasExplainReady={hasExplainReady}
+              isSaving={isSaving}
+              savedId={savedId}
+              saveError={saveError}
+              onSaveOnly={handleSaveChildOnly}
+              onRetry={handleRetryChildTreePost}
+              onFollowUpToggle={() => setFollowUpOpen((v) => !v)}
+              followUpOpen={followUpOpen}
+            />
           )}
-          {tag && !savedId && (
-            <span className="crow-hint" style={{ fontSize: 12, color: '#34d399' }} title="保存时自动带上这个分类">
-              🏷 {tag}
-            </span>
-          )}
-          {isAuthenticated && (
-            <>
-              <span className="crow-sep">·</span>
-              <a className="crow-save-btn" href={notebookUrl} target="_blank" rel="noreferrer">
-                打开笔记本
-              </a>
-            </>
-          )}
-          <span className="crow-sep">·</span>
-          <button
-            className="crow-save-btn"
-            onClick={() => setFollowUpOpen((v) => !v)}
-            type="button"
-          >
-            {followUpOpen ? '收起追问' : '追问'}
-          </button>
         </div>
       )}
 
@@ -729,6 +1087,7 @@ export default function ExplainCard({
       depth={depth}
       getEl={getSelfEl}
       expand={expandSelf}
+      getExplanation={() => explanationRef.current}
     />
   );
 
@@ -745,6 +1104,276 @@ export default function ExplainCard({
     <>
       {registration}
       {cardNode}
+    </>
+  );
+}
+
+/** 根卡 footer：根据 treeStatus 渲染三态（未存/已存/部分失败）+ 查重弹窗 + 整树按钮 + 更新按钮 */
+function RootFooter({
+  status,
+  saveStats,
+  childrenCount,
+  hasExplainReady,
+  isSaving,
+  saveError,
+  tag,
+  duplicate,
+  onSaveTree,
+  onSaveAlone,
+  onUpdateTree,
+  onKeepBoth,
+  onReplace,
+  notebookUrl,
+  onFollowUpToggle,
+  followUpOpen,
+}: {
+  status: TreeSaveStatus;
+  saveStats: { savedCount: number; totalCount: number };
+  childrenCount: number;
+  hasExplainReady: boolean;
+  isSaving: boolean;
+  saveError: 'generic' | 'expired' | null;
+  tag: string | null | undefined;
+  duplicate: DuplicateHit | null;
+  onSaveTree: () => void | Promise<void>;
+  onSaveAlone: () => void | Promise<void>;
+  onUpdateTree: () => void | Promise<void>;
+  onKeepBoth: () => void | Promise<void>;
+  onReplace: () => void | Promise<void>;
+  notebookUrl: string;
+  onFollowUpToggle: () => void;
+  followUpOpen: boolean;
+}) {
+  const wholeTreeMode = childrenCount >= 1;
+
+  return (
+    <>
+      {saveError === 'expired' ? (
+        <span className="crow-error" style={{ fontSize: 12 }}>
+          ⚠️ 登录或连接已过期，
+          <button
+            type="button"
+            style={{
+              background: 'none', border: 'none', color: '#fb923c',
+              cursor: 'pointer', padding: 0, textDecoration: 'underline', fontSize: 12,
+            }}
+          >
+            重新登录
+          </button>
+          后自动继续保存，或
+          <a
+            href={notebookUrl}
+            target="_blank"
+            rel="noreferrer"
+            style={{ color: '#fb923c', marginLeft: 2 }}
+          >
+            回网站点「连接插件」
+          </a>
+        </span>
+      ) : saveError === 'generic' ? (
+        <span className="crow-error" style={{ fontSize: 12 }}>保存失败，请稍后重试</span>
+      ) : duplicate ? (
+        <>
+          <button
+            className="crow-save-btn"
+            onClick={() => void onKeepBoth()}
+            disabled={isSaving}
+            type="button"
+          >
+            {isSaving ? '保存中…' : '都保留'}
+          </button>
+          <span className="crow-sep">·</span>
+          <button
+            className="crow-save-btn"
+            onClick={() => void onReplace()}
+            disabled={isSaving}
+            type="button"
+            style={{ color: '#fb923c' }}
+            title="覆盖整棵追问树"
+          >
+            覆盖旧的
+          </button>
+          {wholeTreeMode && (
+            <span className="crow-hint" style={{ fontSize: 11, marginLeft: 4 }}>
+              （将覆盖旧的整棵追问树）
+            </span>
+          )}
+        </>
+      ) : status === 'saving' ? (
+        <button className="crow-save-btn" disabled type="button">
+          保存中…
+        </button>
+      ) : status === 'saved' ? (
+        <>
+          <button className="crow-save-btn saved" disabled type="button">
+            ✓ 已存 {saveStats.savedCount} 条
+          </button>
+          {wholeTreeMode && (
+            <>
+              <span className="crow-sep">·</span>
+              <button
+                className="crow-save-btn"
+                onClick={() => void onUpdateTree()}
+                disabled={isSaving || !hasExplainReady}
+                type="button"
+              >
+                更新到笔记本
+              </button>
+            </>
+          )}
+        </>
+      ) : status === 'partial' ? (
+        <>
+          <button className="crow-save-btn crow-save-partial" disabled type="button">
+            ⚠️ 已存 {saveStats.savedCount}/{saveStats.totalCount} 条
+          </button>
+          {wholeTreeMode && (
+            <>
+              <span className="crow-sep">·</span>
+              <button
+                className="crow-save-btn"
+                onClick={() => void onUpdateTree()}
+                disabled={isSaving || !hasExplainReady}
+                type="button"
+                style={{ color: '#fb923c' }}
+              >
+                重试整树
+              </button>
+            </>
+          )}
+        </>
+      ) : (
+        <>
+          <button
+            className="crow-save-btn"
+            onClick={() => void onSaveTree()}
+            disabled={isSaving || !hasExplainReady}
+            type="button"
+          >
+            {isSaving
+              ? '保存中…'
+              : wholeTreeMode
+                ? `存入笔记本（连同 ${childrenCount} 条追问）`
+                : '存入笔记本'}
+          </button>
+          {wholeTreeMode && (
+            <>
+              <span className="crow-sep">·</span>
+              <button
+                className="crow-save-btn crow-save-secondary"
+                onClick={() => void onSaveAlone()}
+                disabled={isSaving || !hasExplainReady}
+                type="button"
+                style={{ fontSize: 11, color: '#71717a' }}
+                title="只保存当前卡片，不包含追问"
+              >
+                只存本条
+              </button>
+            </>
+          )}
+        </>
+      )}
+      {tag && status === 'unsaved' && !duplicate && (
+        <span className="crow-hint" style={{ fontSize: 12, color: '#34d399' }} title="保存时自动带上这个分类">
+          🏷 {tag}
+        </span>
+      )}
+      <span className="crow-sep">·</span>
+      <a className="crow-save-btn" href={notebookUrl} target="_blank" rel="noreferrer">
+        打开笔记本
+      </a>
+      <span className="crow-sep">·</span>
+      <button
+        className="crow-save-btn"
+        onClick={onFollowUpToggle}
+        type="button"
+      >
+        {followUpOpen ? '收起追问' : '追问'}
+      </button>
+    </>
+  );
+}
+
+/** 子卡 footer：独立 savedId；整树失败时红框 + 重试 */
+function ChildFooter({
+  status,
+  hasExplainReady,
+  isSaving,
+  savedId,
+  saveError,
+  onSaveOnly,
+  onRetry,
+  onFollowUpToggle,
+  followUpOpen,
+}: {
+  status: 'idle' | 'saving' | 'saved' | 'failed';
+  hasExplainReady: boolean;
+  isSaving: boolean;
+  savedId: string | null;
+  saveError: 'generic' | 'expired' | null;
+  onSaveOnly: () => void | Promise<void>;
+  onRetry: () => void | Promise<void>;
+  onFollowUpToggle: () => void;
+  followUpOpen: boolean;
+}) {
+  return (
+    <>
+      {saveError === 'expired' ? (
+        <span className="crow-error" style={{ fontSize: 12 }}>
+          ⚠️ 登录或连接已过期，
+          <button
+            type="button"
+            style={{
+              background: 'none', border: 'none', color: '#fb923c',
+              cursor: 'pointer', padding: 0, textDecoration: 'underline', fontSize: 12,
+            }}
+          >
+            重新登录
+          </button>
+          后自动继续保存
+        </span>
+      ) : saveError === 'generic' ? (
+        <span className="crow-error" style={{ fontSize: 12 }}>保存失败，请稍后重试</span>
+      ) : status === 'failed' ? (
+        <>
+          <span className="crow-error" style={{ fontSize: 12 }}>⚠️ 保存失败</span>
+          <span className="crow-sep">·</span>
+          <button
+            className="crow-save-btn"
+            onClick={() => void onRetry()}
+            disabled={isSaving}
+            type="button"
+            style={{ color: '#fb923c' }}
+          >
+            {isSaving ? '重试中…' : '重试'}
+          </button>
+        </>
+      ) : savedId ? (
+        <button className="crow-save-btn saved" disabled type="button">
+          ✓ 已存入笔记本
+        </button>
+      ) : status === 'saving' ? (
+        <button className="crow-save-btn" disabled type="button">
+          保存中…
+        </button>
+      ) : (
+        <button
+          className="crow-save-btn"
+          onClick={() => void onSaveOnly()}
+          disabled={isSaving || !hasExplainReady}
+          type="button"
+        >
+          存入笔记本
+        </button>
+      )}
+      <span className="crow-sep">·</span>
+      <button
+        className="crow-save-btn"
+        onClick={onFollowUpToggle}
+        type="button"
+      >
+        {followUpOpen ? '收起追问' : '追问'}
+      </button>
     </>
   );
 }
@@ -792,7 +1421,7 @@ function TreeIndexLayer({
           style={{ paddingLeft: 8 + level * 14 }}
           onClick={(e) => {
             e.stopPropagation();
-            tree.jumpTo(n.id);
+            if (tree) tree.jumpTo(n.id);
           }}
           title={n.question}
           type="button"

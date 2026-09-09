@@ -6,7 +6,7 @@
 |---|---|
 | `app/layout.tsx` | 根布局：Geist 字体、metadata（「这是啥？」） |
 | `app/page.tsx` | **首页**：输入 / 划词解释器；Enter 发送、Alt+Enter 换行（提示文案见 `lib/keyboard-send-hint.ts`） |
-| `app/notebook/page.tsx` | 云笔记本：笔记列表 / 分类聚合 / 删除；游客笔记展示与迁移入口 |
+| `app/notebook/page.tsx` | 云笔记本：笔记列表 / 分类聚合 / 删除；游客笔记展示与迁移入口；**追问整树分桶**——按 parentId 反向聚合为 TreeGroup（root + childNotes[]）；父徽章「追问对话 · N 条」+ 折叠行内嵌子卡时间线；分类筛选：root 命中 → 整组可见；级联删除二次确认（删父弹「将同时删除 N 条追问」）；父卡 tags 编辑整组 PATCH（root + childNotes 串行 `patchNoteTags` / `updateGuestNotesTags`） |
 | `app/settings/page.tsx` | 用户自配 LLM（OpenAI-compatible）设置 + 「测试连接」（读 `x-crow-provider` 判断回退） |
 | `app/login/page.tsx` | 邮箱密码登录 |
 | `app/register/page.tsx` | 邮箱密码注册 |
