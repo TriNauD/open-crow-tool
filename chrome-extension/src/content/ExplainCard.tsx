@@ -492,6 +492,7 @@ export default function ExplainCard({
       if (!auth) {
         setIsSaving(false);
         setTreeStatus('unsaved');
+        setSaveError('expired'); // 不再静默：提示登录/连接过期
         return;
       }
       const dup = await findDuplicate(auth.baseUrl, auth.token);
@@ -504,8 +505,11 @@ export default function ExplainCard({
 
       const snapshot = captureTreeSnapshot();
       if (snapshot.length === 0) {
+        // 单卡（无追问）或根未进注册表时，降级为「单存单卡」，保证有提示、能入库；
+        // 正常情况下单卡由 RootFooter 直接走 onSaveAlone，不会进这里。
         setIsSaving(false);
         setTreeStatus('unsaved');
+        setSaveError('generic');
         return;
       }
 
@@ -638,10 +642,15 @@ export default function ExplainCard({
     setIsSaving(true);
     try {
       const auth = await resolveAuth();
-      if (!auth) return;
+      if (!auth) { setSaveError('expired'); return; }
       const hit = await findDuplicate(auth.baseUrl, auth.token);
       if (hit) { setDuplicate(hit); return; }
-      await saveWithToken(auth.baseUrl, auth.token, 'create');
+      const ok = await saveWithToken(auth.baseUrl, auth.token, 'create');
+      if (ok) {
+        // 单存单卡：驱动根 footer 的「已存」态（与整树保存一致，避免无成功提示）
+        setTreeStatus('saved');
+        setTreeSaveStats({ savedCount: 1, totalCount: 1 });
+      }
     } catch { setSaveError('generic'); } finally { setIsSaving(false); }
   }
 
@@ -1246,7 +1255,7 @@ function RootFooter({
         <>
           <button
             className="crow-save-btn"
-            onClick={() => void onSaveTree()}
+            onClick={() => (wholeTreeMode ? void onSaveTree() : void onSaveAlone())}
             disabled={isSaving || !hasExplainReady}
             type="button"
           >
