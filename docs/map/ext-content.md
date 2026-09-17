@@ -42,6 +42,7 @@
 - **不要加 `will-change: transform`**：它把气泡推上独立合成层，而选区文字在主文档层，两者连续滚动时亚像素栅格对齐差出零点几像素 → 反而**制造**「气泡相对文字轻微上下晃」。不强制合成层时两者同层、栅格化节奏一致，更稳。
 - 树形索引层（把手/浮层）渲染在 `.crow-card` **元素之外**（卡片兄弟节点）——卡片 `overflow: hidden` 会裁剪内部负偏移浮层，别挪回去；也因此外点关闭判定要额外检查 `indexLayerRef`，Esc 收起浮层用 document 捕获监听 + `stopPropagation` 抢在 App 的整卡关闭之前。
 - `card-tree.tsx` 的注册表读快照必须走 `useCardTreeSnapshot`（useSyncExternalStore）；Context value 是稳定身份，渲染期读写 ref 或把不稳定引用塞进注册 effect 依赖，会触发 react-hooks/refs 报错或「重渲染→反复注册」循环。
+- **保存失败提示按类别分开，别再压成同一句 generic**（`ExplainCard.tsx`）：`classifySaveError(status)` 判 HTTP 状态——401/403→`'expired'`「登录或连接已过期」（可重新登录后自动续存）；**503→`'disabled'`「笔记本功能维护中」**（服务端 `isNotebookMultiUserEnabled()` 返回 false，即环境变量 `NOTEBOOK_MULTI_USER_ENABLED=false` 的应急回滚开关被打开，此时**所有**保存请求都失败）；其余→`'generic'`「保存失败，请稍后重试」。**fetch 抛异常（DNS 解析失败 / 断网 / CORS 拦截）没有 HTTP 状态码，只能在 `catch` 里用 `isNetworkFailure(e)` 判成 `'network'`「网络异常，无法连接登录服务」**——保存前的 `refresh_token` 是重灾区：`supabase-refresh-exchange.ts` 的 refresh fetch **无 try/catch**，网络故障会一路冒泡进 `handleSave`/`handleSaveTree` 的 catch，所以 DNS 一断保存必失败。整树循环里 `postItemWithParent` 把 503 归为 `'disabled'`，`runTreeSave` 提到 `saveError`；`handleSaveTree` 收尾用 `setSaveError((prev) => prev ?? 'generic')` 避免把已设的具体原因盖回 generic。
 
 ## 相关测试 / E2E
 

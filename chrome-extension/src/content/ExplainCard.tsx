@@ -83,6 +83,39 @@ type DuplicateHit = {
  */
 type TreeSaveStatus = 'unsaved' | 'saving' | 'saved' | 'partial';
 
+/**
+ * 保存失败类别：
+ * - 'expired'：登录 / 连接过期（401/403）
+ * - 'disabled'：笔记本多用户模式被关（503，应急回滚开关）
+ * - 'network'：请求根本没发出去（DNS 解析失败 / 断网 / CORS 拦截）——fetch 抛异常
+ * - 'generic'：其余（500 写库失败等）
+ */
+type SaveErrorKind = 'generic' | 'expired' | 'disabled' | 'network';
+
+/** 由 HTTP 状态判定保存失败类别（fetch 抛异常时改用 isNetworkFailure 判定） */
+function classifySaveError(status: number): SaveErrorKind {
+  if (status === 401 || status === 403) return 'expired';
+  if (status === 503) return 'disabled';
+  return 'generic';
+}
+
+/**
+ * fetch 抛出的异常是否属网络层失败（DNS 解析失败 / 断网 / 被 CORS 拦）。
+ * 用于把「网不通」和「服务端拒绝」分开提示——两者都拿不到 HTTP 状态码，只能靠异常判定。
+ */
+function isNetworkFailure(e: unknown): boolean {
+  if (!(e instanceof Error)) return false;
+  const name = e.name.toLowerCase();
+  const msg = e.message.toLowerCase();
+  return (
+    (name === 'typeerror' && msg.includes('fetch')) || // Chrome: TypeError: Failed to fetch
+    msg.includes('network') ||
+    msg.includes('err_name') || // net::ERR_NAME_NOT_RESOLVED
+    msg.includes('err_internet') ||
+    msg.includes('err_connection')
+  );
+}
+
 const CARD_W = 360;
 const CARD_H = 320;
 const CARD_MARGIN = 12;
@@ -110,7 +143,7 @@ export default function ExplainCard({
 }: Props) {
   // ── 基础状态 ──
   const [savedId, setSavedId] = useState<string | null>(null);
-  const [saveError, setSaveError] = useState<'generic' | 'expired' | null>(null);
+  const [saveError, setSaveError] = useState<SaveErrorKind | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [duplicate, setDuplicate] = useState<DuplicateHit | null>(null);
   const [loginOpen, setLoginOpen] = useState(false);
@@ -397,7 +430,7 @@ export default function ExplainCard({
     item: TreeSnapshotItem,
     parentNoteId: string | undefined,
     tags: string[]
-  ): Promise<{ ok: true; noteId: string } | { ok: false; error: string }> {
+  ): Promise<{ ok: true; noteId: string } | { ok: false; error: SaveErrorKind }> {
     let workingToken = token;
     const body = {
       inputText: item.text,
@@ -415,7 +448,7 @@ export default function ExplainCard({
     });
     if (res.status === 401 || res.status === 403) {
       const after = await ensureFreshAuth(await loadCrowAuth(), { force: true });
-      if (!after?.accessToken) return { ok: false, error: 'auth-expired' };
+      if (!after?.accessToken) return { ok: false, error: 'expired' };
       onSessionUpdate?.(after);
       workingToken = after.accessToken;
       res = await fetch(`${baseUrl}/api/notes`, {
@@ -424,10 +457,10 @@ export default function ExplainCard({
         body: JSON.stringify(body),
       });
     }
-    if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
+    if (!res.ok) return { ok: false, error: classifySaveError(res.status) };
     const data = (await res.json()) as { data?: { id: string } };
     const id = data.data?.id;
-    if (!id) return { ok: false, error: 'no-id-in-response' };
+    if (!id) return { ok: false, error: 'generic' };
     return { ok: true, noteId: id };
   }
 
@@ -458,7 +491,8 @@ export default function ExplainCard({
         cardIdToNoteId.set(item.cardId, result.noteId);
       } else {
         failedIds.add(item.cardId);
-        if (result.error === 'auth-expired') setSaveError('expired');
+        // 整树里任一非 generic 失败（登录过期 / 功能关闭）都要把具体原因提给 footer
+        if (result.error !== 'generic') setSaveError(result.error);
       }
     }
     return { cardIdToNoteId, failedIds };
@@ -541,11 +575,12 @@ export default function ExplainCard({
         setSavedId(null);
       } else {
         setTreeStatus('unsaved');
-        setSaveError('generic');
+        // 保留 runTreeSave 里已设的具体原因（expired / disabled），都没设才落到 generic
+        setSaveError((prev) => prev ?? 'generic');
       }
     } catch (e) {
       console.error('[saveTree]', e);
-      setSaveError('generic');
+      setSaveError(isNetworkFailure(e) ? 'network' : 'generic');
       setTreeStatus('unsaved');
     } finally {
       setIsSaving(false);
@@ -572,7 +607,7 @@ export default function ExplainCard({
         headers: { Authorization: `Bearer ${auth.token}` },
       });
       if (!listRes.ok) {
-        setSaveError('generic');
+        setSaveError(classifySaveError(listRes.status));
         setIsSaving(false);
         return;
       }
@@ -590,7 +625,7 @@ export default function ExplainCard({
       await handleSaveTree();
     } catch (e) {
       console.error('[updateTree]', e);
-      setSaveError('generic');
+      setSaveError(isNetworkFailure(e) ? 'network' : 'generic');
       setIsSaving(false);
     }
   }
@@ -632,7 +667,7 @@ export default function ExplainCard({
       await handleSaveTree();
     } catch (e) {
       console.error('[replaceTree]', e);
-      setSaveError('generic');
+      setSaveError(isNetworkFailure(e) ? 'network' : 'generic');
       setIsSaving(false);
     }
   }
@@ -651,7 +686,7 @@ export default function ExplainCard({
         setTreeStatus('saved');
         setTreeSaveStats({ savedCount: 1, totalCount: 1 });
       }
-    } catch { setSaveError('generic'); } finally { setIsSaving(false); }
+    } catch (e) { setSaveError(isNetworkFailure(e) ? 'network' : 'generic'); } finally { setIsSaving(false); }
   }
 
   async function handleKeepBoth() {
@@ -661,7 +696,7 @@ export default function ExplainCard({
       const auth = await resolveAuth();
       if (!auth) return;
       await saveWithToken(auth.baseUrl, auth.token, 'create');
-    } catch { setSaveError('generic'); } finally { setIsSaving(false); }
+    } catch (e) { setSaveError(isNetworkFailure(e) ? 'network' : 'generic'); } finally { setIsSaving(false); }
   }
 
   async function handleReplace() {
@@ -672,7 +707,7 @@ export default function ExplainCard({
       const auth = await resolveAuth();
       if (!auth) return;
       await saveWithToken(auth.baseUrl, auth.token, 'replace', duplicate.id);
-    } catch { setSaveError('generic'); } finally { setIsSaving(false); }
+    } catch (e) { setSaveError(isNetworkFailure(e) ? 'network' : 'generic'); } finally { setIsSaving(false); }
   }
 
   async function handleLoginSuccess(auth: CrowAuth) {
@@ -722,7 +757,7 @@ export default function ExplainCard({
       setDuplicate(null);
       return true;
     }
-    setSaveError(res.status === 401 || res.status === 403 ? 'expired' : 'generic');
+    setSaveError(classifySaveError(res.status));
     return false;
   }
 
@@ -766,10 +801,10 @@ export default function ExplainCard({
         const data = await res.json();
         setSavedId(data.data?.id ?? 'saved');
       } else {
-        setSaveError('generic');
+        setSaveError(classifySaveError(res.status));
       }
-    } catch {
-      setSaveError('generic');
+    } catch (e) {
+      setSaveError(isNetworkFailure(e) ? 'network' : 'generic');
     } finally {
       setIsSaving(false);
     }
@@ -1141,7 +1176,7 @@ function RootFooter({
   childrenCount: number;
   hasExplainReady: boolean;
   isSaving: boolean;
-  saveError: 'generic' | 'expired' | null;
+  saveError: SaveErrorKind | null;
   tag: string | null | undefined;
   duplicate: DuplicateHit | null;
   onSaveTree: () => void | Promise<void>;
@@ -1179,6 +1214,10 @@ function RootFooter({
             回网站点「连接插件」
           </a>
         </span>
+      ) : saveError === 'disabled' ? (
+        <span className="crow-error" style={{ fontSize: 12 }}>⚠️ 笔记本功能维护中，暂时无法保存</span>
+      ) : saveError === 'network' ? (
+        <span className="crow-error" style={{ fontSize: 12 }}>⚠️ 网络异常，无法连接登录服务</span>
       ) : saveError === 'generic' ? (
         <span className="crow-error" style={{ fontSize: 12 }}>保存失败，请稍后重试</span>
       ) : duplicate ? (
@@ -1319,7 +1358,7 @@ function ChildFooter({
   hasExplainReady: boolean;
   isSaving: boolean;
   savedId: string | null;
-  saveError: 'generic' | 'expired' | null;
+  saveError: SaveErrorKind | null;
   onSaveOnly: () => void | Promise<void>;
   onRetry: () => void | Promise<void>;
   onFollowUpToggle: () => void;
@@ -1341,6 +1380,10 @@ function ChildFooter({
           </button>
           后自动继续保存
         </span>
+      ) : saveError === 'disabled' ? (
+        <span className="crow-error" style={{ fontSize: 12 }}>⚠️ 笔记本功能维护中，暂时无法保存</span>
+      ) : saveError === 'network' ? (
+        <span className="crow-error" style={{ fontSize: 12 }}>⚠️ 网络异常，无法连接登录服务</span>
       ) : saveError === 'generic' ? (
         <span className="crow-error" style={{ fontSize: 12 }}>保存失败，请稍后重试</span>
       ) : status === 'failed' ? (
