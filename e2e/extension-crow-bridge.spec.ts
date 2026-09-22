@@ -529,6 +529,85 @@ test.describe('Crow extension bridge', () => {
     expect(probe!.gap!).toBeLessThan(0);
   });
 
+  test('E2E-EXT-16 站点滚浮标无效：容器级锚定下宿主对浮标调 scrollIntoView 不得滚动容器', async ({
+    page,
+    extensionWorker,
+  }) => {
+    // 回归闸门：Gemini 划词后会对浮标调 scrollIntoView({block:'start',behavior:'smooth'})，
+    // 消息区于是平滑滚到被划的词贴顶（用户报的「划词后页面自己乱滚」）。
+    // 修法在主世界（main-world-guard.ts）——隔离世界的 expando 主世界读不到。
+    // 本用例在**主世界**调 scrollIntoView（page.evaluate 即主世界），等价复刻站点行为。
+    test.slow();
+    await extensionSeed.seedCrowAuth(extensionWorker, e2eBaseURL);
+    await page.goto('/e2e-extension-host.html');
+    await expect(page.locator('#crow-ext-host')).toBeAttached({
+      timeout: 20_000,
+    });
+    await selectSelectorAndPointerUp(page, '#selectable-in-box');
+    await page
+      .waitForFunction(
+        () => !!document.getElementById('scroll-box')?.querySelector('button.crow-btn'),
+        { timeout: 15_000 }
+      )
+      .catch(() => {});
+
+    const probe = await page.evaluate(async () => {
+      const box = document.getElementById('scroll-box') as HTMLElement | null;
+      const fab = document.querySelector(
+        '#scroll-box > button.crow-btn, body > button.crow-btn'
+      ) as HTMLElement | null;
+      if (!box || !fab) return { error: 'no-fab-in-box' };
+      // 注意：浮标是 portal 追加进容器的，容器 lastElementChild 就是浮标本身；
+      // 对照组必须挑一个**非浮标**的普通元素（页面里那段 600px 占位）
+      const control =
+        (box.querySelector('div[aria-hidden="true"]') as HTMLElement | null) ??
+        ([...box.children].find((el) => el !== fab) as HTMLElement | undefined);
+      if (!control) return { error: 'no-control' };
+
+      box.scrollTop = 200;
+      await new Promise((r) => setTimeout(r, 350));
+      const base = box.scrollTop;
+
+      // 站点行为复刻 1：同步（默认 behavior:'auto'）
+      fab.scrollIntoView({ block: 'start', inline: 'nearest' });
+      await new Promise((r) => setTimeout(r, 250));
+      const afterAuto = box.scrollTop;
+
+      // 站点行为复刻 2：平滑（Gemini 用的就是这个）
+      fab.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      await new Promise((r) => setTimeout(r, 1000));
+      const afterSmooth = box.scrollTop;
+
+      // 对照组：滚容器里的**普通元素**必须照常生效——证明只拦浮标，没有把
+      // 站点的 scrollIntoView 整体废掉
+      control.scrollIntoView({ block: 'end' });
+      await new Promise((r) => setTimeout(r, 300));
+      const afterControl = box.scrollTop;
+
+      return {
+        guardInstalled:
+          (window as unknown as Record<string, unknown>)
+            .__crowFabScrollGuardInstalled === true,
+        fabInBox: box.contains(fab),
+        base,
+        afterAuto,
+        afterSmooth,
+        afterControl,
+      };
+    });
+
+    expect(probe).not.toHaveProperty('error');
+    // 守卫确实装上了（主世界）
+    expect(probe!.guardInstalled).toBe(true);
+    // 前提：浮标锚在容器内（锚定模式）
+    expect(probe!.fabInBox).toBe(true);
+    expect(probe!.base).toBeGreaterThan(150); // 底座确实滚开了，下面「没动」才有意义
+    expect(probe!.afterAuto).toBe(probe!.base);
+    expect(probe!.afterSmooth).toBe(probe!.base);
+    // 对照组必须滚起来，否则这条用例只是「守卫把 scrollIntoView 全废了」的假阳性
+    expect(probe!.afterControl).not.toBe(probe!.base);
+  });
+
   test('E2E-EXT-09 Options 页显示已连接', async ({
     page,
     extensionWorker,

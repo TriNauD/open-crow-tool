@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "这是啥？",
-  "version": "2.0.2",
+  "version": "2.0.3",
   "description": "划词即解释，AI 大白话，一键存入笔记本",
   "permissions": ["storage", "tabs", "scripting", "commands"],
   "host_permissions": ["<all_urls>"],
@@ -19,6 +19,13 @@
     "type": "module"
   },
   "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["src/content/main-world-guard.ts"],
+      "run_at": "document_start",
+      "all_frames": true,
+      "world": "MAIN"
+    },
     {
       "matches": ["<all_urls>"],
       "js": ["src/content/index.tsx"],

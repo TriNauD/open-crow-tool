@@ -7,6 +7,7 @@
 | 文件 | 职责 |
 |---|---|
 | `chrome-extension/src/content/index.tsx` | 注入入口：mount React root；window 标志位防重复初始化（Chrome 自动注入与 background 补注入可能叠加） |
+| `chrome-extension/src/content/main-world-guard.ts` | **主世界**（manifest `world:"MAIN"`，`document_start`）守卫：把宿主站点对浮标（`[data-crow-fab]`）调用的 `scrollIntoView` / `scrollIntoViewIfNeeded` 变成空操作——站点会把浮标当成「该滚到哪」的锚点（Gemini 实测），一划完词消息区就平滑滚到被划的词贴顶。必须跑主世界，隔离世界的 expando 主世界看不见 |
 | `chrome-extension/src/content/App.tsx` | 主组件：选区监听 → 浮标 / 卡片状态机；接入 auth 广播与开关；未连接时 fallback 公开 explain 端点（env `VITE_PUBLIC_SITE_URL` 或 dev.crowknows.tech） |
 | `chrome-extension/src/content/FloatingButton.tsx` | 划词后浮标按钮，**双模式定位**（判据见下条）：`anchored` 优先（`position:absolute` 挂进**选区所在的滚动容器**，页面级场景退化为挂 body + 文档坐标，滚动期零 JS 干预）/ `fixed` 回退（rAF 循环 + scroll 同步双路每帧跟随）；两种模式都用 ref 直写 DOM 的 `transform:translate`（亚像素对齐，零 React 重渲染＝零抖动）；`data-crow-fab` 让避让检测排除自身，避免自遮挡导致的上下横跳 |
 | `chrome-extension/src/content/floating-anchor.ts` | 浮标定位纯逻辑（Vitest 直测，无 jsdom）：`resolveAnchorMode()` 判能否 DOM 锚定 + 选锚定宿主、`anchorCoords()` 视口坐标转宿主坐标系（页面级叠窗口滚动量 / 容器级用宿主内容区局部坐标）、`isClippedByHost()` 按可见面积占比判气泡是否被宿主裁掉（阈值 `CLIP_VISIBLE_RATIO`） |
@@ -31,7 +32,8 @@
 - 初始化幂等靠 `chrome-extension/src/content/index.tsx` 的 window 标志位，别删。
 - 样式只能动 `chrome-extension/src/content/styles.ts`（Shadow DOM 隔离了页面全局 CSS）。
 - ExplainCard 父卡片 body 的滚动跟随（`followBottomRef`）必须用 ResizeObserver 观察子卡片包裹层 `.crow-child-card`——观察 body 自身感知不到内容增长（body 高度固定，只有 scrollHeight 在变）。Web 版 `components/ExplanationCard.tsx` 无折叠/跟随逻辑（页面自然流），改这块不用双侧同步。
-- 浮标**必须**带 `data-crow-fab` 且 `isOwnUi()` 要认它：浮标是亮 DOM 里的 `position:fixed`/`absolute` + 最大 z-index，若避让检测不把它当自己人，会永远判定「上方被占 → 翻下方 → 下方被占 → 翻上方」每 400ms 横跳（普通网页上下跳动的根因）。换词靠 App 用新 `key` 重挂载。
+- **划词后页面自己乱滚的根因 = 站点对浮标调 `scrollIntoView`，不是我们的代码在滚**（Gemini 实证）：浮标为根治晃动挂进了站点的滚动容器（见下条），于是成了容器里一个「位置就在选区处」的真实元素。Gemini 划词松手后会对它调 `scrollIntoView({block:'start', behavior:'smooth'})`（真机栈：`at c (gemini.gstatic.com/...)` → `at qoi.Da (...)`，每次划词两次），消息区就平滑滚到被划的词贴顶。**修法只能是主世界**：隔离世界给 DOM 节点 `defineProperty` 加的 expando 主世界读不到（实测主世界仍拿到 prototype 原生方法，写了等于没写），所以由 `main-world-guard.ts` 在主世界按 `[data-crow-fab]` 拦掉「目标是浮标」的 `scrollIntoView`，站点对自己元素的调用一律透传。**排查手法**：主世界 `page.evaluate` 挂 `scrollTop` setter / `scrollIntoView` / `focus` 探针 + 每 30ms 采样 scrollTop，`set scrollTop`/`call ...` 行看栈里的域名（`gemini.gstatic.com` = 站点，`chrome-extension://` = 我们），只有 `POS` 行无 JS 调用则是浏览器内部 scroll anchoring。
+- 浮标**必须**带 `data-crow-fab` 且 `isOwnUi()` 要认它：浮标是亮 DOM 里的 `position:fixed`/`absolute` + 最大 z-index，若避让检测不把它当自己人，会永远判定「上方被占 → 翻下方 → 下方被占 → 翻上方」每 400ms 横跳（普通网页上下跳动的根因）。换词靠 App 用新 `key` 重挂载。**`data-crow-fab` 现在还是主世界守卫的唯一判据（`main-world-guard.ts`），别改名。**
 - **滚动晃动的根因是合成器（GPU）滚动与主线程读坐标的相位差，不是逻辑 bug**：x.com 这类超重 SPA 的滚动由合成器线程驱动，主线程 `getBoundingClientRect()` 读到的坐标**滞后于**视觉滚动，「每帧读坐标 → 写 transform」必然把滞后的坐标盖到**已滚到位**的内容上 → 气泡相对文字慢半帧＝晃。真机日志佐证过逻辑层没问题（`mountSeq` 恒 1、`gap` 恒 -38、`drift` 恒 0）。这是 JS 跟随方案的固有天花板，调 rAF 时序 / scroll 同步 / will-change 都跨不过去。
 - **根治 = DOM 锚定（`anchored` 模式）**：气泡 `position:absolute` 挂进**选区所在的滚动容器**（没有内部容器则退化挂 `body`），用**宿主局部坐标**（容器级）或**文档坐标**（页面级）定位，滚动时浏览器把气泡和文字当同一份内容一起合成滚动，**JS 完全不参与** → 相位差归零。锚定模式下**滚动期间一律不写 DOM**（`scroll` 只打 `lastScrollAt`，静默 140ms 后才低频校验，纠 reflow 偏移）；滚动中一旦写坐标，根治效果立刻失效、晃动原样回来。
 - **容器级锚定是关键补丁**：AI 对话站（ds / chatgpt）的消息区是独立 `overflow:auto` 容器，划词在消息里、气泡挂 `body` 不跟它滚 → 旧逻辑把「祖先有内部滚动容器」当拒绝条件直接回退 `fixed`，而 `fixed` 在合成器滚动站点仍有相位差＝还是晃。改法：锚定宿主向上找第一个内部可滚动容器，气泡挂进去随容器一起滚（容器内 `position:static` 时由组件补 `position:relative` 创建定位上下文，卸载还原）。x.com（无内部容器→挂 body）已验证有效，ds/chatgpt 走容器级分支。
@@ -53,4 +55,5 @@
   - **EXT-13** 断言 reflow 不误判：内容上方撑开 180px 让文字真的移窝 → 必须**只纠偏不降级**，且气泡重新贴回文字。
   - **EXT-14** 断言**容器级锚定**：在 `#scroll-box` 独立滚动容器内划词，气泡必须是该容器的后代（而非 body 直子）、`position:absolute`、容器平滑滚动期间 JS 几乎零写入（≤1 次）、且滚前滚后气泡相对文字的位置恒定（gapDrift<2）。这是 ds / chatgpt 类「消息区是独立滚动容器」站点的根治证据——旧逻辑把「祖先有内部滚动容器」当拒绝条件直接回退 fixed，而 fixed 在合成器滚动站点仍有相位差。
   - **EXT-15** 断言**容器裁剪兜底**：气泡锚进滚动容器后成了宿主的裁剪对象，`#scroll-box` 只有 8px padding 而气泡默认放选区上方 38px，选区在容器顶部第一行时会被切掉一半。必须**翻到下方**且仍保持 `position:absolute` + 在容器内（翻面而非降级成 fixed）；实测关掉该逻辑时可见面积占比掉到 0.48，这条会红。注意裁剪判定只在挂载/翻面落位后判一次——滚动中气泡随文字滚出容器是预期行为，据此降级会每次滚走都误判。
+  - **EXT-16** 断言**主世界 scrollIntoView 守卫**（`main-world-guard.ts`）：`page.evaluate` 跑在主世界，等价复刻站点行为——对浮标调 `scrollIntoView({block:'start'})`（同步与 `smooth` 各一次）后容器 scrollTop **必须纹丝不动**；同时跑一个**对照组**（对容器里的普通元素调 `scrollIntoView`）**必须照常滚**，否则只是「把站点的 scrollIntoView 整体废掉」的假阳性。这条对应的真机 bug：Gemini 划词后对浮标调 `scrollIntoView`，消息区平滑滚到被划的词贴顶。**对照组别取 `box.lastElementChild`——浮标是 portal 追加进容器的，lastElementChild 正是浮标自己**（第一版就这么踩了）。
 - E2E 输出目录别用默认的 `test-results/`——Playwright 启动会清空它，chromium profile 一次几千个文件，沙箱批量删除保护会直接把测试拦下。换 `--output=test-results-ext`（已加 `.gitignore` 通配 `/test-results*/`）。
